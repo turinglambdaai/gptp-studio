@@ -80,20 +80,27 @@ rtimeserver/
     └── roadmap.md
 ```
 
-## Prerequisites
+## Requirements
 
-- [Racket](https://download.racket-lang.org/) 8.x
-- **Windows**: [Npcap](https://npcap.com/) (for packet capture)
-- **Linux**: `libpcap-dev` (`sudo apt install libpcap-dev`)
-- **macOS**: libpcap (built-in)
+| Dependency | Purpose |
+|------------|---------|
+| [Racket](https://download.racket-lang.org/) 8.x | Language runtime / build toolchain |
+| **Windows**: [Npcap](https://npcap.com/) | Packet capture |
+| **Linux**: `libpcap-dev` (`sudo apt install libpcap-dev`) | Packet capture |
+| **macOS**: libpcap (built-in) | Packet capture |
 
 ## Quick Start
 
-### Run
+### 1. Clone
 
 ```bash
 git clone https://github.com/turinglambdaai/rtimeserver.git
 cd rtimeserver
+```
+
+### 2. Run
+
+```bash
 racket main.rkt
 ```
 

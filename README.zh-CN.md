@@ -8,11 +8,11 @@
 
 ## 功能特性
 
-- **参数配置** —— 传输模式（IEEE 802.3 / UDP IPv4）、Profile（gPTP / PTPv2）、Domain 编号、Announce/Sync 发送周期
-- **同步监控** —— 实时显示 Master-Slave 同步状态、时钟偏移量、路径延迟、邻居速率比
-- **报文分析** —— 抓取并解析 PTP 报文（Sync、Follow_Up、Announce、PDelay、Signalling），逐字段展示
-- **日志统计** —— 运行日志记录、同步精度滑动窗口统计（均值 / 极值 / 标准差）
-- **中英双语界面** —— 支持中文和英文切换
+- **参数配置** — 传输模式（IEEE 802.3 / UDP IPv4）、Profile（gPTP / PTPv2）、Domain 编号、Announce/Sync 发送周期
+- **同步监控** — 实时显示 Master-Slave 同步状态、时钟偏移量、路径延迟、邻居速率比
+- **报文分析** — 抓取并解析 PTP 报文（Sync、Follow_Up、Announce、PDelay、Signalling），逐字段展示
+- **日志统计** — 运行日志记录、同步精度滑动窗口统计（均值 / 极值 / 标准差）
+- **中英双语界面** — 支持中文和英文切换
 
 ## 架构
 
@@ -82,18 +82,25 @@ rtimeserver/
 
 ## 环境要求
 
-- [Racket](https://download.racket-lang.org/) 8.x
-- **Windows**：[Npcap](https://npcap.com/)（用于报文抓取）
-- **Linux**：`libpcap-dev`（`sudo apt install libpcap-dev`）
-- **macOS**：libpcap（系统自带）
+| 依赖 | 用途 |
+|------|------|
+| [Racket](https://download.racket-lang.org/) 8.x | 语言运行时 / 构建工具链 |
+| **Windows**：[Npcap](https://npcap.com/) | 报文抓取 |
+| **Linux**：`libpcap-dev`（`sudo apt install libpcap-dev`） | 报文抓取 |
+| **macOS**：libpcap（系统自带） | 报文抓取 |
 
 ## 快速开始
 
-### 运行
+### 1. 克隆仓库
 
 ```bash
 git clone https://github.com/turinglambdaai/rtimeserver.git
 cd rtimeserver
+```
+
+### 2. 运行
+
+```bash
 racket main.rkt
 ```
 
