@@ -1,4 +1,4 @@
-# rTimeServer
+# RTimeServer
 
 基于 [Racket](https://racket-lang.org/) 开发的跨平台 gPTP (IEEE 802.1AS) 调试工具。提供图形化界面，用于配置 PTP 参数、监控时间同步状态、抓取和分析 PTP 报文，以及查看运行日志与同步精度统计。
 

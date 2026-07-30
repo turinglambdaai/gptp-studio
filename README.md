@@ -1,4 +1,4 @@
-# rTimeServer
+# RTimeServer
 
 A cross-platform gPTP (IEEE 802.1AS) debugging tool built with [Racket](https://racket-lang.org/). It provides a GUI for configuring PTP parameters, monitoring time synchronization status, capturing and analyzing PTP packets, and viewing runtime logs with sync accuracy statistics.
 
