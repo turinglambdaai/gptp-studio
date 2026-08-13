@@ -11,7 +11,7 @@
 ## Getting Started
 
 ```bash
-git clone https://github.com/jrtxio/rtimeserver.git
+git clone https://github.com/turinglambdaai/rtimeserver.git
 cd rtimeserver
 racket main.rkt
 ```

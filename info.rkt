@@ -3,7 +3,7 @@
 (define collection "rtimeserver")
 (define pkg-desc "gPTP (IEEE 802.1AS) cross-platform debugging tool")
 (define version "0.2.0")
-(define pkg-authors '("jrtxio"))
+(define pkg-authors '("turinglambdaai"))
 (define license 'Apache-2.0)
 
 (define deps
