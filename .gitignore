@@ -36,3 +36,4 @@ build/
 .gptp-studio/
 dist-test/
 dist/
+dist-manual/
