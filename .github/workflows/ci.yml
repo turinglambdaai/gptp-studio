@@ -34,7 +34,7 @@ jobs:
           raco pkg install --auto --no-docs --link "$HOME/glaze-src"
 
       - name: Compile
-        run: raco make main.rkt proto engine capture data app
+        run: raco make main.rkt
 
       - name: Run tests
         run: raco test tests/
