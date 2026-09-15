@@ -12,11 +12,12 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Racket (official build — required for relocatable bundles)
+      - name: Install Racket (official build, native arm64 — required for relocatable bundles)
         uses: Bogdanp/setup-racket@v1.11
         with:
           version: '9.3'
           distribution: full
+          architecture: aarch64
       - name: Install Glaze
         run: |
           git clone --depth 1 https://github.com/turinglambdaai/glaze.git "$HOME/glaze-src"
