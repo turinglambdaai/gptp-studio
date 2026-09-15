@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macOS-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Racket (official build — required for relocatable bundles)
+        uses: Bogdanp/setup-racket@v1.11
+        with:
+          version: '9.3'
+          distribution: full
+      - name: Install Glaze
+        run: |
+          git clone --depth 1 https://github.com/turinglambdaai/glaze.git "$HOME/glaze-src"
+          raco pkg install --auto --no-docs --link "$HOME/glaze-src"
+      - name: Build and package .app
+        run: |
+          raco make main.rkt
+          ./scripts/package-macos.sh "$(dirname "$(readlink -f "$(which racket)")")"
+          hdiutil create -volname "gPTP Studio" -srcfolder dist -ov -format UDZO \
+            "gPTP-Studio-${GITHUB_REF_NAME}-macos.dmg"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: gPTP-Studio-*-macos.dmg
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.11
+        with:
+          version: '9.3'
+          distribution: full
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev libwebkit2gtk-4.1-dev linuxptp
+      - name: Install Glaze
+        run: |
+          git clone --depth 1 https://github.com/turinglambdaai/glaze.git "$HOME/glaze-src"
+          raco pkg install --auto --no-docs --link "$HOME/glaze-src"
+      - name: Build tarball
+        run: |
+          raco make main.rkt
+          raco exe -m -o dist/gptp-studio main.rkt
+          raco distribute dist/gptp-studio-distributed dist/gptp-studio
+          cp -r public dist/gptp-studio-distributed/
+          tar -czf "gPTP-Studio-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C dist gptp-studio-distributed
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball
+          path: gPTP-Studio-*-linux-x64.tar.gz
+
+  publish:
+    needs: [macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/macos-dmg/*
+            artifacts/linux-tarball/*
+          generate_release_notes: true

@@ -26,3 +26,13 @@ dist/
 # User config (local overrides)
 rtimeserver.config
 *.local
+
+# app runtime / secrets
+keys/private.pem
+app/keys/private.pem
+*.lic
+dist/
+build/
+.gptp-studio/
+dist-test/
+dist/

@@ -1,53 +1,6 @@
-# Roadmap
+# 路线图 / Roadmap
 
-## Phase 0 — Foundation (current)
-
-- [x] Project restructuring and module layout
-- [x] GUI refactored from single file to modular panels
-- [x] Protocol type definitions and constants
-- [x] i18n (Chinese/English) string table
-- [x] Architecture and protocol reference documentation
-- [ ] Verify GUI runs correctly after refactor
-
-## Phase 1 — Protocol Layer
-
-- [ ] Implement PTP common header parser/builder
-- [ ] Implement Sync message parser/builder
-- [ ] Implement Follow_Up message parser/builder (gPTP extended fields)
-- [ ] Implement Announce message parser/builder
-- [ ] Implement PDelay messages (Req/Resp/Follow_Up)
-- [ ] Implement Signalling message parser/builder
-- [ ] Implement top-level parser dispatcher
-- [ ] Unit tests with handcrafted byte fixtures for each message type
-
-## Phase 2 — Network Layer
-
-- [ ] NIC enumeration (cross-platform)
-- [ ] Raw socket FFI bindings (Linux `AF_PACKET`, macOS `AF_NDRV`, Windows Npcap)
-- [ ] Packet capture with ethertype 0x88F7 filter
-- [ ] Raw Ethernet frame sending
-- [ ] Integration test with loopback or test packets
-
-## Phase 3 — Core Engine
-
-- [ ] Runtime state management (thread-safe)
-- [ ] PTP interval timers (log₂-based)
-- [ ] Sync accuracy statistics (sliding window)
-- [ ] Engine: wire together network + protocol + state
-- [ ] Debug listen-only mode (passive packet capture + analysis)
-
-## Phase 4 — GUI Panels
-
-- [ ] Monitor panel: real-time offset/delay display
-- [ ] Capture panel: packet list with detail view
-- [ ] Log panel: scrollable log with severity levels
-- [ ] Settings panel: language toggle, NIC selection
-
-## Phase 5 — Polish
-
-- [ ] Sync accuracy charts/graphs
-- [ ] Export logs to file
-- [ ] Configuration persistence (save/load)
-- [ ] Standalone executable packaging per platform
-- [ ] Master mode (send Sync/Announce)
-- [ ] gPTP BMCA (Best Master Clock Algorithm) visualization
+- **v1.1**：GM 运行时调优（pmc GRANDMASTER_SETTINGS_NP 免重启）、polkit 提权（免 sudo）、报文与异常注入（负向测试）、Wireshark 一键联动
+- **v1.2**：边界时钟多端口、BMCA 演化时间轴、测试报告导出（JSON/Markdown）
+- **v1.x**：Windows 支持（glaze WebView2 UI + npcap 抓包 + OpenAvnu 引擎评估）、暗色主题、自动更新通道
+- **v2**：TSN 全家桶可视化（802.1Qbv/Qbu 联动分析）、远程引擎（Linux 盒子 + Mac GUI）

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gPTP Studio</title>
+<link rel="stylesheet" href="css/app.css?v=2">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏱</text></svg>">
+</head>
+<body>
+<!-- ======== 顶部状态栏 ======== -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">⏱</span>
+    <span class="brand-name">gPTP Studio</span>
+    <span class="brand-version" id="version-badge"></span>
+  </div>
+  <div class="topbar-status" id="statusbar">
+    <span class="pill pill-role" id="st-role">—</span>
+    <span class="pill" id="st-portstate">—</span>
+    <span class="pill" id="st-gm" title="GrandMaster">—</span>
+    <span class="pill pill-value" id="st-offset" title="offsetFromMaster">offset —</span>
+    <span class="pill pill-value" id="st-delay" title="meanPathDelay">delay —</span>
+  </div>
+  <div class="topbar-right">
+    <span class="pill" id="st-capture">—</span>
+    <span class="pill pill-tier" id="st-tier">—</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ======== 左侧导航 ======== -->
+  <nav class="sidebar">
+    <a class="nav-item active" href="#/overview" data-page="overview">
+      <span class="nav-icon">📊</span><span data-i18n="nav-overview">同步总览</span>
+    </a>
+    <a class="nav-item" href="#/nics" data-page="nics">
+      <span class="nav-icon">🔌</span><span data-i18n="nav-nics">链路与网卡</span>
+    </a>
+    <a class="nav-item" href="#/config" data-page="config">
+      <span class="nav-icon">🎛️</span><span data-i18n="nav-config">角色与配置</span>
+    </a>
+    <a class="nav-item" href="#/source" data-page="source">
+      <span class="nav-icon">🛰️</span><span data-i18n="nav-source">参考源</span>
+    </a>
+    <a class="nav-item" href="#/packets" data-page="packets">
+      <span class="nav-icon">📦</span><span data-i18n="nav-packets">报文分析</span>
+    </a>
+    <a class="nav-item" href="#/runtime" data-page="runtime">
+      <span class="nav-icon">🧰</span><span data-i18n="nav-runtime">运行与日志</span>
+    </a>
+    <div class="sidebar-footer">
+      <select id="lang-switch" class="lang-switch" title="Language">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </nav>
+
+  <!-- ======== 内容区 ======== -->
+  <main class="content">
+
+    <!-- 同步总览 -->
+    <section class="page active" id="page-overview">
+      <div class="card chart-card">
+        <div class="card-head">
+          <h2 data-i18n="nav-overview">同步总览</h2>
+          <div class="legend">
+            <span class="legend-item"><i class="dot dot-blue"></i><span data-i18n="ov-offset">offset</span></span>
+            <span class="legend-item"><i class="dot dot-orange"></i><span data-i18n="ov-delay">delay</span></span>
+          </div>
+        </div>
+        <canvas id="chart" width="1600" height="640"></canvas>
+        <div class="chart-empty" id="chart-empty" data-i18n="ov-nostart">尚未启动。</div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3 data-i18n="nav-overview">同步总览</h3>
+          <div class="bigvalue" id="ov-offset-value">—</div>
+          <div class="sublabel" data-i18n="ov-offset">offsetFromMaster</div>
+          <div class="bigvalue" id="ov-delay-value">—</div>
+          <div class="sublabel" data-i18n="ov-delay">meanPathDelay</div>
+        </div>
+        <div class="card">
+          <h3>状态</h3>
+          <table class="kv-table">
+            <tr><td data-i18n="ov-port-state">端口状态</td><td id="ov-portstate">—</td></tr>
+            <tr><td data-i18n="ov-gm">当前 GM</td><td class="mono" id="ov-gm">—</td></tr>
+            <tr><td data-i18n="ov-freq">频差</td><td id="ov-freq">—</td></tr>
+            <tr><td data-i18n="ov-threshold">告警阈值</td><td id="ov-threshold">±100 µs</td></tr>
+            <tr><td data-i18n="ov-engine">引擎</td><td id="ov-engine">—</td></tr>
+            <tr><td data-i18n="ov-capture">抓包</td><td id="ov-capture">—</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 链路与网卡 -->
+    <section class="page" id="page-nics">
+      <div class="card">
+        <div class="card-head">
+          <h2 data-i18n="nav-nics">链路与网卡</h2>
+          <button class="btn" id="nics-refresh" data-i18n="nic-refresh">重新扫描</button>
+        </div>
+        <table class="data-table" id="nics-table">
+          <thead>
+            <tr>
+              <th data-i18n="nic-name">网卡</th><th data-i18n="nic-mac">MAC</th>
+              <th data-i18n="nic-state">状态</th><th data-i18n="nic-hwts">硬件时间戳</th>
+              <th data-i18n="nic-phc">PHC 设备</th><th data-i18n="nic-driver">驱动</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 角色与配置 -->
+    <section class="page" id="page-config">
+      <div class="grid-config">
+        <div class="card">
+          <h2 data-i18n="nav-config">角色与配置</h2>
+          <div class="seg" id="role-seg">
+            <button data-role="grandmaster" class="active">GrandMaster</button>
+            <button data-role="slave" data-i18n="role-slave">从钟</button>
+            <button data-role="listener" data-i18n="role-listener">被动监听</button>
+          </div>
+
+          <div class="form-grid">
+            <label data-i18n="cfg-iface">网卡</label>
+            <select id="cfg-iface"></select>
+
+            <label data-i18n="cfg-mode">运行方式</label>
+            <select id="cfg-mode">
+              <option value="sim" data-i18n="mode-sim">模拟器</option>
+              <option value="real" data-i18n="mode-real">真实引擎 (linuxptp)</option>
+            </select>
+
+            <label data-i18n="cfg-domain">Domain</label>
+            <input id="cfg-domain" type="number" min="0" max="127" value="0">
+
+            <label data-i18n="cfg-priority1">Priority1</label>
+            <input id="cfg-priority1" type="number" min="0" max="255" value="0">
+
+            <label data-i18n="cfg-priority2">Priority2</label>
+            <input id="cfg-priority2" type="number" min="0" max="255" value="248">
+
+            <label data-i18n="cfg-sync">Sync 周期</label>
+            <div class="input-row">
+              <input id="cfg-sync" type="number" step="1" min="-7" max="7" value="-3">
+              <span class="hint" id="cfg-sync-hint">125 ms</span>
+            </div>
+
+            <label data-i18n="cfg-announce">Announce 周期</label>
+            <div class="input-row">
+              <input id="cfg-announce" type="number" step="1" min="-7" max="7" value="0">
+              <span class="hint" id="cfg-announce-hint">1 s</span>
+            </div>
+
+            <label data-i18n="cfg-transport">传输模式</label>
+            <select id="cfg-transport">
+              <option value="L2">IEEE 802.3 (L2)</option>
+              <option value="UDPv4">UDP/IPv4</option>
+            </select>
+
+            <label data-i18n="cfg-delay">延迟机制</label>
+            <select id="cfg-delay">
+              <option value="P2P">P2P (gPTP)</option>
+              <option value="E2E">E2E</option>
+            </select>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn-primary" id="engine-start" data-i18n="cfg-start">启动</button>
+            <button class="btn btn-danger" id="engine-stop" data-i18n="cfg-stop">停止</button>
+            <button class="btn" id="preset-save-btn" data-i18n="cfg-save-preset">保存为预设</button>
+          </div>
+          <div class="alert" id="cfg-alert" hidden></div>
+        </div>
+
+        <div class="card">
+          <h3 data-i18n="cfg-preview">ptp4l.conf 预览</h3>
+          <pre class="conf" id="conf-preview"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 参考源 -->
+    <section class="page" id="page-source">
+      <div class="card">
+        <h2 data-i18n="src-title">参考源管理</h2>
+        <p class="muted" data-i18n="src-desc">GM 模式下可将系统时钟经 phc2sys 同步进 PHC。</p>
+        <div class="seg" id="source-seg">
+          <button data-source="system" class="active" data-i18n="src-system">本地系统时钟</button>
+          <button data-source="none" data-i18n="src-none">不使用外部参考</button>
+        </div>
+        <div class="alert alert-info" id="source-note"></div>
+      </div>
+    </section>
+
+    <!-- 报文分析 -->
+    <section class="page" id="page-packets">
+      <div class="card">
+        <div class="card-head">
+          <h2 data-i18n="nav-packets">报文分析</h2>
+          <div class="btn-row">
+            <select id="pk-iface"></select>
+            <button class="btn btn-primary" id="pk-start" data-i18n="pk-start">开始抓包</button>
+            <button class="btn btn-danger" id="pk-stop" data-i18n="pk-stop">停止抓包</button>
+            <span class="spacer"></span>
+            <button class="btn" id="pk-import" data-i18n="pk-import">导入</button>
+            <button class="btn" id="pk-export" data-i18n="pk-export">导出</button>
+            <button class="btn" id="pk-clear" data-i18n="pk-clear">清空</button>
+          </div>
+        </div>
+        <div class="pk-summary" id="pk-summary"></div>
+        <div class="pk-table-wrap">
+          <table class="data-table pk-table" id="pk-table">
+            <thead>
+              <tr>
+                <th data-i18n="pk-no">#</th><th data-i18n="pk-time">时间</th>
+                <th data-i18n="pk-type">类型</th><th data-i18n="pk-seq">Seq</th>
+                <th data-i18n="pk-domain">Domain</th><th data-i18n="pk-src">源端口</th>
+                <th data-i18n="pk-len">长度</th>
+              </tr>
+            </thead>
+            <tbody id="pk-tbody"></tbody>
+          </table>
+          <div class="empty" id="pk-empty" data-i18n="pk-empty">暂无报文</div>
+        </div>
+      </div>
+      <div class="card pk-detail" id="pk-detail" hidden>
+        <div class="card-head">
+          <h3 data-i18n="pk-detail">报文详情</h3>
+          <button class="btn btn-sm" id="pk-detail-close">✕</button>
+        </div>
+        <div class="pk-detail-body">
+          <div id="pk-tree" class="pk-tree"></div>
+          <div id="pk-hex" class="pk-hex"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 运行与日志 -->
+    <section class="page" id="page-runtime">
+      <div class="grid-2">
+        <div class="card">
+          <h2 data-i18n="rt-logs">聚合日志</h2>
+          <div class="btn-row">
+            <select id="log-level">
+              <option value="">ALL</option>
+              <option value="info">INFO</option>
+              <option value="warn">WARN</option>
+              <option value="error">ERROR</option>
+            </select>
+            <input id="log-search" placeholder="搜索…">
+            <button class="btn" id="log-export" data-i18n="rt-export-logs">导出</button>
+          </div>
+          <div class="log-view" id="log-view"></div>
+        </div>
+        <div class="col">
+          <div class="card">
+            <h3 data-i18n="rt-presets">场景预设</h3>
+            <div class="btn-row">
+              <input id="preset-name" placeholder="预设名">
+              <button class="btn" id="preset-save2" data-i18n="cfg-save-preset">保存当前</button>
+            </div>
+            <table class="data-table" id="preset-table"><tbody></tbody></table>
+          </div>
+          <div class="card" id="about-card">
+            <h3 data-i18n="rt-about">关于 / 许可证</h3>
+            <div id="about-body"></div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="lic-trial" data-i18n="lic-trial">开始试用</button>
+              <button class="btn" id="lic-activate" data-i18n="lic-activate">激活许可证</button>
+              <button class="btn" id="lic-buy" data-i18n="lic-buy">购买 Pro</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 全局提示 -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script src="/glaze/api.js"></script>
+<script src="js/chart.js?v=2"></script>
+<script src="js/app.js?v=2"></script>
+
+</body>
+</html>

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+        racket-version: ['9.3']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.11
+        with:
+          version: ${{ matrix.racket-version }}
+
+      - name: Install libpcap (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Checkout and install Glaze dependency
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/turinglambdaai/glaze.git "$HOME/glaze-src"
+          raco pkg install --auto --no-docs --link "$HOME/glaze-src"
+
+      - name: Compile
+        run: raco make main.rkt proto engine capture data app
+
+      - name: Run tests
+        run: raco test tests/
+
+      - name: Headless selfcheck
+        run: racket main.rkt --selfcheck
