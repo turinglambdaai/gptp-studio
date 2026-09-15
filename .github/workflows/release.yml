@@ -53,7 +53,7 @@ jobs:
       - name: Build tarball
         run: |
           raco make main.rkt
-          raco exe -m -o dist/gptp-studio main.rkt
+          raco exe -o dist/gptp-studio main.rkt
           raco distribute dist/gptp-studio-distributed dist/gptp-studio
           cp -r public dist/gptp-studio-distributed/
           tar -czf "gPTP-Studio-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C dist gptp-studio-distributed
