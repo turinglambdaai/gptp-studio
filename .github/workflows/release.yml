@@ -53,6 +53,7 @@ jobs:
       - name: Build tarball
         run: |
           raco make main.rkt
+          mkdir -p dist
           raco exe -o dist/gptp-studio main.rkt
           raco distribute dist/gptp-studio-distributed dist/gptp-studio
           cp -r public dist/gptp-studio-distributed/
