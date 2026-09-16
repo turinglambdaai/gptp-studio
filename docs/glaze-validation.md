@@ -22,13 +22,17 @@
 | `notify!` / `single-instance?` / `webview-focus!` / `webview-navigate` | 全部即插即用 |
 | `run-app` | 临时端口 + token + on-ready/on-error/on-close 组装一次到位；浏览器 fallback 可用 |
 
-## 踩坑与已回馈（Issues）
+## 踩坑与已回馈（已升级为 PR）
 
-1. **#1 build-app 打包后 launcher 静默失效**（严重）：assemble-macos-bundle 产出的
-   `.app` 任何参数 exit 0 且程序体不执行；`raco exe` 裸 launcher 与 distribute 扁平布局
-   均正常。gPTP Studio 的 workaround（手工组装，实测可用）：`scripts/package-macos.sh`。
-2. **#2 遮挡窗口疑似 AppNap 暂停前端定时器**：监测类应用需要在 open-window 阶段做
-   NSProcessInfo beginActivity 豁免，或至少文档化。
+1. **build-app 打包后 launcher 静默失效**（严重）——已定位根因并修复：
+   生成的入口包装把用户 main 当普通库 require，`(module+ main)` 子模块永远不执行。
+   修复保留静态 require（依赖闭包嵌入）+ 显式实例化 main 子模块，另验证了
+   顶层脚本风格应用不双重运行。→ **PR [#3](https://github.com/turinglambdaai/glaze/pull/3)**
+   （修复后 gPTP Studio 回归 glaze build-app 打包，实测 GUI/SSE 正常）。
+2. **遮挡窗口时前端定时器冻结**——`ensure-app!` 增加 NSProcessInfo
+   beginActivityWithOptions（NSActivityUserInitiated）进程级 App Nap 豁免，
+   token 永不释放；WebKit 页面可见性节流作为平台限制在 PR 中说明。
+   → **PR [#4](https://github.com/turinglambdaai/glaze/pull/4)**
 
 ## 文档/工程改进建议（未开 issue 的顺手记录）
 
