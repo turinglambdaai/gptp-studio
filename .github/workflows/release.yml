@@ -8,7 +8,15 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tag, app version and changelog
+        run: bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
+
   macos:
+    needs: verify
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,19 +30,28 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/turinglambdaai/glaze.git "$HOME/glaze-src"
           raco pkg install --auto --no-docs --link "$HOME/glaze-src"
-      - name: Build and package .app
+      - name: Build, package and smoke-test .app
+        shell: zsh {0}
         run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          RACKET_BIN="$(dirname "$(command -v racket)")"
           raco make main.rkt
-          ./scripts/package-macos.sh "$(dirname "$(readlink -f "$(which racket)")")"
+          zsh scripts/package-macos.sh "$RACKET_BIN" "$VERSION"
           hdiutil create -volname "gPTP Studio" -srcfolder dist -ov -format UDZO \
             "gPTP-Studio-${GITHUB_REF_NAME}-macos.dmg"
+          shasum -a 256 "gPTP-Studio-${GITHUB_REF_NAME}-macos.dmg" \
+            > "gPTP-Studio-${GITHUB_REF_NAME}-macos.dmg.sha256"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: gPTP-Studio-*-macos.dmg
+          path: |
+            gPTP-Studio-*-macos.dmg
+            gPTP-Studio-*-macos.dmg.sha256
 
   linux:
+    needs: verify
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -43,27 +60,43 @@ jobs:
         with:
           version: '9.3'
           distribution: full
-      - name: Install deps
+      - name: Install build/runtime deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpcap-dev libwebkit2gtk-4.1-dev linuxptp
+          sudo apt-get install -y libpcap-dev libwebkit2gtk-4.1-dev linuxptp ethtool iproute2
       - name: Install Glaze
         run: |
           git clone --depth 1 https://github.com/turinglambdaai/glaze.git "$HOME/glaze-src"
           raco pkg install --auto --no-docs --link "$HOME/glaze-src"
-      - name: Build tarball
+      - name: Build tarball and smoke-test distributed binary
+        shell: bash
         run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
           raco make main.rkt
           mkdir -p dist
           raco exe -o dist/gptp-studio main.rkt
           raco distribute dist/gptp-studio-distributed dist/gptp-studio
           cp -r public dist/gptp-studio-distributed/
-          tar -czf "gPTP-Studio-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C dist gptp-studio-distributed
+
+          BINARY="dist/gptp-studio-distributed/bin/gptp-studio"
+          ACTUAL_VERSION="$("$BINARY" --version)"
+          if [[ "$ACTUAL_VERSION" != "$VERSION" ]]; then
+            echo "distributed/runtime version mismatch: tag=$VERSION runtime=$ACTUAL_VERSION" >&2
+            exit 1
+          fi
+          "$BINARY" --selfcheck --port 18732
+
+          ARCHIVE="gPTP-Studio-${GITHUB_REF_NAME}-linux-x64.tar.gz"
+          tar -czf "$ARCHIVE" -C dist gptp-studio-distributed
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-tarball
-          path: gPTP-Studio-*-linux-x64.tar.gz
+          path: |
+            gPTP-Studio-*-linux-x64.tar.gz
+            gPTP-Studio-*-linux-x64.tar.gz.sha256
 
   publish:
     needs: [macos, linux]
