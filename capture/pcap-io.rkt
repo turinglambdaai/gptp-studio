@@ -134,11 +134,11 @@
   (define resolution (if nano? (/ 1 1000000000) (/ 1 1000000)))
   (define snaplen (u32-at bs 16 big?))
   (define linktype (bitwise-and (u32-at bs 20 big?) #xFFFF))
-
   (define frames
     (let loop ([pos 24] [acc '()])
       (cond
-        [(> (+ pos 16) (bytes-length bs)) (reverse acc)]
+        [(> (+ pos 16) (bytes-length bs))
+         (reverse acc)]
         [else
          (define ts-sec (u32-at bs pos big?))
          (define ts-frac (u32-at bs (+ pos 4) big?))
@@ -146,8 +146,10 @@
          (define orig-len (u32-at bs (+ pos 12) big?))
          (define data-off (+ pos 16))
          (cond
-           [(> incl-len (max snaplen 262144)) (reverse acc)]
-           [(> (+ data-off incl-len) (bytes-length bs)) (reverse acc)]
+           [(> incl-len (max snaplen 262144))
+            (reverse acc)]
+           [(> (+ data-off incl-len) (bytes-length bs))
+            (reverse acc)]
            [else
             (define nsec (if nano? ts-frac (* ts-frac 1000)))
             (define frame
@@ -156,14 +158,11 @@
                           #:resolution resolution
                           #:linktype linktype
                           #:ticks (+ (* ts-sec (denominator resolution)) ts-frac)))
-            (loop (+ data-off incl-len) (cons frame acc))])]))))
+            (loop (+ data-off incl-len) (cons frame acc))])])))
   (values frames linktype))
 
 ;; ---- pcapng -----------------------------------------------------------------
 
-;; if_tsresol option 9:
-;;   bit7 clear -> units are 10^-N seconds
-;;   bit7 set   -> units are 2^-(N & 0x7f) seconds
 (define (tsresol-byte->resolution raw)
   (define exponent (bitwise-and raw #x7F))
   (if (zero? (bitwise-and raw #x80))
@@ -202,8 +201,6 @@
 (define (parse-pcapng bs)
   (define total (bytes-length bs))
   (define current-big? #f)
-  ;; Interface IDs are scoped to a section and assigned by IDB order.
-  ;; value = (cons linktype exact-resolution)
   (define interfaces (make-hash))
   (define next-interface 0)
   (define first-linktype 1)
@@ -216,7 +213,6 @@
   (define (handle-idb! pos block-len big?)
     (when (>= block-len 20)
       (define linktype (u16-at bs (+ pos 8) big?))
-      ;; block header 8 + fixed IDB body 8 => options start at +16.
       (define resolution
         (scan-idb-tsresol bs (+ pos 16) (+ pos block-len -4) big?))
       (hash-set! interfaces next-interface (cons linktype resolution))
@@ -254,7 +250,8 @@
   (define frames
     (let loop ([pos 0] [acc '()])
       (cond
-        [(> (+ pos 12) total) (reverse acc)]
+        [(> (+ pos 12) total)
+         (reverse acc)]
         [else
          (define is-shb? (shb-at? bs pos))
          (define big?
@@ -280,7 +277,6 @@
                  (if frame (cons frame acc) acc)]
                 [else acc]))
             (loop (+ pos block-len) next-acc)])])))
-
   (values frames first-linktype))
 
 ;; ---- classic pcap writer ----------------------------------------------------
@@ -295,23 +291,18 @@
   (define nano? (ormap frame-needs-nano? frames))
   (call-with-output-file path
     (lambda (out)
-      ;; little-endian classic pcap; choose nano magic only when required.
       (write-bytes (if nano? #"\x4D\x3C\xB2\xA1" #"\xD4\xC3\xB2\xA1") out)
       (write-bytes (bytes 2 4 0 0) out)
       (write-bytes (bytes 0 0 0 0) out)
       (write-bytes (bytes 0 0 0 0) out)
       (write-bytes (integer->integer-bytes 262144 4 #f #f) out)
       (write-bytes (integer->integer-bytes 1 4 #f #f) out)
-
       (for ([frame (in-list frames)])
         (define caplen (list-ref frame 1))
         (define orig-len (list-ref frame 2))
         (define data (list-ref frame 3))
         (define-values (sec nsec) (frame-exact-parts frame))
-        (define fraction
-          (if nano?
-              nsec
-              (quotient (+ nsec 500) 1000)))
+        (define fraction (if nano? nsec (quotient (+ nsec 500) 1000)))
         (define limit (if nano? 1000000000 1000000))
         (define carry? (>= fraction limit))
         (define sec* (if carry? (add1 sec) sec))
