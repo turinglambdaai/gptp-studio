@@ -39,11 +39,13 @@ jobs:
           node --check public/js/chart.js
           node --check public/js/app.js
           node --check public/js/role-consistency.js
+          node --check public/js/reference-controls.js
           node --check public/js/ux.js
           node --check public/js/tools.js
           node --check public/js/packet-analysis.js
           node --check public/js/readiness-tools.js
           node --check public/js/session-controls.js
+          node --check public/js/capture-quality.js
           test -f public/css/app.css
           test -f public/css/ux.css
           test -f public/css/packet-analysis.css

@@ -9,6 +9,7 @@
 
 (require racket/file
          racket/format
+         racket/hash
          racket/list
          racket/path
          racket/string
@@ -30,18 +31,17 @@
 
 (provide api-routes engine-start bootstrap)
 
-;; tier-dependent packet store capacity
 (define (apply-tier-capacity!)
   (packet-store-set-capacity! app-packets (if (gate-pro?) 50000 2000)))
 
 (define current-params-box (box (default-params-for-role 'listener)))
-(define verify-box (box (hasheq)))  ; latest in-page verification snapshot
+(define verify-box (box (hasheq)))
 
 (define (current-params) (unbox current-params-box))
 (define (set-current-params! p) (set-box! current-params-box p))
 
 (define-api-routes api-routes
-  ;; ---- bootstrap: everything the UI needs on load -------------------------
+  ;; ---- bootstrap -----------------------------------------------------------
   [(GET "api/bootstrap")
    (bootstrap)
    (begin
@@ -105,12 +105,24 @@
 
   [(POST "api/engine/stop")
    (engine-stop)
-   (begin (sup-stop app-supervisor) (hasheq 'ok #t 'status (sup-status app-supervisor)))]
+   (begin
+     (sup-stop app-supervisor)
+     (hasheq 'ok #t 'status (sup-status app-supervisor)))]
 
   [(POST "api/engine/check")
    (engine-check)
    (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
      (hasheq 'ok #t 'blocks (sup-check-offsets app-supervisor)))]
+
+  [(POST "api/engine/reference")
+   (engine-reference [source string?])
+   (define ref (string->symbol source))
+   (cond
+     [(not (memq ref '(system none)))
+      (hasheq 'ok #f 'error "未知参考源")]
+     [else
+      (sup-set-reference app-supervisor ref)
+      (hasheq 'ok #t 'status (sup-status app-supervisor))])]
 
   ;; ---- params & conf preview ---------------------------------------------
   [(POST "api/params/merge")
@@ -129,10 +141,10 @@
                  [clock_class exact-integer? -999])
    (define body
      (for/hasheq ([k (in-list '(domain priority1 priority2 log_announce_interval
-                                            log_sync_interval network_transport delay_mechanism
-                                            transport_specific ptp_dst_mac p2p_dst_mac
-                                            gm_capable slave_only assume_two_step
-                                            path_trace_enabled follow_up_info clock_class))]
+                                log_sync_interval network_transport delay_mechanism
+                                transport_specific ptp_dst_mac p2p_dst_mac
+                                gm_capable slave_only assume_two_step
+                                path_trace_enabled follow_up_info clock_class))]
                   [v (in-list (list domain priority1 priority2 log_announce_interval
                                     log_sync_interval network_transport delay_mechanism
                                     transport_specific ptp_dst_mac p2p_dst_mac
@@ -156,11 +168,15 @@
    (capture-start [iface string?])
    (settings-set! 'capture-iface iface)
    (define-values (ok? err) (cm-start app-capture iface))
-   (if ok? (hasheq 'ok #t) (hasheq 'ok #f 'error err))]
+   (if ok?
+       (hasheq 'ok #t 'status (cm-status app-capture))
+       (hasheq 'ok #f 'error err))]
 
   [(POST "api/capture/stop")
    (capture-stop)
-   (begin (cm-stop app-capture) (hasheq 'ok #t))]
+   (begin
+     (cm-stop app-capture)
+     (hasheq 'ok #t 'status (cm-status app-capture)))]
 
   ;; ---- packets ------------------------------------------------------------
   [(GET "api/packets")
@@ -177,8 +193,12 @@
 
   [(POST "api/packets/clear")
    (packets-clear)
-   (begin (packet-store-clear! app-packets) (bus-broadcast! app-bus 'packets-cleared (hasheq)) (hasheq 'ok #t))]
+   (begin
+     (packet-store-clear! app-packets)
+     (bus-broadcast! app-bus 'packets-cleared (hasheq))
+     (hasheq 'ok #t))]
 
+  ;; ---- pcap / pcapng ------------------------------------------------------
   [(POST "api/pcap/import")
    (pcap-import)
    (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
@@ -191,11 +211,8 @@
         (packet-store-clear! app-packets)
         (define decoded
           (for/list ([f (in-list frames)])
-            (decode-frame (list-ref f 3)
-                          #:ts (list-ref f 0)
-                          #:iface "offline"
-                          #:source (path->string path))))
-        (for ([d (in-list (reverse decoded))]) ; keep newest-first order
+            (capture-file-frame->packet f path)))
+        (for ([d (in-list (reverse decoded))])
           (packet-store-push! app-packets d))
         (log-add! app-logs 'capture 'info
                   (format "导入 ~a：~a 帧（链路层 ~a），其中 PTP 帧 ~a"
@@ -207,7 +224,8 @@
    (pcap-export)
    (define gate (gate-check 'export))
    (cond
-     [(not (eq? gate #t)) (hasheq 'ok #f 'need_pro #t 'error gate)]
+     [(not (eq? gate #t))
+      (hasheq 'ok #f 'need_pro #t 'error gate)]
      [else
       (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
         (define path (save-file-dialog #:title "导出 pcap"
@@ -217,11 +235,9 @@
           [(not path) (hasheq 'ok #f 'cancelled #t)]
           [else
            (define frames
-             (reverse (for/list ([f (in-list (packet-store-snapshot app-packets 999999))])
-                        (list (or (hash-ref f 'ts 0) 0)
-                              (hash-ref f 'length 0)
-                              (hash-ref f 'length 0)
-                              (jsexpr-hex->bytes f)))))
+             (reverse
+              (for/list ([f (in-list (packet-store-snapshot app-packets 999999))])
+                (packet->capture-file-frame f))))
            (write-capture-file path frames)
            (hasheq 'ok #t 'count (length frames) 'path (path->string path))]))])]
 
@@ -260,7 +276,8 @@
   [(POST "api/preset/save")
    (preset-save-route [name string?] [role string?] [iface string? ""])
    (cond
-     [(= (string-length name) 0) (hasheq 'ok #f 'error "预设名不能为空")]
+     [(= (string-length name) 0)
+      (hasheq 'ok #f 'error "预设名不能为空")]
      [else
       (preset-save name (string->symbol role)
                    (current-params)
@@ -274,7 +291,9 @@
      [(not p) (hasheq 'ok #f 'error "预设不存在")]
      [else
       (set-current-params! (hash-ref p 'params))
-      (hasheq 'ok #t 'role (hash-ref p 'role) 'iface (hash-ref p 'iface)
+      (hasheq 'ok #t
+              'role (hash-ref p 'role)
+              'iface (hash-ref p 'iface)
               'params (params->jsexpr (hash-ref p 'params))
               'conf (params->conf (hash-ref p 'params) #:role (hash-ref p 'role)))])]
 
@@ -285,7 +304,9 @@
   ;; ---- license ------------------------------------------------------------
   [(POST "api/license/trial")
    (license-trial)
-   (begin (gate-trial-start!) (hasheq 'ok #t 'gate (gate-info)))]
+   (begin
+     (gate-trial-start!)
+     (hasheq 'ok #t 'gate (gate-info)))]
 
   [(POST "api/license/activate")
    (license-activate [path string? ""])
@@ -303,7 +324,9 @@
 
   [(POST "api/license/deactivate")
    (license-deactivate)
-   (begin (gate-deactivate!) (hasheq 'ok #t 'gate (gate-info)))]
+   (begin
+     (gate-deactivate!)
+     (hasheq 'ok #t 'gate (gate-info)))]
 
   [(GET "api/license")
    (license-status)
@@ -322,10 +345,14 @@
 
   [(POST "api/dev/verify")
    (dev-verify [payload string? "DEFAULT-UNTOUCHED"])
-   (begin (set-box! verify-box (hasheq 'payload payload)) (hasheq 'ok #t))]
+   (begin
+     (set-box! verify-box (hasheq 'payload payload))
+     (hasheq 'ok #t))]
+
   [(GET "api/dev/verify")
    (dev-verify-read)
    (unbox verify-box)]
+
   [(GET "api/dev/status")
    (dev-status)
    (define wv (unbox app-wv-box))
@@ -335,45 +362,101 @@
   [(POST "api/dev/focus")
    (dev-focus)
    (define wv (unbox app-wv-box))
-   (if wv (begin (webview-focus! wv) (hasheq 'ok #t)) (hasheq 'ok #f))]
+   (if wv
+       (begin (webview-focus! wv) (hasheq 'ok #t))
+       (hasheq 'ok #f))]
 
   [(POST "api/dev/nav")
    (dev-nav [url string?])
    (define wv (unbox app-wv-box))
-   (if wv (begin (webview-navigate wv url) (hasheq 'ok #t)) (hasheq 'ok #f))]
+   (if wv
+       (begin (webview-navigate wv url) (hasheq 'ok #t))
+       (hasheq 'ok #f))]
 
   [(POST "api/dev/quit")
    (dev-quit)
-   (begin (thread (lambda () (sleep 0.3) (exit 0))) (hasheq 'ok #t))]
+   (begin
+     (thread (lambda () (sleep 0.3) (exit 0)))
+     (hasheq 'ok #t))]
 
   ;; ---- misc ---------------------------------------------------------------
   [(POST "api/series/reset")
    (series-reset)
-   (begin (series-clear! app-offset-series) (series-clear! app-delay-series) (hasheq 'ok #t))]
+   (begin
+     (series-clear! app-offset-series)
+     (series-clear! app-delay-series)
+     (hasheq 'ok #t))]
 
   [(POST "api/notify")
    (do-notify [title string?] [body string? ""])
-   (begin (thread (lambda () (notify! title body)))
-          (hasheq 'ok #t))])
+   (begin
+     (thread (lambda () (notify! title body)))
+     (hasheq 'ok #t))])
 
-;; ---- helpers -------------------------------------------------------------------
+;; ---- helpers ----------------------------------------------------------------
 
 (define (sup-status-app-role)
-  (define r (hash-ref (sup-status app-supervisor) 'role 'listener))
-  r)
+  (hash-ref (sup-status app-supervisor) 'role 'listener))
 
 (define (sup-set-alarm-threshold! sup ns)
-  ;; exposed through the supervisor's state hash
-  (set-box! (supervisor-state sup) (hash-set (unbox (supervisor-state sup)) 'offset-warn-ns ns)))
+  (set-box! (supervisor-state sup)
+            (hash-set (unbox (supervisor-state sup)) 'offset-warn-ns ns)))
 
 (define (series->points s max-points)
   (for/list ([pt (in-list (series-snapshot s max-points))])
     (list (car pt) (cdr pt))))
 
-;; Export re-encodes from the raw hex carried by every decoded frame.
+(define (capture-file-frame-meta f)
+  (and (>= (length f) 5)
+       (hash? (list-ref f 4))
+       (list-ref f 4)))
+
+;; Promote the exact pcap/pcapng time metadata into the packet object carried to
+;; the UI/store. `ts` remains the display-compatible float; sec+nsec is the
+;; authoritative timestamp representation.
+(define (capture-file-frame->packet f path)
+  (define packet
+    (decode-frame (list-ref f 3)
+                  #:ts (list-ref f 0)
+                  #:iface "offline"
+                  #:source (path->string path)))
+  (define meta (capture-file-frame-meta f))
+  (if (not meta)
+      packet
+      (hash-set* packet
+                 'ts_sec (hash-ref meta 'ts_sec #f)
+                 'ts_nsec (hash-ref meta 'ts_nsec #f)
+                 'timestamp_source "pcap-file"
+                 'timestamp_precision (hash-ref meta 'timestamp_precision "unknown")
+                 'timestamp_resolution_num (hash-ref meta 'timestamp_resolution_num #f)
+                 'timestamp_resolution_den (hash-ref meta 'timestamp_resolution_den #f)
+                 'capture_interface_id (hash-ref meta 'interface_id #f)
+                 'capture_linktype (hash-ref meta 'linktype #f))))
+
+(define (packet->capture-file-frame f)
+  (define base
+    (list (or (hash-ref f 'ts 0) 0)
+          (hash-ref f 'length 0)
+          (hash-ref f 'length 0)
+          (jsexpr-hex->bytes f)))
+  (define sec (hash-ref f 'ts_sec #f))
+  (define nsec (hash-ref f 'ts_nsec #f))
+  (if (and (exact-integer? sec) (exact-integer? nsec))
+      (append base
+              (list
+               (hasheq 'ts_sec sec
+                       'ts_nsec nsec
+                       'timestamp_precision (hash-ref f 'timestamp_precision "unknown")
+                       'timestamp_resolution_num (hash-ref f 'timestamp_resolution_num #f)
+                       'timestamp_resolution_den (hash-ref f 'timestamp_resolution_den #f)
+                       'interface_id (hash-ref f 'capture_interface_id 0)
+                       'linktype (hash-ref f 'capture_linktype 1))))
+      base))
+
 (define (jsexpr-hex->bytes f)
   (define hex (hash-ref f 'raw_hex #f))
   (if hex
-      (apply bytes (for/list ([i (in-range 0 (string-length hex) 2)])
-                     (string->number (substring hex i (+ i 2)) 16)))
+      (apply bytes
+             (for/list ([i (in-range 0 (string-length hex) 2)])
+               (string->number (substring hex i (+ i 2)) 16)))
       (make-bytes (max 60 (hash-ref f 'length 60)) 0)))
