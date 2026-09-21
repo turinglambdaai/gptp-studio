@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require rackunit
+         racket/hash
          "../engine/qualification.rkt")
 
 (define ready-nic
