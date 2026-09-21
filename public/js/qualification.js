@@ -9,13 +9,17 @@
   let busy = false;
   let refreshTimer = null;
 
+  function hasState() {
+    return typeof S !== "undefined" && !!S.bootstrap;
+  }
+
   function currentPayload() {
     const refBtn = q("#source-seg button.active");
     return {
       iface: (q("#cfg-iface") && q("#cfg-iface").value) || "",
-      role: (window.S && S.role) || "listener",
+      role: (typeof S !== "undefined" && S.role) || "listener",
       reference: (refBtn && refBtn.dataset.source) ||
-                 (S.engine && S.engine.reference) || "system",
+                 ((typeof S !== "undefined" && S.engine && S.engine.reference) || "system"),
     };
   }
 
@@ -160,7 +164,7 @@
   }
 
   const init = setInterval(() => {
-    if (!window.S || !S.bootstrap) return;
+    if (!hasState()) return;
     if (!ensureUi()) return;
     clearInterval(init);
     runPreflight(true);
