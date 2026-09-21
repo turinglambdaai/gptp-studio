@@ -52,7 +52,7 @@
     [(ready)
      (format "~a 已满足 ~a 真实引擎的已知前置条件；仍需用目标拓扑实测确认时间性能。" iface role)]
     [(candidate)
-     (format "~a 的核心条件已满足，但仍有待确认项；可继续真机调试，不应据此宣称测量精度。" iface)]
+     (format "~a 当前没有已确认的硬阻断，但仍有待确认项；可以继续验证，不应据此宣称测量精度。" iface)]
     [(passive-only)
      (format "~a 适合被动抓包/协议分析，不满足当前 GM/Slave 真实引擎前置条件。" iface)]
     [else
@@ -100,27 +100,36 @@
                  (if (nic-ref nic 'up #f) "" "Connect the DUT/switch and bring the link UP.")))
 
     (when real-clock-role?
+      (define ethtool-available? (nic-ref nic 'ethtool_available #f))
+      (define hw? (nic-ref nic 'hw_timestamping #f))
+      (define phc (nic-ref nic 'phc_device #f))
+
+      ;; If ethtool is missing, these capabilities are unknown rather than
+      ;; proven absent. Treat that as VERIFY/WARN and ask the user to install
+      ;; the probe tool before making a hardware support conclusion.
       (add! (check "hw-timestamp"
-                   (if (nic-ref nic 'hw_timestamping #f) "pass" "fail")
+                   (cond [hw? "pass"] [ethtool-available? "fail"] [else "warn"])
                    "Hardware TX/RX timestamping"
-                   (if (nic-ref nic 'hw_timestamping #f)
-                       "NIC/driver reports hardware TX + RX timestamp capability"
-                       "Hardware TX + RX timestamp capability not detected")
-                   (if (nic-ref nic 'hw_timestamping #f)
-                       ""
-                       "Use a NIC/driver that exposes IEEE 1588 hardware timestamping.")))
+                   (cond [hw? "NIC/driver reports hardware TX + RX timestamp capability"]
+                         [ethtool-available? "ethtool did not report hardware TX + RX timestamp capability"]
+                         [else "Unknown: ethtool is unavailable, so hardware timestamp capability was not verified"])
+                   (cond [hw? ""]
+                         [ethtool-available? "Use a NIC/driver that exposes IEEE 1588 hardware timestamping."]
+                         [else "Install ethtool and rerun Preflight before concluding that the NIC is unsupported."])))
       (add! (check "phc"
-                   (if (nic-ref nic 'phc_device #f) "pass" "fail")
+                   (cond [phc "pass"] [ethtool-available? "fail"] [else "warn"])
                    "PTP Hardware Clock"
-                   (or (nic-ref nic 'phc_device #f) "No /dev/ptpN mapped to this interface")
-                   (if (nic-ref nic 'phc_device #f)
-                       ""
-                       "Verify the NIC driver exposes a PHC and ethtool -T reports it.")))
+                   (cond [phc phc]
+                         [ethtool-available? "No /dev/ptpN mapping was reported for this interface"]
+                         [else "Unknown: PHC mapping could not be verified without ethtool"])
+                   (cond [phc ""]
+                         [ethtool-available? "Verify the NIC driver exposes a PHC and ethtool -T reports it."]
+                         [else "Install ethtool and rerun Preflight to verify the PHC mapping."])))
       (add! (tool-check nic 'ptp4l_available "ptp4l" "ptp4l" "Install the linuxptp package."))
       (when (and (string=? role "grandmaster") (string=? reference "system"))
         (add! (tool-check nic 'phc2sys_available "phc2sys" "phc2sys reference clock" "Install the linuxptp package or select no external reference.")))
       (add! (tool-check nic 'pmc_available "pmc" "pmc cross-check" "Install the linuxptp package for management cross-checks." #:required? #f))
-      (add! (tool-check nic 'ethtool_available "ethtool" "NIC capability probe" "Install ethtool; without it NIC timing capability detection may be incomplete." #:required? #f))
+      (add! (tool-check nic 'ethtool_available "ethtool" "NIC capability probe" "Install ethtool; without it NIC timing capability detection remains incomplete." #:required? #f))
       (add! (tool-check nic 'ip_available "ip" "Interface metadata probe" "Install iproute2; without it interface metadata may be incomplete." #:required? #f))
 
       (define privilege (nic-ref nic 'privilege_mode "unknown"))
