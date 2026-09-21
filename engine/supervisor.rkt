@@ -21,6 +21,7 @@
          "config.rkt"
          "ptp4l.rkt"
          "process-runtime.rkt"
+         "runtime-config.rkt"
          "simulator.rkt"
          "../data/series.rkt"
          "../data/logstore.rkt"
@@ -159,6 +160,7 @@
   ;; can finish the failure transition.
   (kill-workers! (current-thread))
   (stop-processes! sup)
+  (cleanup-runtime-sockets! (supervisor-run-dir sup))
   (mutate-state! sup 'mode #f)
   (mutate-state! sup 'reference-status "error")
   (log! sup 'app 'error message)
@@ -196,6 +198,7 @@
   (mutate-state! sup 'mode #f)
   (kill-workers!)
   (define procs (stop-processes! sup))
+  (cleanup-runtime-sockets! (supervisor-run-dir sup))
   (mutate-state! sup 'reference-status "idle")
   (mutate-state! sup 'port-state #f)
   (mutate-state! sup 'gm-id #f)
@@ -245,11 +248,14 @@
   (log! sup 'app 'info (format "参考源切换为 ~a（下次启动真实 GM 引擎时生效）" ref))
   (emit! sup 'state-changed (sup-status sup)))
 
-;; One-shot pmc cross-check.
+;; One-shot pmc cross-check using the same per-user management socket as ptp4l.
 (define (sup-check-offsets sup)
   (unless (eq? (state-ref sup 'mode) 'real)
     (raise-user-error 'sup-check-offsets "仅真实引擎支持 pmc 对照查询"))
-  (define out (run-out "pmc" "-u" "-s" "/var/run/ptp4l" "GET CURRENT_DATA_SET"))
+  (define args
+    (pmc-current-data-set-args (supervisor-run-dir sup)
+                               (state-ref sup 'params)))
+  (define out (apply run-out (cons "pmc" args)))
   (define blocks (if out (parse-pmc-output out) '()))
   (log! sup 'pmc 'info (format "pmc 对照查询返回 ~a 块" (length blocks)))
   blocks)
@@ -306,7 +312,7 @@
       (mutate-state! sup 'gm-id
                      (if (eq? role 'grandmaster)
                          "b6:2f:08:11:22:33:44:55"
-                         "a0:0b:1c:2d:3e:4f:50:61")))
+                         "a0:0b:1c:2d:3e4f:50:61")))
     (emit! sup 'state-changed (sup-status sup)))
   (define frames (make-sim-frames role t tick))
   (define decoded
@@ -339,44 +345,50 @@
 (define (real-start! sup role iface params)
   (define run-dir (supervisor-run-dir sup))
   (make-directory* run-dir)
+  (cleanup-runtime-sockets! run-dir)
   (define conf-path (build-path run-dir "ptp4l.conf"))
-  (display-to-file (params->conf params #:role (role-name role) #:iface iface)
+  (define base-conf (params->conf params #:role (role-name role) #:iface iface))
+  (display-to-file (runtime-conf base-conf run-dir)
                    conf-path #:mode 'text #:exists 'replace)
-  (log! sup 'app 'info (format "生成配置 ~a" (path->string conf-path)))
+  (log! sup 'app
+        'info
+        (format "生成配置 ~a；management socket=~a"
+                (path->string conf-path)
+                (path->string (runtime-uds-path run-dir))))
 
   (define ptp4l-path (find-executable-path "ptp4l"))
-  (unless ptp4l-path
-    (abort-real-start! sup "未找到 ptp4l。请先安装 linuxptp。"))
-  (define ptp4l-exe (path->string ptp4l-path))
-  (define-values (p out err launch-mode)
-    (spawn-managed! sup 'ptp4l ptp4l-exe
-                    (list "-f" (path->string conf-path) "-i" iface "-m")
-                    '("cap_net_raw" "cap_net_admin")))
-  (mutate-state! sup 'launch-mode launch-mode)
-  (start-pump! sup 'ptp4l out parse-ptp4l-line)
-  (start-pump! sup 'ptp4l err 'error)
-
-  ;; Catch permissions/config/NIC failures before registering restart watchers.
-  (sleep 0.65)
   (cond
-    [(not (process-entry-running? (cons 'ptp4l p)))
-     (define code (subprocess-status p))
-     (abort-real-start!
-      sup
-      (format "ptp4l 启动失败（rc=~a，方式=~a）。若使用 setcap，请确认 ptp4l 具有 cap_net_raw,cap_net_admin；否则以 root/免密 sudo 运行，并检查网卡硬件时间戳与配置。"
-              code launch-mode))]
+    [(not ptp4l-path)
+     (abort-real-start! sup "未找到 ptp4l。请先安装 linuxptp。")]
     [else
-     (define-values (ref-ok? ref-err phc-process)
-       (start-reference-clock! sup role iface params))
+     (define ptp4l-exe (path->string ptp4l-path))
+     (define-values (p out err launch-mode)
+       (spawn-managed! sup 'ptp4l ptp4l-exe
+                       (list "-f" (path->string conf-path) "-i" iface "-m")
+                       '("cap_net_raw" "cap_net_admin")))
+     (mutate-state! sup 'launch-mode launch-mode)
+     (start-pump! sup 'ptp4l out parse-ptp4l-line)
+     (start-pump! sup 'ptp4l err 'error)
+
+     ;; Catch permissions/config/NIC failures before registering restart watchers.
+     (sleep 0.65)
      (cond
-       [(not ref-ok?) (abort-real-start! sup ref-err)]
+       [(not (process-entry-running? (cons 'ptp4l p)))
+        (define code (subprocess-status p))
+        (abort-real-start!
+         sup
+         (format "ptp4l 启动失败（rc=~a，方式=~a）。若使用文件 capability，请确认目标主机的网络/时钟权限满足当前角色；否则以 root/免密 sudo 运行，并检查网卡硬件时间戳与配置。"
+                 code launch-mode))]
        [else
-        (register-exit-watcher! sup 'ptp4l p)
-        (when phc-process (register-exit-watcher! sup 'phc2sys phc-process))
-        (emit! sup 'state-changed (sup-status sup))
-        ;; Critical regression fix: successful real startup must return exactly
-        ;; the two values expected by the HTTP API.
-        (values #t #f)])]))
+        (define-values (ref-ok? ref-err phc-process)
+          (start-reference-clock! sup role iface params))
+        (cond
+          [(not ref-ok?) (abort-real-start! sup ref-err)]
+          [else
+           (register-exit-watcher! sup 'ptp4l p)
+           (when phc-process (register-exit-watcher! sup 'phc2sys phc-process))
+           (emit! sup 'state-changed (sup-status sup))
+           (values #t #f)])])]))
 
 (define (start-reference-clock! sup role iface params)
   (cond
@@ -394,14 +406,9 @@
        [else
         (define phc-exe (path->string phc-path))
         ;; Domain-server direction: CLOCK_REALTIME (UTC) -> PHC (PTP timescale).
-        ;; -w waits for ptp4l and obtains currentUtcOffset from it.
+        ;; -w waits for ptp4l and obtains currentUtcOffset from the same UDS.
         (define args
-          (list "-c" iface
-                "-s" "CLOCK_REALTIME"
-                "-w"
-                "-n" (number->string (gptp-params-domain params))
-                (format "--transportSpecific=~a" (gptp-params-transport-specific params))
-                "-m"))
+          (phc2sys-reference-args (supervisor-run-dir sup) iface params))
         (define-values (p out err launch-mode)
           (spawn-managed! sup 'phc2sys phc-exe args '("cap_sys_time")))
         (start-pump! sup 'phc2sys out 'info)
@@ -411,8 +418,10 @@
             (begin
               (mutate-state! sup 'reference-status "running")
               (log! sup 'phc2sys 'info
-                    (format "参考源生效：CLOCK_REALTIME → ~a（等待 ptp4l 提供 UTC/PTP offset，方式=~a）"
-                            iface launch-mode))
+                    (format "参考源生效：CLOCK_REALTIME → ~a（UDS=~a，等待 ptp4l 提供 UTC/PTP offset，方式=~a）"
+                            iface
+                            (path->string (runtime-uds-path (supervisor-run-dir sup)))
+                            launch-mode))
               (values #t #f p))
             (values #f
                     (format "phc2sys 启动失败（rc=~a，方式=~a）。写 PHC 通常需要 CAP_SYS_TIME、root 或免密 sudo。"
@@ -442,6 +451,7 @@
      ;; Kill sibling pumps/watchers but never the watcher currently executing.
      (kill-workers! (current-thread))
      (stop-processes! sup)
+     (cleanup-runtime-sockets! (supervisor-run-dir sup))
      (mutate-state! sup 'reference-status "restarting")
      (sleep 1)
      (when (eq? (state-ref sup 'mode) 'real)
@@ -456,6 +466,7 @@
 (define (finalize-runtime-failure! sup name code message)
   (kill-workers! (current-thread))
   (stop-processes! sup)
+  (cleanup-runtime-sockets! (supervisor-run-dir sup))
   (mutate-state! sup 'mode #f)
   (mutate-state! sup 'port-state #f)
   (mutate-state! sup 'reference-status "error")
