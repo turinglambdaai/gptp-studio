@@ -5,10 +5,11 @@
 
 (() => {
   const q = (sel) => document.querySelector(sel);
-  let lastQuality = null;
+  let lastLiveQuality = null;
 
-  function qualityFromPackets() {
-    const f = (S.packets || []).find((p) => p && p.timestamp_source);
+  function qualityFromPackets({ liveOnly = false } = {}) {
+    const f = (S.packets || []).find((p) =>
+      p && p.timestamp_source && (!liveOnly || p.source === "live"));
     if (!f) return null;
     return {
       source: f.timestamp_source || "unknown",
@@ -33,23 +34,34 @@
     const el = q("#timing-capture-path");
     if (!el) return;
 
-    const live = S.capture && S.capture.running;
-    const ql = qualityFromPackets() || lastQuality;
-    if (qualityFromPackets()) lastQuality = qualityFromPackets();
-
+    const live = Boolean(S.capture && S.capture.running);
     if (!live) {
-      el.textContent = "idle";
-      el.title = "NIC capability is shown separately; no live capture is active.";
-      return;
-    }
-    if (!ql) {
-      el.textContent = "waiting for packet…";
-      el.title = "The actual timestamp source is reported after libpcap delivers a packet.";
+      lastLiveQuality = null;
+      const offline = qualityFromPackets();
+      if (offline && offline.source === "pcap-file") {
+        el.textContent = `pcap-file / ${offline.precision}`;
+        el.classList.remove("packet-health-good", "packet-health-attention");
+        el.title = "离线文件的时间戳分辨率；这不是当前网卡的实时抓包时间戳路径。";
+      } else {
+        el.textContent = "idle";
+        el.classList.remove("packet-health-good", "packet-health-attention");
+        el.title = "NIC capability is shown separately; no live capture is active.";
+      }
       return;
     }
 
-    const adapter = ql.source === "adapter";
-    el.textContent = `${ql.source} / ${ql.precision}`;
+    const fresh = qualityFromPackets({ liveOnly: true });
+    if (fresh) lastLiveQuality = fresh;
+    const quality = fresh || lastLiveQuality;
+    if (!quality) {
+      el.textContent = "waiting for live packet…";
+      el.classList.remove("packet-health-good", "packet-health-attention");
+      el.title = "The actual timestamp source is reported after libpcap delivers a live packet.";
+      return;
+    }
+
+    const adapter = quality.source === "adapter";
+    el.textContent = `${quality.source} / ${quality.precision}`;
     el.classList.toggle("packet-health-good", adapter);
     el.classList.toggle("packet-health-attention", !adapter);
     el.title = adapter
