@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gPTP Studio — the gPTP / IEEE 802.1AS debugging workstation</title>
+    <meta name="description" content="One laptop, three roles, full visibility. gPTP Studio collapses the gPTP (IEEE 802.1AS) debugging bench into one window: GrandMaster / Slave / Listener, live sync convergence curves, and full in-place packet decode.">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,500&display=swap" rel="stylesheet">
+    <script>document.documentElement.classList.add('js-anim')</script>
+    <style>
+        :root {
+            --accent: #7C3AED;
+            --accent-hover: #6D28D9;
+            --accent-soft: rgba(124, 58, 237, 0.14);
+            --accent-tint: rgba(124, 58, 237, 0.08);
+            --accent-bright: #A78BFA;
+        }
+
+        /* Hero mockup: sync-convergence chart */
+        .studio-window { background: var(--bg-elevated); }
+        .studio-body { padding: 20px 24px 18px; }
+        .role-pills { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .role-pill {
+            padding: 6px 16px;
+            border-radius: 999px;
+            font-size: 12.5px;
+            font-weight: 550;
+            color: var(--text-2);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            font-family: var(--font-mono);
+        }
+        .role-pill.active {
+            color: #fff;
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        .chart-card {
+            background: #14141A;
+            border-radius: var(--radius-m);
+            border: 1px solid rgba(255,255,255,0.07);
+            padding: 16px 18px 10px;
+        }
+        .chart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: rgba(255,255,255,0.55);
+            margin-bottom: 8px;
+        }
+        .chart-head .val { color: #A78BFA; font-weight: 600; font-size: 13px; }
+        .alarm-banner {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: rgba(255, 69, 58, 0.14);
+            border: 1px solid rgba(255, 69, 58, 0.35);
+            color: #FF8A80;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            padding: 4px 12px;
+            border-radius: 7px;
+        }
+        .studio-status {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--text-3);
+        }
+        .studio-status b { color: var(--text-2); font-weight: 600; }
+
+        .pricing-tag { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); background: var(--accent-tint); padding: 2px 10px; border-radius: 6px; }
+    </style>
+</head>
+
+<body>
+
+    <!-- Nav -->
+    <nav class="nav-container">
+        <div class="nav-wrapper">
+            <div class="nav-brand">
+                <svg class="nav-logo" width="28" height="28" viewBox="0 0 512 512" fill="none">
+                    <rect width="512" height="512" rx="115" fill="#7C3AED"/>
+                    <circle cx="228" cy="256" r="96" fill="none" stroke="#FFFFFF" stroke-width="30"/>
+                    <path d="M228 196 L228 256 L272 286" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <path d="M348 216 L380 216 L398 176 L422 296 L442 236 L458 256" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                </svg>
+                gPTP Studio
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#features" class="optional" data-en="Features" data-zh="功能">Features</a></li>
+                <li><a href="#licensing" class="optional" data-en="Licensing" data-zh="授权">Licensing</a></li>
+                <li><a href="#download" data-en="Download" data-zh="下载">Download</a></li>
+                <li><a href="https://github.com/turinglambdaai/gptp-studio" class="optional">GitHub</a></li>
+                <li class="lang-dropdown-wrapper">
+                    <button class="lang-btn" onclick="void 0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                        <span id="current-lang-label" data-en="English" data-zh="简体中文">English</span>
+                    </button>
+                    <ul class="lang-menu">
+                        <li onclick="setLanguage('en')">English</li>
+                        <li onclick="setLanguage('zh')">简体中文</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero" id="overview">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Free core + Pro · Linux / macOS" data-zh="免费核心 + Pro · Linux / macOS">Free core + Pro · Linux / macOS</span>
+            <h1 class="animate-on-scroll">
+                <span data-en="One laptop. Three roles." data-zh="一台电脑，三种角色，">One laptop. Three roles.</span>
+                <span class="accent" data-en="Full gPTP visibility." data-zh="gPTP 全景可见。">Full gPTP visibility.</span>
+            </h1>
+            <p class="lead animate-on-scroll"
+                data-en="Debugging gPTP (IEEE 802.1AS, implemented by AUTOSAR EthTSyn) on an ECU today means juggling a fixed-role master clock, Wireshark and raw ptp4l terminals. gPTP Studio collapses that bench into one window — and at the moment the offset jumps, you see the packet that caused it."
+                data-zh="在今天，调试 ECU 上的 gPTP（IEEE 802.1AS，AUTOSAR 里由 EthTSyn 实现）意味着同时应付一台固定角色的主时钟、Wireshark 和裸的 ptp4l 终端。gPTP Studio 把这张调试台收进一个窗口——而当 offset 跳变的那一刻，你能直接看到引发它的那帧报文。">
+                Debugging gPTP (IEEE 802.1AS) on an ECU today means juggling a fixed-role master clock, Wireshark and raw ptp4l terminals. gPTP Studio collapses that bench into one window.
+            </p>
+
+            <div class="hero-buttons animate-on-scroll">
+                <a href="#download" class="btn btn-primary" data-en="Download v1.0.0" data-zh="下载 v1.0.0">Download v1.0.0</a>
+                <a href="https://github.com/turinglambdaai/gptp-studio" class="btn btn-secondary" data-en="View on GitHub" data-zh="在 GitHub 查看">View on GitHub</a>
+            </div>
+
+            <div class="hero-visual animate-on-scroll">
+                <div class="app-window studio-window">
+                    <div class="window-header">
+                        <div class="window-controls">
+                            <div class="traffic-light close"></div>
+                            <div class="traffic-light minimize"></div>
+                            <div class="traffic-light maximize"></div>
+                        </div>
+                        <div class="window-title">gPTP Studio — Overview · eth0</div>
+                    </div>
+                    <div class="studio-body">
+                        <div class="role-pills">
+                            <div class="role-pill">GrandMaster</div>
+                            <div class="role-pill">Slave</div>
+                            <div class="role-pill active">Listener ▸</div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-head">
+                                <span>offsetFromMaster (ns)</span>
+                                <span class="val">−4 ns</span>
+                            </div>
+                            <svg viewBox="0 0 760 240" width="100%" role="img" aria-label="offsetFromMaster convergence chart with one alarm spike">
+                                <line x1="0" y1="120" x2="760" y2="120" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>
+                                <line x1="0" y1="34" x2="760" y2="34" stroke="rgba(255,69,58,0.45)" stroke-width="1" stroke-dasharray="5 5"/>
+                                <line x1="0" y1="206" x2="760" y2="206" stroke="rgba(255,69,58,0.45)" stroke-width="1" stroke-dasharray="5 5"/>
+                                <text x="8" y="26" fill="rgba(255,138,128,0.75)" font-size="11" font-family="ui-monospace, monospace">+500 ns alarm</text>
+                                <polyline fill="none" stroke="#A78BFA" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
+                                    points="10,38 34,182 58,52 82,158 106,74 130,140 154,96 178,124 202,106 226,118 250,110 274,116 298,112 322,115 346,113 370,116 394,114 418,118 442,58 452,38 462,66 486,150 510,104 534,120 558,112 582,118 606,114 630,117 654,115 678,116 702,116 726,115 750,116"/>
+                                <circle cx="452" cy="38" r="6" fill="#FF453A"/>
+                                <circle cx="452" cy="38" r="12" fill="none" stroke="#FF453A" stroke-width="1.5" opacity="0.6"/>
+                                <line x1="452" y1="38" x2="452" y2="240" stroke="rgba(255,69,58,0.35)" stroke-width="1" stroke-dasharray="3 4"/>
+                                <text x="462" y="232" fill="rgba(255,138,128,0.85)" font-size="11" font-family="ui-monospace, monospace">Follow_Up · correctionField −482 ns</text>
+                                <text x="688" y="232" fill="rgba(255,255,255,0.35)" font-size="11" font-family="ui-monospace, monospace">t + 58 s</text>
+                            </svg>
+                        </div>
+                        <div class="studio-status">
+                            <span>port state: <b>SLAVE</b></span>
+                            <span>GM: <b>00:1B:21:FF:FE:4C:82:9A</b></span>
+                            <span>meanPathDelay: <b>124 ns</b></span>
+                            <span>Sync rate: <b>8 Hz</b></span>
+                            <span class="alarm-banner">⚠ offset exceeded +500 ns @ 14:32:05</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Highlights" data-zh="核心能力">Highlights</span>
+            <h2 class="section-title animate-on-scroll">
+                <span data-en="The debugging bench," data-zh="整张调试台，">The debugging bench,</span>
+                <span class="accent" data-en="in one window." data-zh="收进一个窗口。">in one window.</span>
+            </h2>
+
+            <div class="bento-grid">
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                    </div>
+                    <h3 data-en="Three roles, one click" data-zh="三种角色，一键切换">Three roles, one click</h3>
+                    <p data-en="GrandMaster (feed the ECU), Slave (validate the ECU's GM), passive Listener (pure observation) — each a ptp4l config generated and previewed live from the GUI form."
+                       data-zh="GrandMaster（喂给 ECU）、Slave（验证 ECU 的 GM）、无源 Listener（纯观察）——每种角色的 ptp4l 配置都由 GUI 表单实时生成并预览。">GrandMaster (feed the ECU), Slave (validate the ECU's GM), passive Listener — each a ptp4l config generated live from the GUI form.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg>
+                    </div>
+                    <h3 data-en="Real-time sync curves" data-zh="实时同步曲线">Real-time sync curves</h3>
+                    <p data-en="offsetFromMaster and meanPathDelay at the Sync rate (8 Hz for gPTP), alarm threshold with red banner and system notification."
+                       data-zh="offsetFromMaster 与 meanPathDelay 按 Sync 速率（gPTP 为 8 Hz）实时绘制；告警阈值带红色横幅与系统通知。">offsetFromMaster and meanPathDelay at the Sync rate (8 Hz), alarm threshold with red banner + system notification.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4L4 20"/><circle cx="12" cy="12" r="9"/></svg>
+                    </div>
+                    <h3 data-en="Packet capture &amp; full decode" data-zh="抓包与全字段解码">Packet capture &amp; full decode</h3>
+                    <p data-en="libpcap live capture (ether proto 0x88f7), full field decode of Sync / Follow_Up / Announce / PDelay_* / Signalling incl. the 802.1AS follow-up info TLV, hex view, pcap import &amp; export."
+                       data-zh="libpcap 实时抓包（ether proto 0x88f7），Sync / Follow_Up / Announce / Pdelay_* / Signalling 全字段解码（含 802.1AS follow-up info TLV）、十六进制视图、pcap 导入导出。">libpcap live capture, full field decode of every gPTP message type incl. the 802.1AS TLV, hex view, pcap import &amp; export.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8M12 18v4M7 12l3-3 2 2 4-4"/></svg>
+                    </div>
+                    <h3 data-en="Built-in simulator" data-zh="内置模拟器">Built-in simulator</h3>
+                    <p data-en="A synthetic 802.1AS session — real encoded frames through the same decoder — so you can demo, test and learn without hardware or even a Linux box."
+                       data-zh="合成 802.1AS 会话（真实编码帧走同一解码管线）——无需硬件、甚至无需 Linux，即可演示、测试与学习。">A synthetic 802.1AS session through the same decoder — demo, test and learn without hardware.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <h3 data-en="Scenario presets" data-zh="场景预设">Scenario presets</h3>
+                    <p data-en="Save role + parameter + interface combos and apply-and-go; export the generated ptp4l.conf for your bench scripts."
+                       data-zh="保存「角色 + 参数 + 网口」组合随取随用；导出生成的 ptp4l.conf 给台架脚本。">Save role + parameter + interface combos, apply-and-go; export the generated ptp4l.conf.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <h3 data-en="Offline licensing" data-zh="离线授权">Offline licensing</h3>
+                    <p data-en="RSA-2048 signed license files, 14-day Pro trial, machine binding; verification via the system openssl CLI — zero extra dependencies, no phone-home."
+                       data-zh="RSA-2048 签名的 license 文件、14 天 Pro 试用、机器绑定；用系统自带的 openssl 验证——零额外依赖，不联网上报。">RSA-2048 signed license files, 14-day Pro trial, machine binding — verified offline via the system openssl CLI.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Licensing -->
+    <section id="licensing">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Licensing" data-zh="授权模式">Licensing</span>
+            <h2 class="section-title animate-on-scroll">
+                <span data-en="Free core for everyone." data-zh="核心功能永久免费，">Free core for everyone.</span>
+                <span class="accent" data-en="Pro for the bench." data-zh="Pro 为调试台而生。">Pro for the bench.</span>
+            </h2>
+            <p class="section-lead animate-on-scroll" style="margin-bottom: 0;"
+               data-en="Source is Apache-2.0; distributed binaries follow the EULA. Every install starts with a 14-day Pro trial."
+               data-zh="源码 Apache-2.0 开源；分发二进制遵循 EULA。每次安装自带 14 天 Pro 试用。">
+                Source is Apache-2.0; distributed binaries follow the EULA. Every install starts with a 14-day Pro trial.
+            </p>
+
+            <div class="compare-table-wrap animate-on-scroll">
+                <table class="compare">
+                    <thead>
+                        <tr>
+                            <th data-en=" " data-zh=" "></th>
+                            <th>Free</th>
+                            <th class="yes">Pro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td data-en="Listener capture + packet decode" data-zh="Listener 抓包 + 报文解码">Listener capture + packet decode</td>
+                            <td class="yes">✓</td>
+                            <td class="yes">✓</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Offline pcap import" data-zh="离线 pcap 导入">Offline pcap import</td>
+                            <td class="yes">✓</td>
+                            <td class="yes">✓</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Simulator" data-zh="模拟器">Simulator</td>
+                            <td class="yes">✓</td>
+                            <td class="yes">✓</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Config editor + ptp4l.conf preview" data-zh="配置编辑 + ptp4l.conf 预览">Config editor + ptp4l.conf preview</td>
+                            <td class="yes">✓</td>
+                            <td class="yes">✓</td>
+                        </tr>
+                        <tr>
+                            <td data-en="GM / Slave engine control" data-zh="GM / Slave 引擎控制">GM / Slave engine control</td>
+                            <td>—</td>
+                            <td class="yes">✓</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Reference source (phc2sys)" data-zh="参考时钟源（phc2sys）">Reference source (phc2sys)</td>
+                            <td>—</td>
+                            <td class="yes">✓</td>
+                        </tr>
+                        <tr>
+                            <td data-en="pcap export" data-zh="pcap 导出">pcap export</td>
+                            <td>—</td>
+                            <td class="yes">✓</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Packet store" data-zh="报文存储">Packet store</td>
+                            <td>2 000 frames</td>
+                            <td class="yes">50 000 frames</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download -->
+    <section id="download">
+        <div class="container text-center">
+            <span class="eyebrow animate-on-scroll" data-en="Download" data-zh="下载">Download</span>
+            <h2 class="section-title animate-on-scroll" data-en="v1.0.0, ready for the bench." data-zh="v1.0.0，上机即用。">v1.0.0, ready for the bench.</h2>
+
+            <div class="platforms-grid">
+                <a class="platform-card animate-on-scroll" href="https://github.com/turinglambdaai/gptp-studio/releases">
+                    <div class="platform-icon">
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c2.35 3.34 3.28 6.66 3.28 10 0 3.34-.93 6.66-3.28 10-2.35-3.34-3.28-6.66-3.28-10 0-3.34.93-6.66 3.28-10m-8.4 6c.95 1.67 2.22 3.3 4.1 5.14-.24-1.6-.16-3.22 0-4.84C6.5 7.53 5.24 6.86 3.6 8m16.8 0c-1.64.86-2.9 1.53-4.1.3.16 1.62.24 3.24 0 4.84 1.88-1.84 3.15-3.47 4.1-5.14"/></svg>
+                    </div>
+                    <div class="platform-name">Linux x64</div>
+                    <div class="platform-format">gPTP-Studio-v1.0.0-linux-x64.tar.gz</div>
+                </a>
+                <a class="platform-card animate-on-scroll" href="https://github.com/turinglambdaai/gptp-studio/releases">
+                    <div class="platform-icon">
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M16.36 12.75c.02 2.6 2.28 3.46 2.31 3.47-.02.06-.36 1.24-1.2 2.45-.72 1.05-1.47 2.09-2.66 2.11-1.16.02-1.54-.69-2.87-.69-1.33 0-1.74.67-2.85.71-1.14.04-2-1.08-2.73-2.12-1.57-2.28-2.78-6.45-1.16-9.27.8-1.4 2.24-2.29 3.8-2.31 1.12-.02 2.18.75 2.87.75.68 0 1.98-.93 3.33-.79.57.02 2.17.2 3.2 1.58-.08.05-1.91 1.12-1.89 3.33M14.3 4.66c.61-.74 1.02-1.77.91-2.79-.88.04-1.95.59-2.58 1.33-.57.65-1.05 1.7-.92 2.7.98.08 1.98-.5 2.59-1.24"/></svg>
+                    </div>
+                    <div class="platform-name">macOS</div>
+                    <div class="platform-format">gPTP-Studio-v1.0.0-macos.dmg</div>
+                </a>
+            </div>
+
+            <div class="callout animate-on-scroll" style="text-align: left;">
+                <strong data-en="Platform notes." data-zh="平台说明。">Platform notes.</strong>
+                <span data-en=" The full GM / Slave engine (linuxptp) and hardware-timestamp capture are Linux-only — by design, since macOS has no SO_TIMESTAMPING/PHC. macOS is the analysis + simulator seat: offline pcap, decode, and the synthetic session all work. Linux needs linuxptp + libpcap-dev (or setcap cap_net_admin+ep on ptp4l to avoid sudo)."
+                      data-zh=" 完整的 GM / Slave 引擎（linuxptp）与硬件时间戳抓包仅限 Linux——这是设计使然，macOS 没有 SO_TIMESTAMPING/PHC。macOS 定位为分析+模拟器席位：离线 pcap、解码、合成会话全部可用。Linux 需要 linuxptp + libpcap-dev（或对 ptp4l 做 setcap cap_net_admin+ep 免 sudo）。"> The full GM / Slave engine and hardware-timestamp capture are Linux-only (no SO_TIMESTAMPING/PHC on macOS); macOS is the analysis + simulator seat.</span>
+            </div>
+
+            <p class="animate-on-scroll" style="margin-top: 34px; font-size: 14px; color: var(--text-2);">
+                <span data-en="Built with " data-zh="由自研 ">Built with </span><a href="https://glaze.jrtx.site" style="font-weight: 600;">Glaze</a><span data-en=" — Racket backend, native WebView window, no Node, no native toolchain." data-zh=" 驱动——Racket 后端 + 原生 WebView 窗口，无 Node，无原生工具链。"> — Racket backend, native WebView window, no Node, no native toolchain.</span>
+                <span class="pricing-tag" style="margin-left: 8px;">155 tests · CI</span>
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <svg width="22" height="22" viewBox="0 0 512 512" fill="none">
+                    <rect width="512" height="512" rx="115" fill="#7C3AED"/>
+                    <circle cx="228" cy="256" r="96" fill="none" stroke="#FFFFFF" stroke-width="30"/>
+                    <path d="M228 196 L228 256 L272 286" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <path d="M348 216 L380 216 L398 176 L422 296 L442 236 L458 256" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                </svg>
+                gPTP Studio
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/turinglambdaai/gptp-studio">GitHub</a>
+                <a href="https://github.com/turinglambdaai/gptp-studio/blob/main/PRICING.md">Pricing</a>
+                <a href="https://github.com/turinglambdaai/gptp-studio/blob/main/EULA.md">EULA</a>
+                <a href="https://github.com/turinglambdaai/gptp-studio/blob/main/LICENSE">Apache-2.0</a>
+            </div>
+            <div class="footer-note">© 2026 turinglambdaai</div>
+        </div>
+    </footer>
+
+    <script>
+        // Bilingual content: data-en / data-zh attributes, English default.
+        function setLanguage(lang) {
+            document.querySelectorAll('[data-en]').forEach(function (el) {
+                el.textContent = el.getAttribute('data-' + lang);
+            });
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            try { localStorage.setItem('site-lang', lang); } catch (e) { /* private mode */ }
+        }
+        try {
+            var saved = localStorage.getItem('site-lang');
+            if (saved && saved !== 'en') setLanguage(saved);
+        } catch (e) { /* private mode */ }
+
+        // Scroll-in animation.
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.12 });
+        document.querySelectorAll('.animate-on-scroll').forEach(function (el) { observer.observe(el); });
+    </script>
+</body>
+
+</html>
