@@ -40,8 +40,9 @@
 (check-equal? (hash-ref candidate 'fail_count) 0)
 (check-equal? (hash-ref candidate 'warn_count) 1)
 
-;; A generic NIC without HW timestamp/PHC is still useful for passive analysis,
-;; but must never be represented as a timing-validation platform.
+;; A generic NIC without HW timestamp/PHC, when ethtool is available and has
+;; actually inspected it, is useful for passive analysis but not a real clock
+;; role.
 (define sw-nic
   (hash-set* ready-nic
              'hw_timestamping #f
@@ -54,6 +55,22 @@
                      #:role "slave"))
 (check-equal? (hash-ref passive 'status) "passive-only")
 (check-true (> (hash-ref passive 'fail_count) 0))
+
+;; Missing ethtool means capability is unknown, not proven unsupported. The
+;; result must stay VERIFY/candidate rather than PASSIVE ONLY.
+(define unknown-probe-nic
+  (hash-set* ready-nic
+             'hw_timestamping #f
+             'phc_device #f
+             'ethtool_available #f))
+(define unknown-probe
+  (qualify-interface #:platform "linux"
+                     #:nics (list unknown-probe-nic)
+                     #:iface "enp3s0"
+                     #:role "slave"))
+(check-equal? (hash-ref unknown-probe 'status) "candidate")
+(check-equal? (hash-ref unknown-probe 'fail_count) 0)
+(check-true (>= (hash-ref unknown-probe 'warn_count) 3))
 
 ;; macOS Listener remains a legitimate passive workflow.
 (define mac-nic
