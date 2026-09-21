@@ -5,8 +5,10 @@
    when switching roles. That could make the UI say "GrandMaster" while the
    generated real-engine config stayed slaveOnly.
 
-   Listener is the safe idle default. Every params merge and every engine
-   start now carries the role-defining fields explicitly. */
+   Listener is the safe idle default. Every params merge carries the role
+   constraints, and every engine start first commits the complete visible form
+   so a click immediately after editing cannot race with an asynchronous
+   `change` merge. */
 "use strict";
 
 (() => {
@@ -18,9 +20,30 @@
     return { gm_capable: 0, slave_only: 1 };
   }
 
+  function visibleParams(role = S.role) {
+    const num = (id) => {
+      const el = q(id);
+      return el ? Number(el.value) : undefined;
+    };
+    const value = (id) => {
+      const el = q(id);
+      return el ? el.value : undefined;
+    };
+    return {
+      domain: num("#cfg-domain"),
+      priority1: num("#cfg-priority1"),
+      priority2: num("#cfg-priority2"),
+      log_sync_interval: num("#cfg-sync"),
+      log_announce_interval: num("#cfg-announce"),
+      network_transport: value("#cfg-transport"),
+      delay_mechanism: value("#cfg-delay"),
+      ...roleFields(role),
+    };
+  }
+
   function rewritePreviewRole(conf, role = S.role) {
     if (typeof conf !== "string") return conf;
-    return conf.replace(/^# role:.*$/m, `# role: ${role}   iface: UI selection`);
+    return conf.replace(/^# role:\s+\S+/m, `# role: ${role}`);
   }
 
   // Safe default must match app/api.rkt's initial listener parameters.
@@ -37,10 +60,19 @@
     }
 
     if (path === "/api/engine/start" && body) {
-      // Close the click-race between renderRole()->mergeParams() and Start.
-      // This also protects callers other than the role buttons (e.g. the
-      // one-click session control) from stale hidden role fields.
-      await baseApi("/api/params/merge", roleFields(body.role || S.role), "POST");
+      // Engine start is a transaction boundary: synchronise every visible
+      // field plus role-defining flags before asking the backend to spawn.
+      // This closes both role-switch and last-edited-input races.
+      const merged = await baseApi(
+        "/api/params/merge",
+        visibleParams(body.role || S.role),
+        "POST",
+      );
+      if (!merged.ok) {
+        return { ok: false, error: (merged.errors || ["参数校验失败"]).join("；") };
+      }
+      const pre = q("#conf-preview");
+      if (pre && merged.conf) pre.textContent = rewritePreviewRole(merged.conf, body.role || S.role);
       return baseApi(path, body, method);
     }
 
