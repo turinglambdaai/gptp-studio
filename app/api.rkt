@@ -19,6 +19,7 @@
          "gate.rkt"
          "../engine/config.rkt"
          "../engine/detect.rkt"
+         "../engine/qualification.rkt"
          "../engine/supervisor.rkt"
          "../engine/ptp4l.rkt"
          "../proto/decode.rkt"
@@ -27,7 +28,8 @@
          "../capture/manager.rkt"
          "../data/preset.rkt"
          "../data/series.rkt"
-         "../data/logstore.rkt")
+         "../data/logstore.rkt"
+         "../support/diagnostics.rkt")
 
 (provide api-routes engine-start bootstrap)
 
@@ -78,10 +80,47 @@
    (i18n)
    (i18n-dict (settings-ref 'language))]
 
-  ;; ---- nics ---------------------------------------------------------------
+  ;; ---- nics / qualification ----------------------------------------------
   [(GET "api/nics")
    (nics)
    (hasheq 'list (detect-interfaces))]
+
+  [(POST "api/qualification")
+   (qualification [iface string? ""] [role string? "listener"] [reference string? "system"])
+   (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+     (define nics (detect-interfaces))
+     (hasheq 'ok #t
+             'qualification (current-qualification iface role reference nics)))]
+
+  [(POST "api/diagnostics/export")
+   (diagnostics-export [iface string? ""] [role string? "listener"] [reference string? "system"])
+   (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+     (define path
+       (save-file-dialog #:title "导出 gPTP Studio 诊断快照"
+                         #:default-name "gptp-studio-diagnostics.json"
+                         #:filters '(("JSON" "*.json"))))
+     (cond
+       [(not path) (hasheq 'ok #f 'cancelled #t)]
+       [else
+        (define nics (detect-interfaces))
+        (define qualification (current-qualification iface role reference nics))
+        (define snapshot
+          (make-diagnostic-snapshot
+           #:version app-version
+           #:platform (platform-name)
+           #:nics nics
+           #:qualification qualification
+           #:engine (sup-status app-supervisor)
+           #:capture (cm-status app-capture)
+           #:params (params->jsexpr (current-params))
+           #:conf (params->conf (current-params) #:role role)
+           #:logs (log-snapshot app-logs #:limit 500)
+           #:redact-network? #t))
+        (write-diagnostic-snapshot! path snapshot)
+        (hasheq 'ok #t
+                'path (path->string path)
+                'redacted #t
+                'qualification qualification)]))]
 
   ;; ---- engine -------------------------------------------------------------
   [(POST "api/engine/start")
@@ -396,7 +435,16 @@
 ;; ---- helpers ----------------------------------------------------------------
 
 (define (sup-status-app-role)
-  (hash-ref (sup-status app-supervisor) 'role 'listener))
+  (define role (hash-ref (sup-status app-supervisor) 'role "listener"))
+  (if (symbol? role) role (string->symbol role)))
+
+(define (current-qualification iface role reference [nics (detect-interfaces)])
+  (qualify-interface #:platform (platform-name)
+                     #:nics nics
+                     #:iface iface
+                     #:role role
+                     #:reference reference
+                     #:capture-status (cm-status app-capture)))
 
 (define (sup-set-alarm-threshold! sup ns)
   (set-box! (supervisor-state sup)
