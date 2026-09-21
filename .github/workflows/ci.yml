@@ -41,9 +41,11 @@ jobs:
           node --check public/js/ux.js
           node --check public/js/tools.js
           node --check public/js/packet-analysis.js
+          node --check public/js/readiness-tools.js
           test -f public/css/app.css
           test -f public/css/ux.css
           test -f public/css/packet-analysis.css
+          test -f public/css/readiness.css
 
       - name: Compile
         run: raco make main.rkt
