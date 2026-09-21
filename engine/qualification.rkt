@@ -148,20 +148,26 @@
                    "Listener does not start ptp4l or discipline a host/PHC clock"
                    "")))
 
-    (define capture-running? (and (hash? capture-status)
-                                  (hash-ref capture-status 'running #f)))
-    (define capture-iface (and (hash? capture-status)
-                               (hash-ref capture-status 'iface #f)))
-    (when (and capture-running? selected-iface (equal? capture-iface selected-iface))
+    (define capture-running?
+      (and (hash? capture-status)
+           (hash-ref capture-status 'running #f)))
+    (define capture-iface
+      (and (hash? capture-status)
+           (hash-ref capture-status 'iface #f)))
+    (when (and capture-running?
+               selected-iface
+               (equal? capture-iface selected-iface))
       (define source (hash-ref capture-status 'timestamp_source "unknown"))
       (define precision (hash-ref capture-status 'timestamp_precision "unknown"))
-      (add! (check "capture-source"
-                   (if (string=? source "adapter") "pass" "warn")
-                   "Actual libpcap timestamp path"
-                   (format "~a / ~a" source precision)
-                   (if (string=? source "adapter")
-                       "Resolution/source are observations only; calibrated accuracy is still not established."
-                       "Use ptp4l/PHC metrics for synchronization judgments; host/default capture timestamps are diagnostic only."))))))
+      (define adapter? (string=? source "adapter"))
+      (add!
+       (check "capture-source"
+              (if adapter? "pass" "warn")
+              "Actual libpcap timestamp path"
+              (format "~a / ~a" source precision)
+              (if adapter?
+                  "Resolution/source are observations only; calibrated accuracy is still not established."
+                  "Use ptp4l/PHC metrics for synchronization judgments; host/default capture timestamps are diagnostic only.")))))
 
   (define fails (count (lambda (c) (string=? (hash-ref c 'state) "fail")) checks))
   (define warns (count (lambda (c) (string=? (hash-ref c 'state) "warn")) checks))
