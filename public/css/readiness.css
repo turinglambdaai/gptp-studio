@@ -7,3 +7,4 @@
   padding-top: 3px;
 }
 #timing-tools.metric-alarm { color: var(--red); }
+.session-controls { display: flex; gap: 6px; align-items: center; }
