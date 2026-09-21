@@ -1,6 +1,8 @@
 #lang racket/base
 
-(require rackunit
+(require json
+         rackunit
+         racket/file
          "../support/diagnostics.rkt")
 
 (define nic
@@ -26,7 +28,7 @@
    #:capture (hasheq 'running #f)
    #:params (hasheq 'domain 0)
    #:conf "[global]\n"
-   #:logs '()))
+   #:logs (list (list 1234.0 "app" "info" "test log"))))
 
 (check-equal? (hash-ref snapshot 'schema_version) 1)
 (check-true (hash-ref (hash-ref snapshot 'privacy) 'network_identifiers_redacted))
@@ -34,3 +36,19 @@
 (check-false (hash-has-key? snapshot-nic 'mac))
 (check-false (hash-has-key? snapshot-nic 'ips))
 (check-equal? (hash-ref snapshot-nic 'name) "enp3s0")
+
+;; The support path must prove not only that the structure looks right in
+;; memory, but that Racket's JSON writer can serialize the real shape.
+(define tmp (make-temporary-file "gptp-studio-diagnostics-~a.json"))
+(dynamic-wind
+  void
+  (lambda ()
+    (write-diagnostic-snapshot! tmp snapshot)
+    (define loaded (call-with-input-file tmp read-json))
+    (check-equal? (hash-ref loaded 'schema_version) 1)
+    (check-equal? (hash-ref (hash-ref loaded 'app) 'name) "gPTP Studio")
+    (define loaded-nic (car (hash-ref loaded 'nics)))
+    (check-false (hash-has-key? loaded-nic 'mac))
+    (check-false (hash-has-key? loaded-nic 'ips)))
+  (lambda ()
+    (when (file-exists? tmp) (delete-file tmp))))
