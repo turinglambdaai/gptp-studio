@@ -39,6 +39,7 @@ jobs:
           node --check public/js/chart.js
           node --check public/js/app.js
           node --check public/js/role-consistency.js
+          node --check public/js/reference-controls.js
           node --check public/js/ux.js
           node --check public/js/tools.js
           node --check public/js/packet-analysis.js
