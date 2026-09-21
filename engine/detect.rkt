@@ -3,6 +3,11 @@
 ;; NIC + PHC detection. Linux reads sysfs and shells out to `ethtool -T`
 ;; and `ip -j addr`; macOS uses ifconfig. Every failure degrades to
 ;; "unknown" fields — never blocks the UI.
+;;
+;; In addition to NIC capabilities, Linux records the local tooling required
+;; by the real gPTP workflow. These are observations only: privilege_mode
+;; "unknown" does not mean ptp4l cannot run (file capabilities/polkit may still
+;; be configured), so callers must treat it as guidance rather than a gate.
 
 (require json
          racket/file
@@ -34,10 +39,35 @@
           (define rc (apply system*/exit-code exe (cdr args)))
           (and (zero? rc) (get-output-string out))))))
 
+(define (executable-available? name)
+  (and (find-executable-path name) #t))
+
+(define (linux-tooling)
+  (define uid-out (run-out "id" "-u"))
+  (define root?
+    (and uid-out (string=? (string-trim uid-out) "0")))
+  ;; `sudo -n` never prompts. A false result is deliberately reported as
+  ;; "unknown" rather than "unavailable" because setcap/polkit may be enough.
+  (define sudo-noninteractive?
+    (and (not root?) (run-out "sudo" "-n" "true") #t))
+  (hasheq 'ptp4l_available (executable-available? "ptp4l")
+          'phc2sys_available (executable-available? "phc2sys")
+          'pmc_available (executable-available? "pmc")
+          'ethtool_available (executable-available? "ethtool")
+          'ip_available (executable-available? "ip")
+          'privilege_mode (cond [root? "root"]
+                                [sudo-noninteractive? "sudo-noninteractive"]
+                                [else "unknown"])))
+
+(define (with-tooling h tooling)
+  (for/fold ([out h]) ([(k v) (in-hash tooling)])
+    (hash-set out k v)))
+
 ;; ---- Linux -------------------------------------------------------------------
 
 (define (detect-linux)
   (define sys-net "/sys/class/net")
+  (define tooling (linux-tooling))
   (define names
     (if (directory-exists? sys-net)
         (sort
@@ -64,15 +94,17 @@
                  [m (regexp-match #px"driver:\\s*(\\S+)" out)])
             (and m (second m)))
           ""))
-    (hasheq 'name name
-            'mac (string-downcase mac)
-            'operstate operstate
-            'up (string=? operstate "up")
-            'hw_timestamping (and hw-tx? hw-rx?)
-            'phc_device phc
-            'driver driver
-            'ips (linux-ips name)
-            'speed (or (file->string* (build-path sys-if "speed")) "unknown"))))
+    (with-tooling
+     (hasheq 'name name
+             'mac (string-downcase mac)
+             'operstate operstate
+             'up (string=? operstate "up")
+             'hw_timestamping (and hw-tx? hw-rx?)
+             'phc_device phc
+             'driver driver
+             'ips (linux-ips name)
+             'speed (or (file->string* (build-path sys-if "speed")) "unknown"))
+     tooling)))
 
 (define (linux-ips name)
   (define out (run-out "ip" "-j" "-o" "addr" "show" "dev" name))
@@ -112,7 +144,13 @@
             'phc_device #f
             'driver "apple"
             'ips (if inet (list (second inet)) '())
-            'speed "unknown")))
+            'speed "unknown"
+            'ptp4l_available #f
+            'phc2sys_available #f
+            'pmc_available #f
+            'ethtool_available #f
+            'ip_available #f
+            'privilege_mode "n/a")))
 
 (define (detect-interfaces)
   (case (system-type 'os)
