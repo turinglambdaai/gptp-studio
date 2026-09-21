@@ -112,6 +112,19 @@
    (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
      (hasheq 'ok #t 'blocks (sup-check-offsets app-supervisor)))]
 
+  ;; Reference selection is now real backend state. For a real GrandMaster,
+  ;; `system` causes supervisor startup to launch phc2sys alongside ptp4l;
+  ;; `none` intentionally leaves the PHC without a Studio-managed reference.
+  [(POST "api/engine/reference")
+   (engine-reference [source string?])
+   (define ref (string->symbol source))
+   (cond
+     [(not (memq ref '(system none)))
+      (hasheq 'ok #f 'error "未知参考源")]
+     [else
+      (sup-set-reference app-supervisor ref)
+      (hasheq 'ok #t 'status (sup-status app-supervisor))])]
+
   ;; ---- params & conf preview ---------------------------------------------
   [(POST "api/params/merge")
    (merge-params [domain exact-integer? -999] [priority1 exact-integer? -999]
@@ -177,7 +190,9 @@
 
   [(POST "api/packets/clear")
    (packets-clear)
-   (begin (packet-store-clear! app-packets) (bus-broadcast! app-bus 'packets-cleared (hasheq)) (hasheq 'ok #t))]
+   (begin (packet-store-clear! app-packets)
+          (bus-broadcast! app-bus 'packets-cleared (hasheq))
+          (hasheq 'ok #t))]
 
   [(POST "api/pcap/import")
    (pcap-import)
@@ -195,7 +210,7 @@
                           #:ts (list-ref f 0)
                           #:iface "offline"
                           #:source (path->string path))))
-        (for ([d (in-list (reverse decoded))]) ; keep newest-first order
+        (for ([d (in-list (reverse decoded))])
           (packet-store-push! app-packets d))
         (log-add! app-logs 'capture 'info
                   (format "导入 ~a：~a 帧（链路层 ~a），其中 PTP 帧 ~a"
@@ -349,22 +364,24 @@
   ;; ---- misc ---------------------------------------------------------------
   [(POST "api/series/reset")
    (series-reset)
-   (begin (series-clear! app-offset-series) (series-clear! app-delay-series) (hasheq 'ok #t))]
+   (begin (series-clear! app-offset-series)
+          (series-clear! app-delay-series)
+          (hasheq 'ok #t))]
 
   [(POST "api/notify")
    (do-notify [title string?] [body string? ""])
    (begin (thread (lambda () (notify! title body)))
           (hasheq 'ok #t))])
 
-;; ---- helpers -------------------------------------------------------------------
+;; ---- helpers ----------------------------------------------------------------
 
 (define (sup-status-app-role)
   (define r (hash-ref (sup-status app-supervisor) 'role 'listener))
   r)
 
 (define (sup-set-alarm-threshold! sup ns)
-  ;; exposed through the supervisor's state hash
-  (set-box! (supervisor-state sup) (hash-set (unbox (supervisor-state sup)) 'offset-warn-ns ns)))
+  (set-box! (supervisor-state sup)
+            (hash-set (unbox (supervisor-state sup)) 'offset-warn-ns ns)))
 
 (define (series->points s max-points)
   (for/list ([pt (in-list (series-snapshot s max-points))])
