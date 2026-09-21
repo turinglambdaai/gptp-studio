@@ -8,3 +8,63 @@
 }
 #timing-tools.metric-alarm { color: var(--red); }
 .session-controls { display: flex; gap: 6px; align-items: center; }
+
+.qualification-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+.qualification-panel {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.qualification-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+  line-height: 1.45;
+}
+.qualification-status {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  border: 1px solid var(--border);
+}
+.qualification-status.ready { color: var(--green); }
+.qualification-status.candidate,
+.qualification-status.passive-only { color: #E65100; }
+.qualification-status.blocked { color: var(--red); }
+.qualification-checks {
+  display: grid;
+  gap: 6px;
+}
+.qualification-check {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.qualification-check-state {
+  font-family: var(--mono);
+  font-weight: 700;
+}
+.qualification-check.pass .qualification-check-state { color: var(--green); }
+.qualification-check.warn .qualification-check-state { color: #E65100; }
+.qualification-check.fail .qualification-check-state { color: var(--red); }
+.qualification-detail { color: var(--muted); margin-top: 2px; }
+.qualification-action { margin-top: 3px; }
+.qualification-disclaimer {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
