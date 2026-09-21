@@ -31,7 +31,7 @@
 (check-true (string-contains? conf "[global]\n"))
 (check-equal? (conf-get conf "priority1") "0")
 (check-equal? (conf-get conf "clientOnly") "0")
-(check-false (conf-get conf "slaveOnly")) ; deprecated linuxptp spelling must not leak out
+(check-false (conf-get conf "slaveOnly"))
 (check-equal? (conf-get conf "gmCapable") "1")
 (check-equal? (conf-get conf "domainNumber") "0")
 (check-equal? (conf-get conf "logSyncInterval") "-3")
@@ -50,6 +50,25 @@
 (define slave-conf (params->conf slave #:role "slave"))
 (check-equal? (conf-get slave-conf "clientOnly") "1")
 (check-equal? (conf-get slave-conf "priority1") "248")
+
+;; Role bits are server-side invariants. Even stale/corrupt UI state cannot
+;; generate a GrandMaster that is still clientOnly, or a Slave that may become
+;; GM. User BMCA priority remains untouched.
+(define stale-listener (default-params-for-role 'listener))
+(define forced-gm-conf (params->conf stale-listener #:role "grandmaster"))
+(check-equal? (conf-get forced-gm-conf "gmCapable") "1")
+(check-equal? (conf-get forced-gm-conf "clientOnly") "0")
+(check-equal? (conf-get forced-gm-conf "priority1") "248")
+
+(define stale-gm (default-params-for-role 'grandmaster))
+(define forced-slave-conf (params->conf stale-gm #:role "slave"))
+(check-equal? (conf-get forced-slave-conf "gmCapable") "0")
+(check-equal? (conf-get forced-slave-conf "clientOnly") "1")
+(check-equal? (conf-get forced-slave-conf "priority1") "0")
+
+(define constrained-gm (apply-role-constraints stale-listener 'grandmaster))
+(check-equal? (gptp-params-gm-capable constrained-gm) 1)
+(check-equal? (gptp-params-slave-only constrained-gm) 0)
 
 ;; validation catches out-of-range edits
 (check = 0 (length (validate-params gm)))
