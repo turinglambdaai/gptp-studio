@@ -49,8 +49,7 @@
 (define PCAP-HDR-CAPLEN-OFF (* 2 C-LONG-SIZE))
 (define PCAP-HDR-LEN-OFF (+ PCAP-HDR-CAPLEN-OFF 4))
 
-;; Core APIs required for capture. If any of these are absent, loading this
-;; module should fail because the platform cannot provide the capture feature.
+;; Core APIs required for capture.
 (define-pcap pcap-create-raw (_fun _string _bytes -> _pcap_t)
   #:c-id pcap_create)
 (define-pcap pcap_set_snaplen (_fun _pcap_t _int -> _int))
@@ -58,8 +57,7 @@
 (define-pcap pcap_set_timeout (_fun _pcap_t _int -> _int))
 (define-pcap pcap_set_immediate_mode (_fun _pcap_t _int -> _int))
 
-;; Optional timestamp APIs. get-ffi-obj's failure thunk gives us a #f binding
-;; instead of making an older macOS/system libpcap unloadable.
+;; Optional timestamp APIs. Missing symbols degrade gracefully.
 (define pcap-set-tstamp-precision
   (get-ffi-obj "pcap_set_tstamp_precision" pcap-lib
                (_fun _pcap_t _int -> _int)
@@ -120,23 +118,20 @@
     (bytes->string/utf-8 b #\_ 0 (or (index-of b 0) (bytes-length b))))
   (if (string=? s "") "unknown libpcap error" s))
 
-;; Return advertised timestamp type IDs. Missing APIs mean "unknown/default",
-;; not a capture failure.
+;; Return advertised timestamp type IDs. Missing APIs mean "unknown/default".
 (define (available-tstamp-types h)
-  (cond
-    [(not pcap-list-tstamp-types) '()]
-    [else
-     (with-handlers ([exn:fail? (lambda (_) '())])
-       (define-values (count arr) (pcap-list-tstamp-types h))
-       (cond
-         [(or (<= count 0) (not arr)) '()]
-         [else
-          (define result
-            (for/list ([i (in-range count)])
-              (ptr-ref arr _int i)))
-          (when pcap-free-tstamp-types
-            (pcap-free-tstamp-types arr))
-          result])]))
+  (if (not pcap-list-tstamp-types)
+      '()
+      (with-handlers ([exn:fail? (lambda (_) '())])
+        (define-values (count arr) (pcap-list-tstamp-types h))
+        (if (or (<= count 0) (not arr))
+            '()
+            (let ([result
+                   (for/list ([i (in-range count)])
+                     (ptr-ref arr _int i))])
+              (when pcap-free-tstamp-types
+                (pcap-free-tstamp-types arr))
+              result)))))
 
 (define (select-timestamp-source! h)
   (define types (available-tstamp-types h))
@@ -156,7 +151,7 @@
        [else "libpcap-default"])]
     [else "libpcap-default"]))
 
-;; Returns the best-known delivered precision. When the setter is absent or
+;; Returns the best-known delivered precision. If the setter is absent or
 ;; rejects nanoseconds, libpcap's default timeval fraction is microseconds.
 (define (request-timestamp-precision! h)
   (cond
@@ -238,9 +233,6 @@
 
 ;; Drain currently available packets. Callback signature:
 ;;   (on-frame exact-sec exact-nsec caplen origlen bytes)
-;;
-;; Exact sec+nsec preserves timestamp resolution; conversion to a display float
-;; happens later at the protocol/UI boundary only.
 (define (capture-poll! c on-frame)
   (let loop ([n 0])
     (define-values (r hdr data) (pcap_next_ex (capture-handle c)))
