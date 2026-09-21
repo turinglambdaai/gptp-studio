@@ -175,6 +175,8 @@
   (cond
     [(and (eq? mode 'real) (not (eq? (system-type 'os) 'unix)))
      (values #f "真实引擎需要 Linux（linuxptp 依赖内核 SO_TIMESTAMPING 与 PHC 子系统）。macOS 上请使用模拟器模式或被动监听。")]
+    [(and (eq? mode 'real) (eq? role 'listener))
+     (values #f "真实 Listener 是被动抓包角色，不启动 ptp4l。请使用“开始会话”或报文分析页开始抓包。")]
     [(and (eq? mode 'real) (not (linuxptp-available?)))
      (values #f "未找到 ptp4l。请先安装 linuxptp：sudo apt install linuxptp")]
     [(and (eq? mode 'real) (not iface))
@@ -312,7 +314,7 @@
       (mutate-state! sup 'gm-id
                      (if (eq? role 'grandmaster)
                          "b6:2f:08:11:22:33:44:55"
-                         "a0:0b:1c:2d:3e4f:50:61")))
+                         "a0:0b:1c:2d:3e:4f:50:61")))
     (emit! sup 'state-changed (sup-status sup)))
   (define frames (make-sim-frames role t tick))
   (define decoded
