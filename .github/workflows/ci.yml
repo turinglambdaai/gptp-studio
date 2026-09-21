@@ -16,10 +16,10 @@ jobs:
         racket-version: ['9.3']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.11
+        uses: Bogdanp/setup-racket@v1.15
         with:
           version: ${{ matrix.racket-version }}
 
@@ -51,6 +51,15 @@ jobs:
           test -f public/css/ux.css
           test -f public/css/packet-analysis.css
           test -f public/css/readiness.css
+
+      - name: Check release scripts and metadata gate
+        shell: bash
+        run: |
+          bash -n scripts/check-release-version.sh
+          bash scripts/check-release-version.sh v1.0.0
+          if command -v zsh >/dev/null 2>&1; then
+            zsh -n scripts/package-macos.sh
+          fi
 
       - name: Compile
         run: raco make main.rkt
