@@ -1,0 +1,122 @@
+# Hardware qualification and reference platforms
+
+This document defines what gPTP Studio is allowed to claim about a host/NIC and
+how a platform progresses from "detected" to "validated".
+
+The core rule is simple:
+
+> Capability detection is not a timing-accuracy calibration.
+
+A NIC can expose hardware timestamping and a PHC, libpcap can report nanosecond
+resolution, and linuxptp can converge successfully while the end-to-end setup
+still has uncharacterized PHY, topology, oscillator, driver, queueing or
+reference-clock error.
+
+## Product states
+
+### Preflight: READY
+
+Studio detected all known hard prerequisites for the selected workflow. For a
+real GrandMaster/Slave role this currently means:
+
+- Linux control path;
+- selected Ethernet link is UP;
+- hardware TX + RX timestamp capability is reported;
+- a PHC is mapped to the interface;
+- `ptp4l` is available;
+- `phc2sys` is available when GrandMaster uses the system clock as reference.
+
+`READY` means "reasonable to start the real workflow". It does **not** mean the
+host is a calibrated timing instrument.
+
+### Preflight: VERIFY
+
+The hard prerequisites are present, but one or more non-fatal items still need
+verification, for example:
+
+- the privilege path is not proven until the real process starts;
+- `pmc` or auxiliary detection tools are absent;
+- a running capture uses host/default rather than adapter timestamps.
+
+### Preflight: PASSIVE ONLY
+
+The selected NIC/host is useful for packet/protocol analysis but does not expose
+the hardware timing path required by the real GM/Slave engine.
+
+### Preflight: BLOCKED
+
+A hard prerequisite is missing (for example link down, missing `ptp4l`, or a
+required reference-clock process is unavailable).
+
+## Reference-platform lifecycle
+
+Use these labels in documentation, support replies and release notes.
+
+| Label | Meaning | Allowed claim |
+|---|---|---|
+| Candidate | Hardware looks suitable on paper / in capability detection | "Candidate for validation" |
+| Studio-validated | We ran the repeatable validation procedure below on a pinned hardware/software combination | "Validated with gPTP Studio on the listed versions" |
+| Calibrated setup | A Studio-validated platform was additionally characterized against an appropriate external timing reference/instrument | Only the measured/calibrated result, with setup and uncertainty stated |
+
+Do not use "instrument grade", "<100 ns", or similar accuracy language from NIC
+model, PHC presence, timestamp resolution, or `ptp4l` convergence alone.
+
+## Validation record
+
+A validation record should pin at least:
+
+- computer / motherboard model;
+- NIC model and PCI/USB attachment path;
+- NIC driver + firmware;
+- PHY/transceiver where relevant;
+- Linux distribution and kernel;
+- linuxptp version;
+- libpcap version;
+- gPTP Studio version/commit;
+- link type and speed;
+- peer device / switch topology;
+- test duration and load conditions.
+
+Store the exported, redacted Studio diagnostic snapshot with the validation
+record.
+
+## Repeatable validation procedure
+
+1. **Inventory** — save the diagnostic snapshot and record the versions above.
+2. **Capability** — verify Preflight has no hard failures for the target role.
+3. **Lifecycle** — start/stop/restart the real engine repeatedly and confirm no
+   orphan `ptp4l`/`phc2sys` process or stale management socket remains.
+4. **GM role** — verify the expected port state, Announce/Sync/Follow_Up traffic,
+   and `pmc CURRENT_DATA_SET` response.
+5. **Slave role** — verify synchronization convergence and stable
+   `offsetFromMaster` / `meanPathDelay` reporting.
+6. **Reference clock** — when system-reference mode is selected, verify
+   `phc2sys` is running against the same per-user ptp4l management socket and
+   survives/restarts with the session.
+7. **Capture path** — record the actual libpcap timestamp source and precision.
+   Treat host/default timestamps as diagnostic-only for timing conclusions.
+8. **Stress** — repeat under realistic CPU, network and storage load; include at
+   least one link flap and engine restart.
+9. **Soak** — run a long-duration session and check for process, memory, packet
+   store and timestamp anomalies.
+10. **External characterization** — before publishing an accuracy number,
+    compare the setup against a suitable independent timing reference or
+    calibrated instrument and document the uncertainty and topology.
+
+## Initial hardware program
+
+The first useful commercial milestone is not a custom PCB. It is a small
+**reference-platform program**:
+
+1. choose one or two common Linux hosts;
+2. choose one or two PTP-capable PCIe NIC candidates (Intel I210/I350-class
+   adapters are sensible starting candidates, but remain *Candidate* until the
+   procedure above is completed);
+3. pin an Ubuntu/Linux + linuxptp stack;
+4. publish the exact validated matrix;
+5. use customer feedback to decide whether a dedicated Studio Box is justified.
+
+A future Studio Box should exist to provide deterministic hardware, automotive
+Ethernet interfaces, dual-sided/inline timestamping, controlled injection and
+external references—not because a normal Linux host is inherently incapable of
+useful hardware-timestamped gPTP debugging.
