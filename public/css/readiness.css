@@ -1,0 +1,10 @@
+/* Linux real-engine readiness details. */
+#timing-message { flex-wrap: wrap; }
+.tooling-warning {
+  flex-basis: 100%;
+  color: #E65100;
+  font-weight: 500;
+  padding-top: 3px;
+}
+#timing-tools.metric-alarm { color: var(--red); }
+.session-controls { display: flex; gap: 6px; align-items: center; }

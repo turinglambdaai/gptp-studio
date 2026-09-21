@@ -1,0 +1,44 @@
+/* Passive packet-analysis status strip. */
+.packet-health {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.packet-health-item {
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #f9fcff;
+}
+.packet-health-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.packet-health-item strong {
+  display: block;
+  min-height: 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+.packet-health-good { color: var(--green); }
+.packet-health-attention { color: #E65100; }
+.packet-health-neutral { color: var(--text); }
+.pk-table tr.packet-seq-anomaly td { background: #fff8e8; }
+.pk-table tr.packet-seq-anomaly td:first-child { box-shadow: inset 3px 0 0 var(--orange); }
+.overview-head-actions { display: flex; align-items: center; gap: 10px; }
+.packet-detail-actions { margin-left: auto; }
+
+@media (max-width: 1200px) {
+  .packet-health { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
