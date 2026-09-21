@@ -3,15 +3,16 @@
 ;; Live capture over libpcap via Racket FFI.
 ;;
 ;; Timestamp rules are deliberately conservative:
-;; - request nanosecond *resolution* when libpcap supports it;
-;; - prefer adapter/device timestamps when libpcap explicitly advertises them;
-;; - otherwise record the actual selected source as host/default;
+;; - request nanosecond *resolution* when the loaded libpcap supports it;
+;; - prefer adapter/device timestamps only when libpcap explicitly advertises
+;;   that timestamp type and accepts the selection;
+;; - otherwise record the source as host/default instead of inferring it from
+;;   NIC hardware capability;
 ;; - keep sec+nsec as exact integers all the way out of this module.
 ;;
-;; A NIC advertising IEEE 1588 hardware timestamping does NOT prove that a
-;; libpcap handle is currently delivering adapter timestamps. The capture
-;; object therefore records the source selected by libpcap independently from
-;; NIC capability detection.
+;; The timestamp-selection APIs are optional bindings. Older/system libpcap
+;; builds must keep working and simply fall back to their default timestamp
+;; source/precision.
 
 (require ffi/unsafe
          ffi/unsafe/define
@@ -42,26 +43,48 @@
 (define PCAP_TSTAMP_HOST_HIPREC 2)
 (define PCAP_TSTAMP_ADAPTER 3)
 
-;; pcap_pkthdr begins with struct timeval. timeval fields are C `long`, not
-;; fixed int64/int32. ptr-ref offsets are byte offsets only when `'abs` is used.
+;; pcap_pkthdr starts with struct timeval. timeval fields are C `long`, not
+;; fixed int64/int32. ptr-ref offsets are byte offsets only with `'abs`.
 (define C-LONG-SIZE (ctype-sizeof _long))
 (define PCAP-HDR-CAPLEN-OFF (* 2 C-LONG-SIZE))
 (define PCAP-HDR-LEN-OFF (+ PCAP-HDR-CAPLEN-OFF 4))
 
+;; Core APIs required for capture. If any of these are absent, loading this
+;; module should fail because the platform cannot provide the capture feature.
 (define-pcap pcap-create-raw (_fun _string _bytes -> _pcap_t)
   #:c-id pcap_create)
 (define-pcap pcap_set_snaplen (_fun _pcap_t _int -> _int))
 (define-pcap pcap_set_promisc (_fun _pcap_t _int -> _int))
 (define-pcap pcap_set_timeout (_fun _pcap_t _int -> _int))
 (define-pcap pcap_set_immediate_mode (_fun _pcap_t _int -> _int))
-(define-pcap pcap_set_tstamp_precision (_fun _pcap_t _int -> _int))
-(define-pcap pcap_get_tstamp_precision (_fun _pcap_t -> _int))
-(define-pcap pcap_set_tstamp_type (_fun _pcap_t _int -> _int))
-(define-pcap pcap_list_tstamp_types (_fun _pcap_t _pointer -> _int))
-(define-pcap pcap_free_tstamp_types (_fun _pointer -> _void))
 
-;; macOS ships the historical `pcap_setnonblock` spelling; Linux exports it
-;; too, so this is the portable binding used by the nonblocking worker loop.
+;; Optional timestamp APIs. get-ffi-obj's failure thunk gives us a #f binding
+;; instead of making an older macOS/system libpcap unloadable.
+(define pcap-set-tstamp-precision
+  (get-ffi-obj "pcap_set_tstamp_precision" pcap-lib
+               (_fun _pcap_t _int -> _int)
+               (lambda () #f)))
+(define pcap-get-tstamp-precision
+  (get-ffi-obj "pcap_get_tstamp_precision" pcap-lib
+               (_fun _pcap_t -> _int)
+               (lambda () #f)))
+(define pcap-set-tstamp-type
+  (get-ffi-obj "pcap_set_tstamp_type" pcap-lib
+               (_fun _pcap_t _int -> _int)
+               (lambda () #f)))
+(define pcap-list-tstamp-types
+  (get-ffi-obj "pcap_list_tstamp_types" pcap-lib
+               (_fun _pcap_t
+                     (types : (_ptr o _pointer))
+                     -> (count : _int)
+                     -> (values count types))
+               (lambda () #f)))
+(define pcap-free-tstamp-types
+  (get-ffi-obj "pcap_free_tstamp_types" pcap-lib
+               (_fun _pointer -> _void)
+               (lambda () #f)))
+
+;; macOS ships the historical pcap_setnonblock spelling; Linux exports it too.
 (define-pcap pcap-setnonblock-raw (_fun _pcap_t _int _bytes -> _int)
   #:c-id pcap_setnonblock)
 (define-pcap pcap_activate (_fun _pcap_t -> _int))
@@ -93,25 +116,27 @@
   (values buf (pcap-setnonblock-raw h flag buf)))
 
 (define (errbuf->string b)
-  (define s (bytes->string/utf-8 b #\_ 0 (or (index-of b 0) (bytes-length b))))
+  (define s
+    (bytes->string/utf-8 b #\_ 0 (or (index-of b 0) (bytes-length b))))
   (if (string=? s "") "unknown libpcap error" s))
 
-;; Return advertised libpcap timestamp type ids. Failure is not fatal; it just
-;; means the source remains libpcap's default host timestamp path.
+;; Return advertised timestamp type IDs. Missing APIs mean "unknown/default",
+;; not a capture failure.
 (define (available-tstamp-types h)
-  (with-handlers ([exn:fail? (lambda (_) '())])
-    (define holder (malloc (ctype-sizeof _pointer) 'raw))
-    (define count (pcap_list_tstamp_types h holder))
-    (define result
-      (if (> count 0)
-          (let ([arr (ptr-ref holder _pointer 0 'abs)])
-            (begin0
-              (for/list ([i (in-range count)])
-                (ptr-ref arr _int i))
-              (pcap_free_tstamp_types arr)))
-          '()))
-    (free holder)
-    result))
+  (cond
+    [(not pcap-list-tstamp-types) '()]
+    [else
+     (with-handlers ([exn:fail? (lambda (_) '())])
+       (define-values (count arr) (pcap-list-tstamp-types h))
+       (cond
+         [(or (<= count 0) (not arr)) '()]
+         [else
+          (define result
+            (for/list ([i (in-range count)])
+              (ptr-ref arr _int i)))
+          (when pcap-free-tstamp-types
+            (pcap-free-tstamp-types arr))
+          result])]))
 
 (define (select-timestamp-source! h)
   (define types (available-tstamp-types h))
@@ -122,8 +147,8 @@
       [(member PCAP_TSTAMP_HOST types) PCAP_TSTAMP_HOST]
       [else #f]))
   (cond
-    [(not preferred) "libpcap-default"]
-    [(zero? (pcap_set_tstamp_type h preferred))
+    [(or (not preferred) (not pcap-set-tstamp-type)) "libpcap-default"]
+    [(zero? (pcap-set-tstamp-type h preferred))
      (case preferred
        [(3) "adapter"]
        [(2) "host-high-precision"]
@@ -131,15 +156,23 @@
        [else "libpcap-default"])]
     [else "libpcap-default"]))
 
+;; Returns the best-known delivered precision. When the setter is absent or
+;; rejects nanoseconds, libpcap's default timeval fraction is microseconds.
 (define (request-timestamp-precision! h)
-  (if (zero? (pcap_set_tstamp_precision h PCAP_TSTAMP_PRECISION_NANO))
-      "nano-requested"
-      "micro-requested"))
+  (cond
+    [(not pcap-set-tstamp-precision) "micro"]
+    [(not (zero? (pcap-set-tstamp-precision h PCAP_TSTAMP_PRECISION_NANO)))
+     "micro"]
+    [else "nano-requested"]))
 
-(define (actual-timestamp-precision h)
-  (if (= (pcap_get_tstamp_precision h) PCAP_TSTAMP_PRECISION_NANO)
-      "nano"
-      "micro"))
+(define (actual-timestamp-precision h requested)
+  (cond
+    [pcap-get-tstamp-precision
+     (if (= (pcap-get-tstamp-precision h) PCAP_TSTAMP_PRECISION_NANO)
+         "nano"
+         "micro")]
+    [(string=? requested "nano-requested") "nano"]
+    [else "micro"]))
 
 ;; Open `iface` with a BPF filter. Returns (values capture error-string).
 (define (capture-open iface
@@ -157,12 +190,13 @@
      (pcap_set_timeout h timeout-ms)
      (pcap_set_immediate_mode h 1)
      (define timestamp-source (select-timestamp-source! h))
-     (request-timestamp-precision! h)
+     (define requested-precision (request-timestamp-precision! h))
      (define act (pcap_activate h))
      (cond
        [(not (zero? act))
-        (define msg (string-append (pcap-geterr h)
-                                   " (pcap_activate rc=" (number->string act) ")"))
+        (define msg
+          (string-append (pcap-geterr h)
+                         " (pcap_activate rc=" (number->string act) ")"))
         (pcap_close h)
         (values #f msg)]
        [else
@@ -176,31 +210,37 @@
            (define rc (pcap_compile h bpf filter-text 1 0))
            (cond
              [(not (zero? rc))
-              (define msg (string-append "BPF 过滤器编译失败: " (pcap-geterr h)))
+              (define msg
+                (string-append "BPF 过滤器编译失败: " (pcap-geterr h)))
+              (free bpf)
               (pcap_close h)
               (values #f msg)]
              [else
               (define rc2 (pcap_setfilter h bpf))
               (cond
                 [(not (zero? rc2))
-                 (define msg (string-append "BPF 过滤器应用失败: " (pcap-geterr h)))
+                 (define msg
+                   (string-append "BPF 过滤器应用失败: " (pcap-geterr h)))
                  (pcap_freecode bpf)
+                 (free bpf)
                  (pcap_close h)
                  (values #f msg)]
                 [else
                  (pcap-setnonblock h 1)
-                 (values (capture h iface filter-text bpf
-                                  timestamp-source
-                                  (actual-timestamp-precision h))
-                         #f)])])])])]))
+                 (values
+                  (capture h iface filter-text bpf
+                           timestamp-source
+                           (actual-timestamp-precision h requested-precision))
+                  #f)])])])])]))
 
-(define (capture-open? c) (and (capture? c) #t))
+(define (capture-open? c)
+  (and (capture? c) #t))
 
 ;; Drain currently available packets. Callback signature:
 ;;   (on-frame exact-sec exact-nsec caplen origlen bytes)
 ;;
-;; Exact integer sec+nsec preserves timing resolution; conversion to a display
-;; float happens later at the protocol/UI boundary only.
+;; Exact sec+nsec preserves timestamp resolution; conversion to a display float
+;; happens later at the protocol/UI boundary only.
 (define (capture-poll! c on-frame)
   (let loop ([n 0])
     (define-values (r hdr data) (pcap_next_ex (capture-handle c)))
@@ -224,5 +264,7 @@
   (when (capture? c)
     (with-handlers ([exn:fail? (lambda (_) (void))])
       (pcap_freecode (capture-bpf c)))
+    (with-handlers ([exn:fail? (lambda (_) (void))])
+      (free (capture-bpf c)))
     (with-handlers ([exn:fail? (lambda (_) (void))])
       (pcap_close (capture-handle c)))))
