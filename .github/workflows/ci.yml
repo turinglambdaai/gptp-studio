@@ -42,6 +42,7 @@ jobs:
           node --check public/js/tools.js
           node --check public/js/packet-analysis.js
           node --check public/js/readiness-tools.js
+          node --check public/js/session-controls.js
           test -f public/css/app.css
           test -f public/css/ux.css
           test -f public/css/packet-analysis.css
