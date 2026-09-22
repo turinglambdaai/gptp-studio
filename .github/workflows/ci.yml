@@ -100,6 +100,12 @@ jobs:
           assert host["privacy"]["hostname_omitted"] is True
           assert host["privacy"]["machine_id_omitted"] is True
           assert host["privacy"]["hardware_serials_omitted"] is True
+          quality = report["host_quality"]
+          assert quality["schema_version"] == 1
+          assert quality["status"] in ("context", "attention")
+          assert quality["accuracy_claim"] == "not-calibrated"
+          assert isinstance(quality["checks"], list)
+          assert all(c["state"] in ("info", "warn") for c in quality["checks"])
           assert isinstance(report["interfaces"], list)
           for entry in report["interfaces"]:
               nic = entry["nic"]
@@ -135,6 +141,7 @@ jobs:
           assert report["product"] == "gPTP Studio"
           assert report["platform"] == "linux"
           assert report["privacy"]["network_identifiers_redacted"] is True
+          assert report["host_quality"]["accuracy_claim"] == "not-calibrated"
           PY
           mkdir -p "$HOME/.gptp-studio"
           printf 'preserve\n' > "$HOME/.gptp-studio/ci-user-data"
