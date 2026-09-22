@@ -2,6 +2,7 @@
 
 (require json
          rackunit
+         racket/hash
          racket/port
          racket/string
          "../support/doctor.rkt")
