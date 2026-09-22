@@ -16,37 +16,83 @@ reference-clock error.
 
 ### Preflight: READY
 
-Studio detected all known hard prerequisites for the selected workflow. For a
-real GrandMaster/Slave role this currently means:
+Studio detected all known structural prerequisites for the selected workflow.
+For a real GrandMaster/Slave role this currently means:
 
 - Linux control path;
-- selected Ethernet link is UP;
+- a selected Ethernet interface exists;
 - hardware TX + RX timestamp capability is reported;
 - a PHC is mapped to the interface;
 - `ptp4l` is available;
-- `phc2sys` is available when GrandMaster uses the system clock as reference.
+- `phc2sys` is available when GrandMaster uses the system clock as reference;
+- a proven privilege path is available (root, passwordless sudo, or the
+  role-appropriate linuxptp file capabilities).
 
 `READY` means "reasonable to start the real workflow". It does **not** mean the
 host is a calibrated timing instrument.
 
 ### Preflight: VERIFY
 
-The hard prerequisites are present, but one or more non-fatal items still need
+No structural blocker is known, but one or more non-fatal items still need
 verification, for example:
 
-- the privilege path is not proven until the real process starts;
+- Ethernet carrier is currently down (the engine may start and wait for link);
+- the privilege path is direct-best-effort / ambient capabilities are not
+  proven until the real process starts;
 - `pmc` or auxiliary detection tools are absent;
 - a running capture uses host/default rather than adapter timestamps.
+
+A VERIFY result does not prevent startup. The actual `ptp4l` / `phc2sys` process
+result and logs remain authoritative.
 
 ### Preflight: PASSIVE ONLY
 
 The selected NIC/host is useful for packet/protocol analysis but does not expose
 the hardware timing path required by the real GM/Slave engine.
 
+For real GM/Slave startup, this state is a hard blocker.
+
 ### Preflight: BLOCKED
 
-A hard prerequisite is missing (for example link down, missing `ptp4l`, or a
-required reference-clock process is unavailable).
+A structural prerequisite is missing (for example a selected interface does not
+exist, `ptp4l` is unavailable, or GM system-reference mode requires a missing
+`phc2sys`).
+
+For real GM/Slave startup, this state is a hard blocker.
+
+## Automatic startup guard
+
+The same qualification logic is enforced inside the engine supervisor, not only
+in the GUI. Every real GM/Slave start re-detects the host/NIC before spawning
+linuxptp:
+
+- FAIL checks stop startup before `ptp4l` is spawned;
+- WARN checks are logged as `Preflight=VERIFY` and startup is allowed;
+- simulator and passive Listener workflows are not forced through the real
+  clock-role guard.
+
+This prevents a future CLI/API entry point from accidentally bypassing the
+hardware prerequisites enforced by the UI.
+
+## Linux privilege paths
+
+Studio recognizes these proven paths:
+
+1. running as root;
+2. passwordless `sudo -n`;
+3. file capabilities on linuxptp binaries.
+
+For non-root deployment, the usual capability set is:
+
+```bash
+sudo setcap cap_net_raw,cap_net_admin+ep "$(command -v ptp4l)"
+# Needed only when Studio manages GM reference as CLOCK_REALTIME -> PHC:
+sudo setcap cap_sys_time+ep "$(command -v phc2sys)"
+```
+
+A Slave or GM using an externally managed PHC does not require `phc2sys` from
+Studio. Ambient/container capabilities can also work, but Studio intentionally
+labels an unproven path VERIFY until the real process successfully starts.
 
 ## Reference-platform lifecycle
 
