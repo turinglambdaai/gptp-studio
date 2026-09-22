@@ -54,6 +54,7 @@ jobs:
           node --check public/js/session-controls.js
           node --check public/js/capture-quality.js
           node --check public/js/qualification.js
+          node --check public/js/reference-platform.js
           test -f public/css/app.css
           test -f public/css/ux.css
           test -f public/css/packet-analysis.css
