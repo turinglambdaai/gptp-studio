@@ -101,8 +101,8 @@
 (check-equal? (hash-ref passive 'status) "passive-only")
 (check-true (> (hash-ref passive 'fail_count) 0))
 (check-true (qualification-blocking? passive))
-(check-true (member "hw-timestamp" (hash-ref passive 'blocking_check_ids)))
-(check-true (member "phc" (hash-ref passive 'blocking_check_ids)))
+(check-not-false (member "hw-timestamp" (hash-ref passive 'blocking_check_ids)))
+(check-not-false (member "phc" (hash-ref passive 'blocking_check_ids)))
 
 ;; Missing ethtool means capability is unknown, not proven unsupported. The
 ;; result must stay VERIFY/candidate rather than PASSIVE ONLY.
