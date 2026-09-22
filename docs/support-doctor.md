@@ -1,66 +1,128 @@
 # Headless Support Doctor
 
-`gptp-studio --doctor` is the first command to run when a customer reports that
-real gPTP operation cannot start or behaves differently across machines. It does
-not open the GUI, does not acquire the single-instance lock, and does not modify
-or discipline any clock.
+`gptp-studio --doctor` is the first command to run when a Linux host behaves
+differently from another workstation or when a real GM/Slave session cannot
+start.
 
-## Human-readable report
+The Doctor does not open the GUI, does not acquire the single-instance lock and
+does not modify any clock, capability or sudo configuration.
 
 ```bash
 gptp-studio --doctor
+gptp-studio --doctor-json > doctor.json
 ```
 
-The report lists each detected non-loopback interface and summarizes:
+## What it records
 
-- driver, link state and reported speed;
-- hardware timestamp capability and mapped PHC;
-- availability of `ptp4l`, `phc2sys` and `pmc`;
-- detected privilege path;
-- independent qualification for Slave, GM with system reference, and GM with an
-  externally managed PHC;
-- blocking actions and VERIFY/warning items.
+The report has two layers.
 
-A typical support workflow is: run Doctor, fix structural FAIL items, then run
-the GUI Preflight on the exact interface/topology and finally attempt the real
-session.
+### Host fingerprint
 
-## Machine-readable report
+The host section is designed for reproducible reference-platform work and
+support comparison. It records non-unique engineering facts such as:
 
-```bash
-gptp-studio --doctor-json > gptp-doctor.json
+- distribution ID / version / pretty name;
+- kernel release, kernel build string and architecture;
+- system vendor, product name and board name;
+- virtualization environment;
+- active Linux clocksource;
+- Racket runtime version;
+- `ptp4l`, `phc2sys`, `pmc`, `ethtool` and OpenSSL versions when detectable;
+- installed `linuxptp`, libpcap, WebKitGTK and GTK package versions when
+  `dpkg-query` can resolve them.
+
+It deliberately does **not** collect hostname, machine-id, DMI serial numbers,
+product UUIDs or other unique machine identifiers.
+
+### NIC / PHC fingerprint
+
+For each non-loopback interface the Doctor reports:
+
+- interface name;
+- driver + driver version;
+- firmware version;
+- PCI/bus location;
+- PCI vendor/device and subsystem IDs when sysfs exposes them;
+- NUMA node;
+- link state and speed;
+- hardware TX/RX timestamp capability;
+- mapped `/dev/ptpN` and PHC `clock_name`;
+- linuxptp tool availability;
+- file-capability / root / sudo privilege path;
+- Slave, GM(system reference), and GM(external/managed PHC) qualification.
+
+MAC addresses and IP addresses are omitted from the support report even though
+the GUI may use them locally for normal network display.
+
+## Privacy contract
+
+The JSON report carries explicit privacy flags:
+
+- `network_identifiers_redacted=true`;
+- `host_identifiers_redacted=true`;
+- host fingerprint flags declaring hostname, machine-id, hardware serials and
+  network identifiers omitted.
+
+CI tests the schema so a future refactor cannot casually add obvious unique
+identity keys to the fingerprint.
+
+A support report is still technical environment data. Review it under your
+organization's normal disclosure policy before attaching it to an external
+support ticket.
+
+## Role status meanings
+
+- **READY** — known structural prerequisites are present. This is permission to
+  proceed with the real workflow, not a calibration result.
+- **VERIFY** — no hard blocker is known, but one or more non-fatal items still
+  require real-process or lab verification.
+- **PASSIVE-ONLY** — the interface remains useful for packet/protocol work but
+  does not expose the hardware timing path required by a real clock role.
+- **BLOCKED** — a known structural prerequisite is missing.
+
+Doctor and GUI Preflight use the same qualification engine, and the Supervisor
+runs that qualification again immediately before spawning a real engine.
+
+## Comparing two hosts
+
+When two machines with “the same NIC” behave differently, compare these fields
+before investigating application code:
+
+1. distro and kernel;
+2. system/board model and virtualization;
+3. clocksource;
+4. NIC PCI vendor/device/subsystem IDs;
+5. driver + driver version;
+6. firmware version;
+7. bus location / NUMA node;
+8. PHC clock name;
+9. linuxptp version;
+10. privilege mode.
+
+This often exposes meaningful differences hidden by a marketing model name, for
+example a different subsystem device, firmware revision, kernel/driver revision
+or virtualized attachment path.
+
+## Reference-platform use
+
+A Doctor fingerprint can be stored next to a validation record as the machine-
+readable inventory for a **Candidate** or **Studio-validated** platform. It does
+not promote a platform to `Studio-validated` automatically; the repeatable
+procedure in [`hardware-qualification.md`](hardware-qualification.md) still has
+to be executed on real hardware.
+
+## Accuracy boundary
+
+The report always retains:
+
+```text
+accuracy_claim = not-calibrated
 ```
 
-The JSON schema currently reports `schema_version: 1`. It is intended for
-support tickets, lab automation and future fleet/reference-platform validation.
-
-Both Doctor formats deliberately omit MAC and IP addresses. The report states
-`network_identifiers_redacted: true`, so a customer can normally attach it to a
-support ticket without disclosing local network identifiers.
-
-## Interpreting status
-
-- `READY`: the known structural prerequisites for that role are present.
-- `CANDIDATE` / `VERIFY`: no known hard blocker, but something still needs
-  verification (for example link DOWN or an unproven privilege path).
-- `PASSIVE-ONLY`: the host/NIC is useful for protocol analysis but a confirmed
-  hardware timing prerequisite is absent for that real clock role.
-- `BLOCKED`: another structural prerequisite is absent.
-
-Doctor uses the same qualification engine as GUI Preflight and supervisor start
-protection, so support output cannot drift into a separate definition of
-"supported".
-
-## Privacy and timing claims
-
-Doctor is a readiness/support tool, not a calibration tool. `READY`, a PHC,
-hardware timestamp capability, or nanosecond timestamp resolution must never be
-translated into an accuracy claim. The JSON explicitly carries
-`accuracy_claim: "not-calibrated"`.
-
-For a publishable timing specification, use the pinned reference-platform and
-external-characterization process in
-[`hardware-qualification.md`](hardware-qualification.md).
+PHC presence, nanosecond timestamp resolution, a specific NIC model or a READY
+qualification are capability/observability facts. Publish an accuracy number
+only after external characterization of the pinned host/NIC/PHY/software/
+topology against an appropriate independent timing reference.
 
 ## Exit behavior
 
