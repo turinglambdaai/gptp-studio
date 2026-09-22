@@ -6,9 +6,12 @@
 ;;   racket main.rkt --simulator   GUI with the simulator running (GM role)
 ;;   racket main.rkt --port N      fixed server port (default: free port)
 ;;   racket main.rkt --selfcheck   headless check: server + API, exit code
+;;   racket main.rkt --doctor      headless human-readable support report
+;;   racket main.rkt --doctor-json headless machine-readable support report
 ;;   racket main.rkt --version     print version
 
-(require racket/cmdline
+(require json
+         racket/cmdline
          racket/format
          racket/list
          racket/runtime-path
@@ -21,7 +24,8 @@
          "data/logstore.rkt"
          "engine/supervisor.rkt"
          "engine/detect.rkt"
-         "capture/manager.rkt")
+         "capture/manager.rkt"
+         "support/doctor.rkt")
 
 (define-runtime-path public-dir "public")
 
@@ -33,10 +37,27 @@
       (lambda (out) (fprintf out "~a ~a\n" (current-seconds) msg))
       #:exists 'append)))
 
+(define (run-doctor mode)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (fprintf (current-error-port)
+                              "gPTP Studio doctor failed: ~a\n"
+                              (exn-message e))
+                     (exit 2))])
+    (define report (collect-doctor-report version))
+    (case mode
+      [(json)
+       (write-json report)
+       (newline)]
+      [else
+       (displayln (doctor->text report))])
+    (exit 0)))
+
 (module+ main
   (define sim? #f)
   (define port-arg #f)
   (define selfcheck? #f)
+  (define doctor-mode #f)
   (define token-arg #t)
 
   (command-line
@@ -48,14 +69,21 @@
     (set! port-arg (string->number p))]
    [("--token") t "fixed API token (for headless verification)"
     (set! token-arg t)]
-   [("--selfcheck") "headless smoke test; prints JSON and exits"
+   [("--selfcheck") "headless smoke test; prints status and exits"
     (set! selfcheck? #t)]
+   [("--doctor") "headless support report (MAC/IP redacted)"
+    (set! doctor-mode 'text)]
+   [("--doctor-json") "headless JSON support report (MAC/IP redacted)"
+    (set! doctor-mode 'json)]
    [("--version") "print version"
     (displayln version)
     (exit 0)])
 
-  (debug-log! (format "launch: sim=~a port=~a selfcheck=~a" sim? port-arg selfcheck?))
+  (debug-log! (format "launch: sim=~a port=~a selfcheck=~a doctor=~a"
+                      sim? port-arg selfcheck? doctor-mode))
   (cond
+    [doctor-mode
+     (run-doctor doctor-mode)]
     [selfcheck?
      (selfcheck (or port-arg 18701))]
     [else
