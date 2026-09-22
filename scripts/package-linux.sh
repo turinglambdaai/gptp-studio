@@ -40,25 +40,39 @@ cp LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md "$DIST_ROOT/"
 
 # Record enough provenance to identify the exact source/framework/runtime used
 # for an official binary without embedding machine-specific identifiers.
+# Do not `source /etc/os-release`: it defines VERSION and can silently overwrite
+# the product version used by the rest of this release script.
 SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
 RACKET_VERSION="$(racket --version 2>&1 | head -n 1)"
 BUILD_ARCH="$(uname -m)"
-BUILD_DISTRO_ID="unknown"
-BUILD_DISTRO_VERSION="unknown"
-if [[ -r /etc/os-release ]]; then
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  BUILD_DISTRO_ID="${ID:-unknown}"
-  BUILD_DISTRO_VERSION="${VERSION_ID:-unknown}"
-fi
 python3 - "$DIST_ROOT/BUILD-INFO.json" \
   "$VERSION" "$TAG_LABEL" "$SOURCE_COMMIT" "$GLAZE_REVISION" \
-  "$RACKET_VERSION" "$BUILD_ARCH" "$BUILD_DISTRO_ID" "$BUILD_DISTRO_VERSION" <<'PY'
-import json, sys
-(
-    out, version, tag, source_commit, glaze_revision,
-    racket_version, arch, distro_id, distro_version,
-) = sys.argv[1:]
+  "$RACKET_VERSION" "$BUILD_ARCH" <<'PY'
+import json
+import os
+import sys
+
+out, version, tag, source_commit, glaze_revision, racket_version, arch = sys.argv[1:]
+
+def os_release():
+    values = {}
+    path = "/etc/os-release"
+    try:
+        with open(path, encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw or raw.startswith("#") or "=" not in raw:
+                    continue
+                key, value = raw.split("=", 1)
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                    value = value[1:-1]
+                values[key] = value
+    except OSError:
+        pass
+    return values
+
+osr = os_release()
 payload = {
     "schema_version": 1,
     "product": "gPTP Studio",
@@ -69,7 +83,10 @@ payload = {
     "glaze_revision": glaze_revision,
     "racket_version": racket_version,
     "build_arch": arch,
-    "build_distro": {"id": distro_id, "version_id": distro_version},
+    "build_distro": {
+        "id": osr.get("ID", "unknown"),
+        "version_id": osr.get("VERSION_ID", "unknown"),
+    },
 }
 with open(out, "w", encoding="utf-8") as f:
     json.dump(payload, f, ensure_ascii=False, indent=2, sort_keys=True)
@@ -133,6 +150,8 @@ assert info["glaze_revision"] == sys.argv[3]
 assert len(info["source_commit"]) in (7, 40) or info["source_commit"] == "unknown"
 assert info["racket_version"]
 assert info["build_arch"]
+assert info["build_distro"]["id"]
+assert info["build_distro"]["version_id"]
 PY
 
 grep -q "Apache License" "$DIST_ROOT/LICENSE"
