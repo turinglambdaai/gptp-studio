@@ -81,7 +81,7 @@ raco test tests/
 
 ## 版本与授权
 
-| | 免费版 | 专业版 |
+| | 官方 Free | 官方 Pro |
 |---|---|---|
 | 监听抓包 + 报文解码 | ✅ | ✅ |
 | 离线 pcap 导入 | ✅ | ✅ |
@@ -92,7 +92,9 @@ raco test tests/
 | pcap 导出 | — | ✅ |
 | 报文存储 | 2 000 帧 | 50 000 帧 |
 
-每次安装自带 14 天 Pro 试用。定价见 [PRICING.md](PRICING.md)。
+源码采用 Apache-2.0。Free / Pro 描述的是 **官方分发版本**中的产品体验、官方更新 entitlement 与支持服务，不会撤销或缩小 Apache-2.0 已经授予的源码/开源对象代码权利。用户可以依据 Apache-2.0 自行构建或修改源码；自行构建版本不自动成为官方 Pro 构建，也不附带官方更新、支持、迁移或参考平台验证承诺。
+
+每个官方安装包自带 14 天 Pro 试用。定价见 [PRICING.md](PRICING.md)，许可模型说明见 [docs/licensing-model.md](docs/licensing-model.md)。
 
 ## 架构
 
@@ -100,4 +102,4 @@ raco test tests/
 
 ## 许可证
 
-源码 Apache-2.0；分发二进制适用 [EULA.md](EULA.md)。商业授权与技术支持见 [PRICING.md](PRICING.md)。
+gPTP Studio 源码以及官方分发物中受 Apache-2.0 覆盖的部分继续适用 Apache-2.0。[EULA.md](EULA.md) 约束官方 Pro entitlement、许可证凭据、官方更新/支持和官方身份关系，但不会覆盖或撤销适用的开源权利。第三方归属与许可证信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，商业价格与支持见 [PRICING.md](PRICING.md)。

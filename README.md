@@ -79,7 +79,7 @@ raco test tests/
 
 ## Licensing
 
-| | Free | Pro |
+| | Official Free | Official Pro |
 |---|---|---|
 | Listener capture + packet decode | ✅ | ✅ |
 | Offline pcap import | ✅ | ✅ |
@@ -90,7 +90,9 @@ raco test tests/
 | pcap export | — | ✅ |
 | Packet store | 2 000 frames | 50 000 |
 
-Every install starts with a 14-day Pro trial. See [PRICING.md](PRICING.md).
+The source code is Apache-2.0. Free/Pro describe the product experience, update entitlement and support attached to **official distributions**; they do not revoke rights already granted by Apache-2.0. Self-built or modified Apache-2.0 versions are not automatically official Pro builds and do not carry official update/support/validation commitments.
+
+Every official install starts with a 14-day Pro trial. See [PRICING.md](PRICING.md) and [docs/licensing-model.md](docs/licensing-model.md).
 
 ## Architecture
 
@@ -98,4 +100,4 @@ One Racket process: Glaze serves the UI over loopback HTTP into a native WebView
 
 ## License
 
-Apache-2.0 for the source; the distributed binaries are governed by [EULA.md](EULA.md). Commercial licensing and support: see [PRICING.md](PRICING.md).
+gPTP Studio source and Apache-covered portions of official distributions remain licensed under Apache-2.0. [EULA.md](EULA.md) governs official Pro entitlements, license credentials, updates/support and official-brand terms without overriding applicable open-source rights. Third-party attribution is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Commercial pricing and support: see [PRICING.md](PRICING.md).

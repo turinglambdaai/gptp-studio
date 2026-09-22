@@ -41,6 +41,10 @@ cp -R dist-test/gptp-studio-distributed/bin/gptp-studio "$APP/Contents/MacOS/$AP
 cp -R dist-test/gptp-studio-distributed/lib/* "$APP/Contents/lib/"
 cp -R public "$APP/Contents/Resources/public"
 
+LICENSE_DIR="$APP/Contents/Resources/licenses"
+mkdir -p "$LICENSE_DIR"
+cp LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md "$LICENSE_DIR/"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -101,5 +105,17 @@ assert report["platform"] == "macos"
 assert report["privacy"]["network_identifiers_redacted"] is True
 assert report["accuracy_claim"] == "not-calibrated"
 PY
+
+for notice in LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md; do
+  test -s "$LICENSE_DIR/$notice" || {
+    echo "missing bundle license payload: $notice" >&2
+    exit 1
+  }
+done
+
+grep -q "Apache License" "$LICENSE_DIR/LICENSE"
+grep -q "Glaze" "$LICENSE_DIR/THIRD_PARTY_NOTICES.md"
+grep -q "Racket CS" "$LICENSE_DIR/THIRD_PARTY_NOTICES.md"
+grep -q "不会撤销、限制或缩小" "$LICENSE_DIR/EULA.md"
 
 echo "packaged: $APP ($VERSION)"
