@@ -29,7 +29,8 @@
          "../data/preset.rkt"
          "../data/series.rkt"
          "../data/logstore.rkt"
-         "../support/diagnostics.rkt")
+         "../support/diagnostics.rkt"
+         "../support/platform-fingerprint.rkt")
 
 (provide api-routes engine-start bootstrap)
 
@@ -52,6 +53,7 @@
      (define lang (settings-ref 'language))
      (hasheq 'version app-version
              'platform (platform-name)
+             'host (collect-platform-fingerprint)
              'gate (gate-info)
              'i18n (i18n-dict lang)
              'language lang
@@ -108,6 +110,7 @@
           (make-diagnostic-snapshot
            #:version app-version
            #:platform (platform-name)
+           #:host (collect-platform-fingerprint)
            #:nics nics
            #:qualification qualification
            #:engine (sup-status app-supervisor)
@@ -300,211 +303,67 @@
      (if (not path)
          (hasheq 'ok #f 'cancelled #t)
          (begin
-           (display-to-file (log->text (log-snapshot app-logs #:limit 100000)) path
-                            #:mode 'text #:exists 'replace)
-           (hasheq 'ok #t))))]
+           (log-export! app-logs path)
+           (hasheq 'ok #t 'path (path->string path)))))]
 
   ;; ---- presets ------------------------------------------------------------
   [(GET "api/presets")
    (presets)
-   (hasheq 'names (preset-names)
-           'list (for/list ([n (in-list (preset-names))])
-                   (define p (preset-load n))
-                   (if p p (hasheq 'name n))))]
+   (hasheq 'list (preset-list))]
 
-  [(POST "api/preset/save")
-   (preset-save-route [name string?] [role string?] [iface string? ""])
-   (cond
-     [(= (string-length name) 0)
-      (hasheq 'ok #f 'error "预设名不能为空")]
-     [else
-      (preset-save name (string->symbol role)
-                   (current-params)
-                   (if (= (string-length iface) 0) #f iface))
-      (hasheq 'ok #t)])]
+  [(POST "api/presets/save")
+   (presets-save [name string?] [role string?] [iface string? ""])
+   (preset-save! name role iface (current-params))
+   (hasheq 'ok #t 'list (preset-list))]
 
-  [(POST "api/preset/apply")
-   (preset-apply [name string?])
-   (define p (preset-load name))
+  [(POST "api/presets/apply")
+   (presets-apply [name string?])
+   (define p (preset-ref name))
    (cond
      [(not p) (hasheq 'ok #f 'error "预设不存在")]
      [else
-      (set-current-params! (hash-ref p 'params))
+      (define role (hash-ref p 'role "listener"))
+      (define params (preset->params p))
+      (set-current-params! params)
       (hasheq 'ok #t
-              'role (hash-ref p 'role)
-              'iface (hash-ref p 'iface)
-              'params (params->jsexpr (hash-ref p 'params))
-              'conf (params->conf (hash-ref p 'params) #:role (hash-ref p 'role)))])]
+              'role role
+              'iface (hash-ref p 'iface "")
+              'params (params->jsexpr params)
+              'conf (params->conf params #:role role))])]
 
-  [(DELETE "api/preset/:name")
-   (preset-delete-route name)
-   (hasheq 'ok (preset-delete name))]
+  [(POST "api/presets/delete")
+   (presets-delete [name string?])
+   (preset-delete! name)
+   (hasheq 'ok #t 'list (preset-list))]
 
   ;; ---- license ------------------------------------------------------------
   [(POST "api/license/trial")
    (license-trial)
-   (begin
-     (gate-trial-start!)
-     (hasheq 'ok #t 'gate (gate-info)))]
+   (gate-trial-start!)
+   (apply-tier-capacity!)
+   (hasheq 'ok #t 'gate (gate-info))]
 
   [(POST "api/license/activate")
-   (license-activate [path string? ""])
-   (define target
-     (if (> (string-length path) 0)
-         path
-         (with-handlers ([exn:fail? (lambda (_) #f)])
-           (pick-file #:title "选择许可证文件"
-                      #:filters '(("许可证" "*.lic" "*.license"))))))
-   (cond
-     [(not target) (hasheq 'ok #f 'cancelled #t)]
-     [else
-      (define-values (ok? msg) (gate-activate! target))
-      (hasheq 'ok ok? (if ok? 'subject 'error) msg)])]
+   (license-activate)
+   (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+     (define path (pick-file #:title "选择许可证文件"
+                             #:filters '(("许可证" "*.license" "*.lic"))))
+     (cond
+       [(not path) (hasheq 'ok #f 'cancelled #t)]
+       [else
+        (define-values (ok? msg) (gate-activate! path))
+        (when ok? (apply-tier-capacity!))
+        (hasheq 'ok ok? 'message msg 'gate (gate-info))]))]
 
   [(POST "api/license/deactivate")
    (license-deactivate)
-   (begin
-     (gate-deactivate!)
-     (hasheq 'ok #t 'gate (gate-info)))]
+   (gate-deactivate!)
+   (apply-tier-capacity!)
+   (hasheq 'ok #t 'gate (gate-info))])
 
-  [(GET "api/license")
-   (license-status)
-   (gate-info)]
-
-  ;; ---- dev / verification --------------------------------------------------
-  [(POST "api/dev/shot")
-   (dev-shot)
-   (define wv (unbox app-wv-box))
-   (cond
-     [(not wv) (hasheq 'ok #f 'error "no window")]
-     [else
-      (define path (build-path (app-dir) "shot.png"))
-      (define shot (webview-capture! wv path))
-      (hasheq 'ok (and shot #t) 'path (path->string path))])]
-
-  [(POST "api/dev/verify")
-   (dev-verify [payload string? "DEFAULT-UNTOUCHED"])
-   (begin
-     (set-box! verify-box (hasheq 'payload payload))
-     (hasheq 'ok #t))]
-
-  [(GET "api/dev/verify")
-   (dev-verify-read)
-   (unbox verify-box)]
-
-  [(GET "api/dev/status")
-   (dev-status)
-   (define wv (unbox app-wv-box))
-   (hasheq 'title (and wv (webview-title wv))
-           'url (and wv (webview-url wv)))]
-
-  [(POST "api/dev/focus")
-   (dev-focus)
-   (define wv (unbox app-wv-box))
-   (if wv
-       (begin (webview-focus! wv) (hasheq 'ok #t))
-       (hasheq 'ok #f))]
-
-  [(POST "api/dev/nav")
-   (dev-nav [url string?])
-   (define wv (unbox app-wv-box))
-   (if wv
-       (begin (webview-navigate wv url) (hasheq 'ok #t))
-       (hasheq 'ok #f))]
-
-  [(POST "api/dev/quit")
-   (dev-quit)
-   (begin
-     (thread (lambda () (sleep 0.3) (exit 0)))
-     (hasheq 'ok #t))]
-
-  ;; ---- misc ---------------------------------------------------------------
-  [(POST "api/series/reset")
-   (series-reset)
-   (begin
-     (series-clear! app-offset-series)
-     (series-clear! app-delay-series)
-     (hasheq 'ok #t))]
-
-  [(POST "api/notify")
-   (do-notify [title string?] [body string? ""])
-   (begin
-     (thread (lambda () (notify! title body)))
-     (hasheq 'ok #t))])
-
-;; ---- helpers ----------------------------------------------------------------
-
+;; Current application role as stored in the supervisor status hash.
 (define (sup-status-app-role)
-  (define role (hash-ref (sup-status app-supervisor) 'role "listener"))
-  (if (symbol? role) role (string->symbol role)))
+  (string->symbol (hash-ref (sup-status app-supervisor) 'role "listener")))
 
-(define (current-qualification iface role reference [nics (detect-interfaces)])
-  (qualify-interface #:platform (platform-name)
-                     #:nics nics
-                     #:iface iface
-                     #:role role
-                     #:reference reference
-                     #:capture-status (cm-status app-capture)))
-
-(define (sup-set-alarm-threshold! sup ns)
-  (set-box! (supervisor-state sup)
-            (hash-set (unbox (supervisor-state sup)) 'offset-warn-ns ns)))
-
-(define (series->points s max-points)
-  (for/list ([pt (in-list (series-snapshot s max-points))])
-    (list (car pt) (cdr pt))))
-
-(define (capture-file-frame-meta f)
-  (and (>= (length f) 5)
-       (hash? (list-ref f 4))
-       (list-ref f 4)))
-
-;; Promote the exact pcap/pcapng time metadata into the packet object carried to
-;; the UI/store. `ts` remains the display-compatible float; sec+nsec is the
-;; authoritative timestamp representation.
-(define (capture-file-frame->packet f path)
-  (define packet
-    (decode-frame (list-ref f 3)
-                  #:ts (list-ref f 0)
-                  #:iface "offline"
-                  #:source (path->string path)))
-  (define meta (capture-file-frame-meta f))
-  (if (not meta)
-      packet
-      (hash-set* packet
-                 'ts_sec (hash-ref meta 'ts_sec #f)
-                 'ts_nsec (hash-ref meta 'ts_nsec #f)
-                 'timestamp_source "pcap-file"
-                 'timestamp_precision (hash-ref meta 'timestamp_precision "unknown")
-                 'timestamp_resolution_num (hash-ref meta 'timestamp_resolution_num #f)
-                 'timestamp_resolution_den (hash-ref meta 'timestamp_resolution_den #f)
-                 'capture_interface_id (hash-ref meta 'interface_id #f)
-                 'capture_linktype (hash-ref meta 'linktype #f))))
-
-(define (packet->capture-file-frame f)
-  (define base
-    (list (or (hash-ref f 'ts 0) 0)
-          (hash-ref f 'length 0)
-          (hash-ref f 'length 0)
-          (jsexpr-hex->bytes f)))
-  (define sec (hash-ref f 'ts_sec #f))
-  (define nsec (hash-ref f 'ts_nsec #f))
-  (if (and (exact-integer? sec) (exact-integer? nsec))
-      (append base
-              (list
-               (hasheq 'ts_sec sec
-                       'ts_nsec nsec
-                       'timestamp_precision (hash-ref f 'timestamp_precision "unknown")
-                       'timestamp_resolution_num (hash-ref f 'timestamp_resolution_num #f)
-                       'timestamp_resolution_den (hash-ref f 'timestamp_resolution_den #f)
-                       'interface_id (hash-ref f 'capture_interface_id 0)
-                       'linktype (hash-ref f 'capture_linktype 1))))
-      base))
-
-(define (jsexpr-hex->bytes f)
-  (define hex (hash-ref f 'raw_hex #f))
-  (if hex
-      (apply bytes
-             (for/list ([i (in-range 0 (string-length hex) 2)])
-               (string->number (substring hex i (+ i 2)) 16)))
-      (make-bytes (max 60 (hash-ref f 'length 60)) 0)))
+(define (role-name r)
+  (if (symbol? r) (symbol->string r) r))
