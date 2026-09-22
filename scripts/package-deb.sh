@@ -108,6 +108,14 @@ assert report["schema_version"] == 1
 assert report["product"] == "gPTP Studio"
 assert report["platform"] == "linux"
 assert report["privacy"]["network_identifiers_redacted"] is True
+assert report["privacy"]["host_identifiers_redacted"] is True
+assert report["host"]["fingerprint_schema_version"] == 1
+assert report["host"]["privacy"]["hostname_omitted"] is True
+assert report["host"]["privacy"]["hardware_serials_omitted"] is True
+for entry in report["interfaces"]:
+    assert "mac" not in entry["nic"] and "ips" not in entry["nic"]
+    assert "driver_version" in entry["nic"]
+    assert "firmware_version" in entry["nic"]
 assert report["accuracy_claim"] == "not-calibrated"
 PY
 
