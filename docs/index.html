@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>gPTP Studio — Linux-native IEEE 802.1AS debugging workstation</title>
-  <meta name="description" content="Linux-native gPTP / IEEE 802.1AS workstation for Automotive Ethernet: GrandMaster, Slave, Listener, PHC/HW timestamp qualification, live timing analysis and full packet decode.">
+  <meta name="description" content="Linux-native gPTP / IEEE 802.1AS workstation for Automotive Ethernet: GrandMaster, Slave, Listener, PHC/HW timestamp qualification, live timing analysis and packet decode.">
   <link rel="stylesheet" href="styles.css">
   <style>
-    :root { --accent: #7C3AED; --accent-hover: #6D28D9; --accent-soft: rgba(124,58,237,.14); --accent-tint: rgba(124,58,237,.08); }
+    :root { --accent:#7C3AED; --accent-hover:#6D28D9; --accent-soft:rgba(124,58,237,.14); --accent-tint:rgba(124,58,237,.08); }
     .linux-pill { display:inline-flex; gap:8px; align-items:center; padding:7px 12px; border-radius:999px; border:1px solid var(--border); font-family:var(--font-mono); font-size:12px; }
     .linux-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; }
     .hero-copy { max-width:850px; }
@@ -18,6 +18,8 @@
     .download-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; margin-top:28px; }
     .download-card { border:1px solid var(--border); border-radius:16px; padding:24px; background:var(--bg-elevated); }
     .download-card h3 { margin-top:0; }
+    .lang-actions { display:flex; gap:8px; align-items:center; }
+    .lang-actions button { border:1px solid var(--border); background:transparent; color:var(--text-2); border-radius:8px; padding:7px 10px; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -25,90 +27,99 @@
     <div class="nav-wrapper">
       <div class="nav-brand">gPTP Studio</div>
       <ul class="nav-menu">
-        <li><a href="#features">Features</a></li>
-        <li><a href="#platform">Linux platform</a></li>
-        <li><a href="#download">Download</a></li>
+        <li><a href="#features" data-en="Features" data-zh="功能">Features</a></li>
+        <li><a href="#platform" data-en="Linux platform" data-zh="Linux 平台">Linux platform</a></li>
+        <li><a href="#download" data-en="Download" data-zh="下载">Download</a></li>
         <li><a href="https://github.com/turinglambdaai/gptp-studio">GitHub</a></li>
+        <li class="lang-actions"><button onclick="setLanguage('en')">EN</button><button onclick="setLanguage('zh')">中文</button></li>
       </ul>
     </div>
   </nav>
 
   <section class="hero" id="overview">
     <div class="container hero-copy">
-      <div class="linux-pill"><span class="linux-dot"></span>Linux-only · Ubuntu 22.04 / 24.04</div>
-      <span class="eyebrow">Automotive Ethernet timing</span>
-      <h1>One Linux workstation. <span class="accent">Full gPTP visibility.</span></h1>
-      <p class="lead">gPTP Studio is a professional IEEE 802.1AS / AUTOSAR EthTSyn debugging workstation built around the Linux timing stack: PHC, hardware timestamping, SO_TIMESTAMPING, linuxptp and explicit privilege control.</p>
+      <div class="linux-pill"><span class="linux-dot"></span><span data-en="Linux-only · Ubuntu 22.04 / 24.04" data-zh="仅支持 Linux · Ubuntu 22.04 / 24.04">Linux-only · Ubuntu 22.04 / 24.04</span></div>
+      <span class="eyebrow" data-en="Automotive Ethernet timing" data-zh="Automotive Ethernet 时间同步">Automotive Ethernet timing</span>
+      <h1><span data-en="One Linux workstation." data-zh="一台 Linux 工作站，">One Linux workstation.</span> <span class="accent" data-en="Full gPTP visibility." data-zh="看清整个 gPTP。">Full gPTP visibility.</span></h1>
+      <p class="lead" data-en="gPTP Studio is a professional IEEE 802.1AS / AUTOSAR EthTSyn debugging workstation built around the Linux timing stack: PHC, hardware timestamping, SO_TIMESTAMPING, linuxptp and explicit privilege control." data-zh="gPTP Studio 是围绕 Linux 时间栈构建的专业 IEEE 802.1AS / AUTOSAR EthTSyn 调试工作站：PHC、硬件时间戳、SO_TIMESTAMPING、linuxptp 与明确可控的权限路径。">gPTP Studio is a professional IEEE 802.1AS / AUTOSAR EthTSyn debugging workstation built around the Linux timing stack.</p>
       <div class="hero-buttons">
-        <a href="#download" class="btn btn-primary">Download for Linux</a>
-        <a href="https://github.com/turinglambdaai/gptp-studio" class="btn btn-secondary">View source</a>
+        <a href="#download" class="btn btn-primary" data-en="Download for Linux" data-zh="下载 Linux 版本">Download for Linux</a>
+        <a href="https://github.com/turinglambdaai/gptp-studio" class="btn btn-secondary" data-en="View source" data-zh="查看源码">View source</a>
       </div>
     </div>
   </section>
 
   <section id="features">
     <div class="container">
-      <span class="eyebrow">What it replaces</span>
-      <h2 class="section-title">The timing debug bench, <span class="accent">in one window.</span></h2>
+      <span class="eyebrow" data-en="What it replaces" data-zh="替代零散工具链">What it replaces</span>
+      <h2 class="section-title"><span data-en="The timing debug bench," data-zh="把时间同步调试台，">The timing debug bench,</span> <span class="accent" data-en="in one window." data-zh="收进一个窗口。">in one window.</span></h2>
       <div class="bento-grid">
-        <div class="bento-card"><h3>GrandMaster / Slave / Listener</h3><p>Switch roles with generated ptp4l configuration and supervised engine lifecycle.</p></div>
-        <div class="bento-card"><h3>PHC & hardware timestamp qualification</h3><p>Inspect NIC driver, link, HW TX/RX timestamp support, /dev/ptpN and privilege readiness before a real engine starts.</p></div>
-        <div class="bento-card"><h3>Live sync analysis</h3><p>Track offsetFromMaster, meanPathDelay, port state, GM identity and timing alarms in real time.</p></div>
-        <div class="bento-card"><h3>Packet-level correlation</h3><p>Decode Sync, Follow_Up, Announce, PDelay_* and Signalling, with exact timestamp metadata and hex inspection.</p></div>
-        <div class="bento-card"><h3>Headless Doctor</h3><p>Generate a redacted support report with NIC, PHC, linuxptp, privilege and per-role readiness facts.</p></div>
-        <div class="bento-card"><h3>Offline simulator</h3><p>Exercise the same encode/decode/store pipeline without requiring target hardware.</p></div>
+        <div class="bento-card"><h3 data-en="GrandMaster / Slave / Listener" data-zh="GrandMaster / 从钟 / Listener">GrandMaster / Slave / Listener</h3><p data-en="Switch roles with generated ptp4l configuration and supervised engine lifecycle." data-zh="生成 ptp4l 配置并统一监督真实引擎生命周期。">Switch roles with generated ptp4l configuration and supervised engine lifecycle.</p></div>
+        <div class="bento-card"><h3 data-en="PHC & hardware timestamp qualification" data-zh="PHC 与硬件时间戳资格检查">PHC & hardware timestamp qualification</h3><p data-en="Inspect NIC driver, link, HW TX/RX timestamp support, /dev/ptpN and privilege readiness before a real engine starts." data-zh="真实引擎启动前检查驱动、链路、TX/RX 硬件时间戳、/dev/ptpN 与权限路径。">Inspect NIC driver, link, HW timestamps, PHC and privileges before a real engine starts.</p></div>
+        <div class="bento-card"><h3 data-en="Live sync analysis" data-zh="实时同步分析">Live sync analysis</h3><p data-en="Track offsetFromMaster, meanPathDelay, port state, GM identity and timing alarms in real time." data-zh="实时观察 offsetFromMaster、meanPathDelay、端口状态、GM 与告警。">Track offsetFromMaster, meanPathDelay, port state, GM identity and timing alarms.</p></div>
+        <div class="bento-card"><h3 data-en="Packet-level correlation" data-zh="报文级关联">Packet-level correlation</h3><p data-en="Decode Sync, Follow_Up, Announce, PDelay_* and Signalling with exact timestamp metadata and hex inspection." data-zh="完整解码 Sync、Follow_Up、Announce、PDelay_*、Signalling，并保留精确时间戳元数据和 hex。">Decode gPTP traffic with exact timestamp metadata and hex inspection.</p></div>
+        <div class="bento-card"><h3 data-en="Headless Doctor" data-zh="无头 Doctor">Headless Doctor</h3><p data-en="Generate a redacted report with NIC, PHC, linuxptp, privilege and per-role readiness facts." data-zh="生成默认脱敏的 NIC、PHC、linuxptp、权限与角色资格报告。">Generate a redacted support/readiness report.</p></div>
+        <div class="bento-card"><h3 data-en="Offline simulator" data-zh="内置模拟器">Offline simulator</h3><p data-en="Exercise the same encode/decode/store pipeline without target hardware." data-zh="无需目标硬件也走同一条 encode/decode/store 管线。">Exercise the same data pipeline without target hardware.</p></div>
       </div>
     </div>
   </section>
 
   <section id="platform">
     <div class="container">
-      <span class="eyebrow">Platform contract</span>
-      <h2 class="section-title">Linux is not a port. <span class="accent">It is the product.</span></h2>
-      <p class="lead">Other operating systems are intentionally unsupported. A reduced-function port without the same PHC, hardware timestamp and linuxptp path would weaken validation and supportability.</p>
+      <span class="eyebrow" data-en="Platform contract" data-zh="平台契约">Platform contract</span>
+      <h2 class="section-title"><span data-en="Linux is not a port." data-zh="Linux 不是其中一个移植平台，">Linux is not a port.</span> <span class="accent" data-en="It is the product." data-zh="Linux 就是产品本体。">It is the product.</span></h2>
+      <p class="lead" data-en="Other operating systems are intentionally unsupported. A reduced-function port without the same PHC, hardware timestamp and linuxptp path would weaken validation and supportability." data-zh="其他操作系统明确不在产品支持范围内。没有同等 PHC、硬件时间戳和 linuxptp 路径的缩水移植，只会降低验证可信度与售后可支持性。">Other operating systems are intentionally unsupported.</p>
       <table class="support-table">
-        <tr><th>Validated distributions</th><td>Ubuntu 22.04 LTS, Ubuntu 24.04 LTS</td></tr>
-        <tr><th>Desktop</th><td>GTK 3 + WebKitGTK 4.1</td></tr>
-        <tr><th>Timing engine</th><td>linuxptp: ptp4l / phc2sys / pmc</td></tr>
-        <tr><th>Hardware path</th><td>NIC hardware timestamping + PTP Hardware Clock</td></tr>
-        <tr><th>Capture</th><td>libpcap with runtime timestamp-source reporting</td></tr>
-        <tr><th>Packages</th><td>Debian .deb + relocatable tar.gz</td></tr>
+        <tr><th data-en="Validated distributions" data-zh="验证发行版">Validated distributions</th><td>Ubuntu 22.04 LTS, Ubuntu 24.04 LTS</td></tr>
+        <tr><th data-en="Desktop" data-zh="桌面 UI">Desktop</th><td>GTK 3 + WebKitGTK 4.1</td></tr>
+        <tr><th data-en="Timing engine" data-zh="时间引擎">Timing engine</th><td>linuxptp: ptp4l / phc2sys / pmc</td></tr>
+        <tr><th data-en="Hardware path" data-zh="硬件时间路径">Hardware path</th><td>NIC hardware timestamping + PTP Hardware Clock</td></tr>
+        <tr><th data-en="Capture" data-zh="抓包">Capture</th><td>libpcap + runtime timestamp-source reporting</td></tr>
+        <tr><th data-en="Packages" data-zh="官方包">Packages</th><td>Debian .deb + relocatable tar.gz</td></tr>
       </table>
     </div>
   </section>
 
   <section id="download">
     <div class="container">
-      <span class="eyebrow">Install</span>
-      <h2 class="section-title">Start with <span class="accent">Doctor.</span></h2>
+      <span class="eyebrow" data-en="Install" data-zh="安装">Install</span>
+      <h2 class="section-title"><span data-en="Start with" data-zh="第一步先运行">Start with</span> <span class="accent">Doctor.</span></h2>
       <div class="download-grid">
-        <div class="download-card">
-          <h3>Debian / Ubuntu</h3>
-          <pre class="command">sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
+        <div class="download-card"><h3>Debian / Ubuntu</h3><pre class="command">sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
 gptp-studio --doctor
-gptp-studio</pre>
-          <p>The package declares runtime dependencies and installs the desktop entry, icon and license notices. It does not silently grant Linux capabilities.</p>
-        </div>
-        <div class="download-card">
-          <h3>Relocatable tarball</h3>
-          <pre class="command">tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
+gptp-studio</pre><p data-en="The package installs dependencies, desktop integration and license notices, but never silently grants Linux capabilities." data-zh="安装包会处理依赖、桌面入口与许可证材料，但绝不会偷偷授予 Linux capability。">The package installs dependencies and desktop integration without silently granting capabilities.</p></div>
+        <div class="download-card"><h3 data-en="Relocatable tarball" data-zh="可移植 tarball">Relocatable tarball</h3><pre class="command">tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
-./bin/gptp-studio</pre>
-          <p>Useful for lab hosts where you want the application payload separated from the system package database.</p>
-        </div>
+./bin/gptp-studio</pre><p data-en="Useful for controlled lab hosts where the application payload should stay outside the package database." data-zh="适合希望应用 payload 与系统包数据库解耦的实验室主机。">Useful for controlled lab hosts.</p></div>
       </div>
       <div class="hero-buttons" style="margin-top:28px">
-        <a href="https://github.com/turinglambdaai/gptp-studio/releases/latest" class="btn btn-primary">Open latest release</a>
-        <a href="https://github.com/turinglambdaai/gptp-studio/blob/main/docs/linux-real-engine-setup.md" class="btn btn-secondary">Linux engine setup</a>
+        <a href="https://github.com/turinglambdaai/gptp-studio/releases/latest" class="btn btn-primary" data-en="Open latest release" data-zh="打开最新 Release">Open latest release</a>
+        <a href="https://github.com/turinglambdaai/gptp-studio/blob/main/docs/linux-real-engine-setup.md" class="btn btn-secondary" data-en="Linux engine setup" data-zh="Linux 真机配置">Linux engine setup</a>
       </div>
     </div>
   </section>
 
-  <footer>
-    <div class="container">
-      <p>gPTP Studio · Linux-native IEEE 802.1AS engineering workstation · Apache-2.0 source</p>
-    </div>
-  </footer>
+  <footer><div class="container"><p data-en="gPTP Studio · Linux-native IEEE 802.1AS engineering workstation · Apache-2.0 source" data-zh="gPTP Studio · Linux 原生 IEEE 802.1AS 工程工作站 · Apache-2.0 源码">gPTP Studio · Linux-native IEEE 802.1AS engineering workstation · Apache-2.0 source</p></div></footer>
+
+  <script>
+    var LANGUAGE_OVERRIDE_KEY = 'gptp-studio-lang-override-v2';
+    var pageMetadata = {
+      en: { title:'gPTP Studio — Linux-native IEEE 802.1AS debugging workstation', description:'Linux-native gPTP / IEEE 802.1AS workstation for Automotive Ethernet with PHC and hardware timestamp qualification.' },
+      zh: { title:'gPTP Studio — Linux 原生 gPTP / IEEE 802.1AS 调试工作站', description:'面向 Automotive Ethernet 的 Linux 原生 gPTP / IEEE 802.1AS 工作站，支持 PHC、硬件时间戳资格检查与 linuxptp。' }
+    };
+    function readLanguageOverride(){ try { var v=localStorage.getItem(LANGUAGE_OVERRIDE_KEY); return v==='zh'||v==='en'?v:null; } catch(e){ return null; } }
+    function detectBrowserLanguage(){ var locale=(navigator.languages&&navigator.languages[0])||navigator.language||''; return String(locale).toLowerCase().indexOf('zh')===0?'zh':'en'; }
+    function applyLanguage(lang,persist){
+      if(persist){ try { localStorage.setItem(LANGUAGE_OVERRIDE_KEY,lang); } catch(e){} }
+      document.querySelectorAll('[data-en]').forEach(function(el){ var text=el.getAttribute('data-'+lang); if(text!==null) el.textContent=text; });
+      document.documentElement.lang=lang==='zh'?'zh-CN':'en';
+      var metadata=pageMetadata[lang];
+      if(metadata){ document.title=metadata.title; var d=document.querySelector('meta[name="description"]'); if(d)d.setAttribute('content',metadata.description); }
+    }
+    function setLanguage(lang){ if(lang==='zh'||lang==='en') applyLanguage(lang,true); }
+    applyLanguage(readLanguageOverride()||detectBrowserLanguage(),false);
+    window.addEventListener('languagechange',function(){ if(!readLanguageOverride()) applyLanguage(detectBrowserLanguage(),false); });
+  </script>
 </body>
 </html>
