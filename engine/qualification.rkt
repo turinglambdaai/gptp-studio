@@ -11,7 +11,8 @@
          racket/string)
 
 (provide qualify-interface
-         qualification-status-rank)
+         qualification-status-rank
+         qualification-blocking?)
 
 (define (qualification-status-rank status)
   (cond
@@ -19,6 +20,10 @@
     [(equal? status "candidate") 2]
     [(equal? status "passive-only") 1]
     [else 0]))
+
+(define (qualification-blocking? qualification)
+  (and (hash? qualification)
+       (positive? (hash-ref qualification 'fail_count 0))))
 
 (define (check id state title detail action)
   (hasheq 'id id
@@ -58,6 +63,39 @@
     [else
      (format "~a 当前存在阻断项，先修复 Preflight 中的 FAIL 再启动真实引擎。" (or iface "当前主机"))]))
 
+(define (privilege-check nic role reference)
+  (define privilege (nic-ref nic 'privilege_mode "direct-best-effort"))
+  (define ptp4l-caps? (nic-ref nic 'ptp4l_file_capabilities #f))
+  (define needs-phc2sys?
+    (and (string=? role "grandmaster") (string=? reference "system")))
+  (define phc2sys-caps? (nic-ref nic 'phc2sys_file_capabilities #f))
+  (define file-caps-ok?
+    (and ptp4l-caps? (or (not needs-phc2sys?) phc2sys-caps?)))
+  (define privileged?
+    (or (member privilege '("root" "sudo-noninteractive")) file-caps-ok?))
+  (define detail
+    (cond
+      [(string=? privilege "root") "running as root"]
+      [(string=? privilege "sudo-noninteractive") "passwordless sudo is available"]
+      [file-caps-ok? "required linuxptp file capabilities are present"]
+      [(and ptp4l-caps? needs-phc2sys? (not phc2sys-caps?))
+       "ptp4l capabilities are present; phc2sys CAP_SYS_TIME is not confirmed"]
+      [else "no proven root / passwordless sudo / complete file-capability path"])))
+  (define action
+    (if privileged?
+        ""
+        (string-append
+         "Recommended non-root setup: sudo setcap cap_net_raw,cap_net_admin+ep \"$(command -v ptp4l)\""
+         (if needs-phc2sys?
+             "; sudo setcap cap_sys_time+ep \"$(command -v phc2sys)\""
+             "")
+         ". Ambient/container capabilities may also work; a successful real start remains authoritative.")))
+  (check "privilege"
+         (if privileged? "pass" "warn")
+         "Privilege path"
+         detail
+         action))
+
 ;; platform: "linux" | "macos" | "windows" | ...
 ;; role:     "grandmaster" | "slave" | "listener"
 ;; reference:"system" | "none"
@@ -93,11 +131,15 @@
                (if nic "" "Select or connect a physical Ethernet interface.")))
 
   (when nic
+    ;; Link-down is operationally important but not structural: ptp4l may be
+    ;; started before the DUT/switch is connected and wait for carrier.
     (add! (check "link"
-                 (if (nic-ref nic 'up #f) "pass" "fail")
+                 (if (nic-ref nic 'up #f) "pass" "warn")
                  "Link state"
                  (nic-ref nic 'operstate "unknown")
-                 (if (nic-ref nic 'up #f) "" "Connect the DUT/switch and bring the link UP.")))
+                 (if (nic-ref nic 'up #f)
+                     ""
+                     "Link is down. The engine may start, but synchronization cannot occur until carrier is UP.")))
 
     (when real-clock-role?
       (define ethtool-available? (nic-ref nic 'ethtool_available #f))
@@ -125,21 +167,13 @@
                    (cond [phc ""]
                          [ethtool-available? "Verify the NIC driver exposes a PHC and ethtool -T reports it."]
                          [else "Install ethtool and rerun Preflight to verify the PHC mapping."])))
-      (add! (tool-check nic 'ptp4l_available "ptp4l" "ptp4l" "Install the linuxptp package."))
+      (add! (tool-check nic 'ptp4l_available "ptp4l" "ptp4l" "Install the linuxptp package (for Debian/Ubuntu: sudo apt install linuxptp)."))
       (when (and (string=? role "grandmaster") (string=? reference "system"))
         (add! (tool-check nic 'phc2sys_available "phc2sys" "phc2sys reference clock" "Install the linuxptp package or select no external reference.")))
       (add! (tool-check nic 'pmc_available "pmc" "pmc cross-check" "Install the linuxptp package for management cross-checks." #:required? #f))
       (add! (tool-check nic 'ethtool_available "ethtool" "NIC capability probe" "Install ethtool; without it NIC timing capability detection remains incomplete." #:required? #f))
       (add! (tool-check nic 'ip_available "ip" "Interface metadata probe" "Install iproute2; without it interface metadata may be incomplete." #:required? #f))
-
-      (define privilege (nic-ref nic 'privilege_mode "unknown"))
-      (add! (check "privilege"
-                   (if (member privilege '("root" "sudo-noninteractive")) "pass" "warn")
-                   "Privilege path"
-                   privilege
-                   (if (member privilege '("root" "sudo-noninteractive"))
-                       ""
-                       "File capabilities or ambient capabilities may still work; verify by starting the real engine and inspect launch-mode/logs."))))
+      (add! (privilege-check nic role reference)))
 
     (when listener?
       (add! (check "listener-mode"
@@ -190,5 +224,10 @@
           'checks checks
           'fail_count fails
           'warn_count warns
+          'blocking (positive? fails)
+          'blocking_check_ids
+          (for/list ([c (in-list checks)]
+                     #:when (string=? (hash-ref c 'state) "fail"))
+            (hash-ref c 'id))
           'accuracy_claim "not-calibrated"
           'accuracy_note "Preflight verifies prerequisites and observed timestamp paths only. It does not establish end-to-end timing accuracy."))
