@@ -83,6 +83,25 @@
   (for/fold ([out h]) ([(k v) (in-hash tooling)])
     (hash-set out k v)))
 
+(define (ethtool-field text key [default ""])
+  (define prefix (string-append key ":"))
+  (or (for/first ([line (in-list (string-split text "\n"))]
+                  #:when (string-prefix? (string-trim line) prefix))
+        (string-trim
+         (substring (string-trim line) (string-length prefix))))
+      default))
+
+(define (phc-clock-name phc)
+  (cond
+    [(not phc) #f]
+    [else
+     (define m (regexp-match #px"/dev/(ptp[0-9]+)$" phc))
+     (and m
+          (file->string* (build-path "/sys/class/ptp" (second m) "clock_name")))]))
+
+(define (device-attribute sys-if name)
+  (or (file->string* (build-path sys-if "device" name)) "unknown"))
+
 (define (detect-linux)
   (define sys-net "/sys/class/net")
   (define tooling (linux-tooling))
@@ -99,17 +118,13 @@
             (and m (string-upcase (string-trim m))))
           ""))
     (define operstate (or (file->string* (build-path sys-if "operstate")) "unknown"))
-    (define ethtool (or (run-out "ethtool" "-T" name) ""))
-    (define hw-tx? (string-contains? ethtool "SOF_TIMESTAMPING_TX_HARDWARE"))
-    (define hw-rx? (string-contains? ethtool "SOF_TIMESTAMPING_RX_HARDWARE"))
+    (define timestamp-info (or (run-out "ethtool" "-T" name) ""))
+    (define driver-info (or (run-out "ethtool" "-i" name) ""))
+    (define hw-tx? (string-contains? timestamp-info "SOF_TIMESTAMPING_TX_HARDWARE"))
+    (define hw-rx? (string-contains? timestamp-info "SOF_TIMESTAMPING_RX_HARDWARE"))
     (define phc
-      (let ([m (regexp-match #px"PTP Hardware Clock:\\s*([0-9]+)" ethtool)])
+      (let ([m (regexp-match #px"PTP Hardware Clock:\\s*([0-9]+)" timestamp-info)])
         (and m (format "/dev/ptp~a" (second m)))))
-    (define driver
-      (or (let* ([out (or (run-out "ethtool" "-i" name) "")]
-                 [m (regexp-match #px"driver:\\s*(\\S+)" out)])
-            (and m (second m)))
-          ""))
     (with-tooling
      (hasheq 'name name
              'mac (string-downcase mac)
@@ -117,7 +132,16 @@
              'up (string=? operstate "up")
              'hw_timestamping (and hw-tx? hw-rx?)
              'phc_device phc
-             'driver driver
+             'phc_clock_name (or (phc-clock-name phc) "unknown")
+             'driver (ethtool-field driver-info "driver")
+             'driver_version (ethtool-field driver-info "version")
+             'firmware_version (ethtool-field driver-info "firmware-version")
+             'bus_info (ethtool-field driver-info "bus-info")
+             'pci_vendor_id (device-attribute sys-if "vendor")
+             'pci_device_id (device-attribute sys-if "device")
+             'subsystem_vendor_id (device-attribute sys-if "subsystem_vendor")
+             'subsystem_device_id (device-attribute sys-if "subsystem_device")
+             'numa_node (device-attribute sys-if "numa_node")
              'ips (linux-ips name)
              'speed (or (file->string* (build-path sys-if "speed")) "unknown"))
      tooling)))
