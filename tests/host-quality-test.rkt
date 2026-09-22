@@ -60,4 +60,4 @@
 (check-equal? (hash-ref unknown 'status) "context")
 (check-true
  (for/and ([c (in-list (hash-ref unknown 'checks))])
-   (member (hash-ref c 'state) '("info" "warn"))))
+   (and (member (hash-ref c 'state) '("info" "warn")) #t)))
