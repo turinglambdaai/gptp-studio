@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the relocatable Linux distribution, smoke-test the distributed binary,
-# verify license payloads, and produce a tarball + SHA-256 checksum.
+# verify license payloads, record build provenance, and produce a tarball +
+# SHA-256 checksum.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -11,6 +12,12 @@ SELF_CHECK_PORT="${GPTP_STUDIO_SELFCHECK_PORT:-18732}"
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "invalid package version: $VERSION (expected x.y.z)" >&2
+  exit 2
+fi
+
+GLAZE_REVISION="$(tr -d '[:space:]' < GLAZE_REVISION)"
+if [[ ! "$GLAZE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "invalid pinned Glaze revision: $GLAZE_REVISION" >&2
   exit 2
 fi
 
@@ -30,6 +37,43 @@ BINARY="$DIST_ROOT/bin/gptp-studio"
 # License/attribution material is part of the product artifact, not merely the
 # source repository. Keep the filenames stable for procurement/compliance tools.
 cp LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md "$DIST_ROOT/"
+
+# Record enough provenance to identify the exact source/framework/runtime used
+# for an official binary without embedding machine-specific identifiers.
+SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
+RACKET_VERSION="$(racket --version 2>&1 | head -n 1)"
+BUILD_ARCH="$(uname -m)"
+BUILD_DISTRO_ID="unknown"
+BUILD_DISTRO_VERSION="unknown"
+if [[ -r /etc/os-release ]]; then
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  BUILD_DISTRO_ID="${ID:-unknown}"
+  BUILD_DISTRO_VERSION="${VERSION_ID:-unknown}"
+fi
+python3 - "$DIST_ROOT/BUILD-INFO.json" \
+  "$VERSION" "$TAG_LABEL" "$SOURCE_COMMIT" "$GLAZE_REVISION" \
+  "$RACKET_VERSION" "$BUILD_ARCH" "$BUILD_DISTRO_ID" "$BUILD_DISTRO_VERSION" <<'PY'
+import json, sys
+(
+    out, version, tag, source_commit, glaze_revision,
+    racket_version, arch, distro_id, distro_version,
+) = sys.argv[1:]
+payload = {
+    "schema_version": 1,
+    "product": "gPTP Studio",
+    "version": version,
+    "tag": tag,
+    "source_commit": source_commit,
+    "glaze_revision": glaze_revision,
+    "racket_version": racket_version,
+    "build_arch": arch,
+    "build_distro": {"id": distro_id, "version_id": distro_version},
+}
+with open(out, "w", encoding="utf-8") as f:
+    json.dump(payload, f, ensure_ascii=False, indent=2, sort_keys=True)
+    f.write("\n")
+PY
 
 echo "== packaged artifact smoke =="
 ACTUAL_VERSION="$("$BINARY" --version)"
@@ -74,6 +118,20 @@ for notice in LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md; do
     exit 1
   }
 done
+
+test -s "$DIST_ROOT/BUILD-INFO.json"
+python3 - "$DIST_ROOT/BUILD-INFO.json" "$VERSION" "$GLAZE_REVISION" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    info = json.load(f)
+assert info["schema_version"] == 1
+assert info["product"] == "gPTP Studio"
+assert info["version"] == sys.argv[2]
+assert info["glaze_revision"] == sys.argv[3]
+assert len(info["source_commit"]) in (7, 40) or info["source_commit"] == "unknown"
+assert info["racket_version"]
+assert info["build_arch"]
+PY
 
 grep -q "Apache License" "$DIST_ROOT/LICENSE"
 grep -q "Glaze" "$DIST_ROOT/THIRD_PARTY_NOTICES.md"
