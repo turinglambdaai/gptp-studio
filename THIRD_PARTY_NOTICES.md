@@ -1,8 +1,8 @@
 # Third-Party Notices
 
 This file documents third-party software that is incorporated into or used by
-official gPTP Studio distributions. It is informational and does not replace the
-license terms that apply to each component.
+official gPTP Studio Linux distributions. It is informational and does not
+replace the license terms that apply to each component.
 
 ## Glaze
 
@@ -73,30 +73,33 @@ the following restrictions:
    misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 
-## System-provided dependencies
+## Linux system dependencies
 
-gPTP Studio's current packaging scripts do **not** copy the following projects
-into the Linux tarball or macOS application bundle as application-owned
-third-party payloads. They are discovered/used from the operating system or are
-installed by the user/build environment:
+gPTP Studio's packaging scripts do **not** copy the following projects into the
+application-owned runtime payload. They are supplied by the Linux distribution
+or installed as package dependencies:
 
 - linuxptp (`ptp4l`, `phc2sys`, `pmc`)
 - libpcap
-- WebKitGTK on Linux / WebKit supplied by macOS
+- GTK 3 and WebKitGTK 4.1
 - OpenSSL command-line tools
 - `ethtool`, `iproute2`, and Linux capability tools
 
-If future packaging starts bundling any of these components, this notice and the
-corresponding license payload must be updated before release.
+The Debian package declares these runtime dependencies instead of vendoring
+them. The relocatable tarball expects the target host to provide them.
+
+If future packaging starts bundling any of these components, this notice and
+the corresponding license payload must be updated before release.
 
 ## Distribution rule
 
-Every official Linux/macOS package must contain, at minimum:
+Every official gPTP Studio Linux distribution must contain, at minimum:
 
 - `LICENSE`
 - `NOTICE`
 - `EULA.md`
 - `THIRD_PARTY_NOTICES.md`
 
-The CI packaging smoke tests enforce the presence of these files so license
-notices cannot be accidentally dropped from a release artifact.
+The tarball packaging smoke tests enforce these files in the application
+payload. The Debian packaging smoke tests enforce them under
+`/usr/share/doc/gptp-studio/` as well as in the application payload.
