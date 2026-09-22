@@ -1,12 +1,14 @@
 #lang racket/base
 
-;; NIC + PHC detection. Linux reads sysfs and shells out to `ethtool -T`
-;; and `ip -j addr`; macOS uses ifconfig. Every failure degrades to
-;; "unknown" fields — never blocks the UI.
+;; NIC + PHC detection for the supported Linux product platform.
 ;;
-;; Linux tooling facts include the privilege paths used by process-runtime.
-;; File capabilities are reported separately for ptp4l and phc2sys because
-;; Slave and GM-without-system-reference do not require CAP_SYS_TIME.
+;; gPTP Studio intentionally targets Linux because the real product path
+;; depends on sysfs, SO_TIMESTAMPING/PHC, linuxptp and Linux capability
+;; semantics. Unsupported hosts are rejected by main.rkt instead of being
+;; presented as partially supported analysis-only platforms.
+;;
+;; Every probe failure degrades to an "unknown" field so transient host state
+;; does not crash the UI. Structural qualification is handled separately.
 
 (require json
          racket/file
@@ -18,14 +20,15 @@
          "process-runtime.rkt")
 
 (provide detect-interfaces
-         platform-name)
+         platform-name
+         supported-platform?)
+
+(define (supported-platform?)
+  (and (eq? (system-type 'os) 'unix)
+       (directory-exists? "/sys/class/net")))
 
 (define (platform-name)
-  (case (system-type 'os)
-    [(macosx) "macos"]
-    [(unix) "linux"]
-    [(windows) "windows"]
-    [else "unknown"]))
+  (if (supported-platform?) "linux" "unsupported"))
 
 (define (run-out . args)
   (define exe (find-executable-path (car args)))
@@ -80,19 +83,15 @@
   (for/fold ([out h]) ([(k v) (in-hash tooling)])
     (hash-set out k v)))
 
-;; ---- Linux -------------------------------------------------------------------
-
 (define (detect-linux)
   (define sys-net "/sys/class/net")
   (define tooling (linux-tooling))
   (define names
-    (if (directory-exists? sys-net)
-        (sort
-         (for/list ([p (in-list (directory-list sys-net #:build? #f))]
-                    #:unless (string-prefix? (path->string p) "lo"))
-           (path->string p))
-         string<?)
-        '()))
+    (sort
+     (for/list ([p (in-list (directory-list sys-net #:build? #f))]
+                #:unless (string-prefix? (path->string p) "lo"))
+       (path->string p))
+     string<?))
   (for/list ([name (in-list names)])
     (define sys-if (build-path sys-net name))
     (define mac
@@ -139,41 +138,7 @@
                   [exn:break? (lambda (_) #f)])
     (and (file-exists? p) (string-trim (file->string p)))))
 
-;; ---- macOS -------------------------------------------------------------------
-
-(define (detect-macos)
-  (define names-list (or (run-out "ifconfig" "-l") ""))
-  (define names (string-split names-list " "))
-  (for/list ([name (in-list names)]
-             ;; skip loopback; en/bridge/awdl are all physical-ish
-             #:unless (string-prefix? name "lo"))
-    (define info (or (run-out "ifconfig" name) ""))
-    (define inet (regexp-match #px"inet ([0-9.]+)" info))
-    (define status (regexp-match #px"status: (\\S+)" info))
-    (define macm (regexp-match #px"ether\\s+([0-9a-f:]+)" info))
-    (hasheq 'name name
-            'mac (or (and macm (string-downcase (second macm))) "")
-            'operstate (or (and status (second status)) "unknown")
-            'up (and status (string=? (second status) "active"))
-            ;; macOS exposes no PHC / SO_TIMESTAMPING control surface:
-            ;; captures run with software timestamps only (documented limit)
-            'hw_timestamping #f
-            'phc_device #f
-            'driver "apple"
-            'ips (if inet (list (second inet)) '())
-            'speed "unknown"
-            'ptp4l_available #f
-            'phc2sys_available #f
-            'pmc_available #f
-            'ethtool_available #f
-            'ip_available #f
-            'getcap_available #f
-            'ptp4l_file_capabilities #f
-            'phc2sys_file_capabilities #f
-            'privilege_mode "n/a")))
-
 (define (detect-interfaces)
-  (case (system-type 'os)
-    [(macosx) (detect-macos)]
-    [(unix) (detect-linux)]
-    [else '()]))
+  (if (supported-platform?)
+      (detect-linux)
+      '()))
