@@ -109,26 +109,45 @@ model, PHC presence, timestamp resolution, or `ptp4l` convergence alone.
 
 ## Validation record
 
-A validation record should pin at least:
+Start every record by saving the machine-readable Doctor fingerprint:
 
-- computer / motherboard model;
-- NIC model and PCI/USB attachment path;
-- NIC driver + firmware;
+```bash
+gptp-studio --doctor-json > doctor.json
+```
+
+The fingerprint deliberately omits unique host/network identity while pinning
+facts that commonly explain timing differences between apparently identical
+machines:
+
+- Linux distribution and kernel release/build;
+- architecture, system vendor/product/board, virtualization and clocksource;
+- linuxptp and relevant runtime package versions;
+- NIC PCI vendor/device/subsystem IDs and bus location;
+- NIC driver + driver version + firmware;
+- PHC device and `clock_name`;
+- link speed and NUMA placement;
+- privilege path.
+
+A complete validation record should additionally pin:
+
+- external computer/motherboard asset identifier in the lab's private record
+  (do not put it into the public Doctor report);
 - PHY/transceiver where relevant;
-- Linux distribution and kernel;
-- linuxptp version;
-- libpcap version;
 - gPTP Studio version/commit;
-- link type and speed;
 - peer device / switch topology;
-- test duration and load conditions.
+- cable/media details where relevant;
+- test duration and load conditions;
+- external reference/instrument model and calibration status when performing
+  characterization.
 
-Store the exported, redacted Studio diagnostic snapshot with the validation
-record.
+Store the exported Doctor JSON and any test evidence together. Two runs should
+be considered the *same reference platform* only when the material fingerprint
+fields are intentionally equivalent; a marketing NIC name alone is not enough.
 
 ## Repeatable validation procedure
 
-1. **Inventory** — save the diagnostic snapshot and record the versions above.
+1. **Inventory** — save `--doctor-json` and the private lab record described
+   above.
 2. **Capability** — verify Preflight has no hard failures for the target role.
 3. **Lifecycle** — start/stop/restart the real engine repeatedly and confirm no
    orphan `ptp4l`/`phc2sys` process or stale management socket remains.
@@ -159,8 +178,9 @@ The first useful commercial milestone is not a custom PCB. It is a small
    adapters are sensible starting candidates, but remain *Candidate* until the
    procedure above is completed);
 3. pin an Ubuntu/Linux + linuxptp stack;
-4. publish the exact validated matrix;
-5. use customer feedback to decide whether a dedicated Studio Box is justified.
+4. capture the Doctor fingerprint for every accepted configuration;
+5. publish the exact validated matrix using non-unique hardware/software facts;
+6. use customer feedback to decide whether a dedicated Studio Box is justified.
 
 A future Studio Box should exist to provide deterministic hardware, automotive
 Ethernet interfaces, dual-sided/inline timestamping, controlled injection and

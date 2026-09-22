@@ -2,16 +2,17 @@
 
 ;; Headless support report used by `gptp-studio --doctor` and --doctor-json.
 ;;
-;; The report is deliberately safe to paste into a support ticket: MAC and IP
-;; addresses are omitted. It evaluates each detected NIC for the three real
-;; clock workflows engineers most commonly need, while preserving the same
-;; conservative rule as GUI Preflight: readiness is not calibrated accuracy.
+;; The report is deliberately safe to paste into a support ticket: MAC/IP,
+;; hostname, machine-id and hardware serials are omitted. It evaluates each NIC
+;; for real clock workflows and records enough non-unique platform identity to
+;; compare two Linux debug hosts reproducibly.
 
 (require racket/format
          racket/list
          racket/string
          "../engine/detect.rkt"
-         "../engine/qualification.rkt")
+         "../engine/qualification.rkt"
+         "platform-fingerprint.rkt")
 
 (provide make-doctor-report
          collect-doctor-report
@@ -23,11 +24,20 @@
 (define (support-nic nic)
   (hasheq 'name (nic-ref nic 'name "")
           'driver (nic-ref nic 'driver "")
+          'driver_version (nic-ref nic 'driver_version "")
+          'firmware_version (nic-ref nic 'firmware_version "")
+          'bus_info (nic-ref nic 'bus_info "")
+          'pci_vendor_id (nic-ref nic 'pci_vendor_id "unknown")
+          'pci_device_id (nic-ref nic 'pci_device_id "unknown")
+          'subsystem_vendor_id (nic-ref nic 'subsystem_vendor_id "unknown")
+          'subsystem_device_id (nic-ref nic 'subsystem_device_id "unknown")
+          'numa_node (nic-ref nic 'numa_node "unknown")
           'operstate (nic-ref nic 'operstate "unknown")
           'up (and (nic-ref nic 'up #f) #t)
           'speed (nic-ref nic 'speed "unknown")
           'hw_timestamping (and (nic-ref nic 'hw_timestamping #f) #t)
           'phc_device (nic-ref nic 'phc_device #f)
+          'phc_clock_name (nic-ref nic 'phc_clock_name "unknown")
           'ptp4l_available (and (nic-ref nic 'ptp4l_available #f) #t)
           'phc2sys_available (and (nic-ref nic 'phc2sys_available #f) #t)
           'pmc_available (and (nic-ref nic 'pmc_available #f) #t)
@@ -56,7 +66,10 @@
       (not (qualification-blocking? (hash-ref iface-report 'grandmaster_system)))
       (not (qualification-blocking? (hash-ref iface-report 'grandmaster_external)))))
 
-(define (make-doctor-report #:version version #:platform platform #:nics nics)
+(define (make-doctor-report #:version version
+                            #:platform platform
+                            #:nics nics
+                            #:host [host (hasheq)])
   (define interfaces
     (for/list ([nic (in-list nics)])
       (interface-report platform nic)))
@@ -65,8 +78,10 @@
           'product "gPTP Studio"
           'version version
           'platform platform
+          'host host
           'privacy (hasheq 'network_identifiers_redacted #t
-                           'note "MAC and IP addresses are intentionally omitted.")
+                           'host_identifiers_redacted #t
+                           'note "MAC/IP, hostname, machine-id and hardware serials are intentionally omitted.")
           'interface_count (length interfaces)
           'real_engine_candidate_count candidates
           'summary
@@ -86,6 +101,7 @@
 (define (collect-doctor-report version)
   (make-doctor-report #:version version
                       #:platform (platform-name)
+                      #:host (collect-platform-fingerprint)
                       #:nics (detect-interfaces)))
 
 (define (bool-label v) (if v "yes" "no"))
@@ -106,11 +122,37 @@
             (hash-ref c 'title (hash-ref c 'id "check"))
             (hash-ref c 'detail ""))))
 
+(define (nested-ref h keys [default "unknown"])
+  (let loop ([v h] [rest keys])
+    (cond
+      [(null? rest) v]
+      [(hash? v) (loop (hash-ref v (car rest) default) (cdr rest))]
+      [else default])))
+
+(define (tool-label host tool)
+  (define v (nested-ref host (list 'tools tool) #f))
+  (if (and v (not (string=? v ""))) v "not detected"))
+
 (define (doctor->text report)
+  (define host (hash-ref report 'host (hasheq)))
   (define header
     (list (format "gPTP Studio Doctor ~a" (hash-ref report 'version "unknown"))
           (format "Platform: ~a" (hash-ref report 'platform "unknown"))
-          "Privacy: MAC/IP omitted"
+          (format "Host: ~a ~a | kernel ~a | ~a"
+                  (nested-ref host '(distro pretty_name))
+                  (nested-ref host '(kernel architecture))
+                  (nested-ref host '(kernel release))
+                  (nested-ref host '(system virtualization)))
+          (format "System: ~a / ~a / board ~a | clocksource=~a"
+                  (nested-ref host '(system vendor))
+                  (nested-ref host '(system product_name))
+                  (nested-ref host '(system board_name))
+                  (nested-ref host '(system clocksource)))
+          (format "Tools: ~a | ~a | ~a"
+                  (tool-label host 'ptp4l)
+                  (tool-label host 'phc2sys)
+                  (tool-label host 'pmc))
+          "Privacy: network + unique host identifiers omitted"
           (format "Summary: ~a" (hash-ref report 'summary ""))))
   (define interface-lines
     (apply append
@@ -134,13 +176,24 @@
              (append
               (list ""
                     (format "Interface: ~a" (hash-ref nic 'name "unknown"))
-                    (format "  driver=~a link=~a speed=~a"
+                    (format "  driver=~a version=~a firmware=~a bus=~a"
                             (hash-ref nic 'driver "")
+                            (hash-ref nic 'driver_version "")
+                            (hash-ref nic 'firmware_version "")
+                            (hash-ref nic 'bus_info ""))
+                    (format "  pci=~a:~a subsystem=~a:~a numa=~a"
+                            (hash-ref nic 'pci_vendor_id "unknown")
+                            (hash-ref nic 'pci_device_id "unknown")
+                            (hash-ref nic 'subsystem_vendor_id "unknown")
+                            (hash-ref nic 'subsystem_device_id "unknown")
+                            (hash-ref nic 'numa_node "unknown"))
+                    (format "  link=~a speed=~a"
                             (hash-ref nic 'operstate "unknown")
                             (hash-ref nic 'speed "unknown"))
-                    (format "  hw_timestamping=~a phc=~a"
+                    (format "  hw_timestamping=~a phc=~a phc_clock=~a"
                             (bool-label (hash-ref nic 'hw_timestamping #f))
-                            (or (hash-ref nic 'phc_device #f) "none"))
+                            (or (hash-ref nic 'phc_device #f) "none")
+                            (hash-ref nic 'phc_clock_name "unknown"))
                     (format "  ptp4l=~a phc2sys=~a pmc=~a privilege=~a"
                             (bool-label (hash-ref nic 'ptp4l_available #f))
                             (bool-label (hash-ref nic 'phc2sys_available #f))

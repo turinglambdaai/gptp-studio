@@ -47,8 +47,24 @@ with open(sys.argv[1], encoding="utf-8") as f:
     report = json.load(f)
 assert report["schema_version"] == 1
 assert report["product"] == "gPTP Studio"
+assert report["platform"] == "linux"
 assert report["privacy"]["network_identifiers_redacted"] is True
+assert report["privacy"]["host_identifiers_redacted"] is True
+host = report["host"]
+assert host["fingerprint_schema_version"] == 1
+assert host["privacy"]["hostname_omitted"] is True
+assert host["privacy"]["machine_id_omitted"] is True
+assert host["privacy"]["hardware_serials_omitted"] is True
+assert isinstance(host["kernel"]["release"], str)
+assert isinstance(host["kernel"]["architecture"], str)
 assert isinstance(report["interfaces"], list)
+for entry in report["interfaces"]:
+    nic = entry["nic"]
+    assert "mac" not in nic and "ips" not in nic
+    assert "driver_version" in nic
+    assert "firmware_version" in nic
+    assert "bus_info" in nic
+    assert "phc_clock_name" in nic
 assert report["accuracy_claim"] == "not-calibrated"
 PY
 
