@@ -80,7 +80,7 @@
       [file-caps-ok? "required linuxptp file capabilities are present"]
       [(and ptp4l-caps? needs-phc2sys? (not phc2sys-caps?))
        "ptp4l capabilities are present; phc2sys CAP_SYS_TIME is not confirmed"]
-      [else "no proven root / passwordless sudo / complete file-capability path"])))
+      [else "no proven root / passwordless sudo / complete file-capability path"]))
   (define action
     (if privileged?
         ""
