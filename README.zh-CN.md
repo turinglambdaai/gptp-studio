@@ -19,6 +19,7 @@
 - **实时同步曲线**——`offsetFromMaster` / `meanPathDelay` 跟随 Sync 速率（gPTP 约 8 Hz）刷新，超阈值红色告警 + 系统通知
 - **gPTP 抓包解码**——libpcap 实时抓包（`ether proto 0x88f7`），Sync / Follow_Up / Announce / PDelay\_\* / Signalling 全字段解码（含 802.1AS follow-up info TLV），内部保留精确 sec+nsec 时间戳元数据，支持 hex、pcap/pcapng 导入和 pcap 导出
 - **时间路径透明**——“网卡支持硬件时间戳 + PHC”和“当前 libpcap 实际拿到的时间戳来源”分开显示；时间戳分辨率不会被包装成已经校准过的测量精度
+- **无头支持 Doctor**——`--doctor` / `--doctor-json` 无需打开 GUI 即可报告网卡、PHC、linuxptp 和权限路径，默认不输出 MAC/IP
 - **内置模拟器**——合成 802.1AS 会话（真实编码帧走同一解码管道），无硬件甚至无 Linux 也能演示、测试、学习
 - **场景预设**——保存角色 + 参数 + 网卡组合，一键应用；`ptp4l.conf` 一键导出
 - **聚合日志**——ptp4l、phc2sys、抓包、应用事件同窗展示，级别/来源过滤，可导出
@@ -52,6 +53,8 @@
 # Linux（调试主机）
 sudo apt install linuxptp libpcap-dev ethtool iproute2
 ./gptp-studio                            # 启动 GUI
+./gptp-studio --doctor                   # 无头环境/支持报告
+./gptp-studio --doctor-json > doctor.json
 
 # macOS（分析 + 模拟器）
 open "gPTP Studio.app"
@@ -61,6 +64,8 @@ open "gPTP Studio.app"
 
 文件 capability 可以作为后续部署优化，但不要假定“给 `ptp4l` 执行一条固定 setcap 命令”就能覆盖所有 GM / Slave / 参考源组合；请以目标主机上真实 `ptp4l` / `phc2sys` 启动结果和日志为准。
 
+如果一台主机与另一台表现不一致，优先运行无头 Doctor，并把默认脱敏的输出附到支持工单。详见 [docs/support-doctor.md](docs/support-doctor.md)。
+
 从源码运行：
 
 ```bash
@@ -68,6 +73,8 @@ raco pkg install --auto --no-docs --link /path/to/glaze   # 框架依赖
 raco make main.rkt
 racket main.rkt                # GUI
 racket main.rkt --simulator    # GUI + 合成 gPTP 会话（无需硬件）
+racket main.rkt --doctor       # 无头环境/支持报告
+racket main.rkt --doctor-json  # 机器可读的默认脱敏报告
 racket main.rkt --selfcheck    # 无头冒烟测试（CI）
 raco test tests/
 ```

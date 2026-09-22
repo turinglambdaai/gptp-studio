@@ -34,6 +34,19 @@ if [[ "$ACTUAL_VERSION" != "$VERSION" ]]; then
 fi
 "$BINARY" --selfcheck --port "$SELF_CHECK_PORT"
 
+DOCTOR_JSON="dist/gptp-studio-doctor-smoke.json"
+"$BINARY" --doctor-json > "$DOCTOR_JSON"
+python3 - "$DOCTOR_JSON" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    report = json.load(f)
+assert report["schema_version"] == 1
+assert report["product"] == "gPTP Studio"
+assert report["privacy"]["network_identifiers_redacted"] is True
+assert isinstance(report["interfaces"], list)
+assert report["accuracy_claim"] == "not-calibrated"
+PY
+
 echo "== archive =="
 ARCHIVE="gPTP-Studio-${TAG_LABEL}-linux-x64.tar.gz"
 tar -czf "$ARCHIVE" -C dist gptp-studio-distributed
