@@ -60,7 +60,7 @@ Priority: optional
 Architecture: $ARCH
 Maintainer: turinglambdaai
 Homepage: https://github.com/turinglambdaai/gptp-studio
-Depends: libgtk-3-0, libwebkit2gtk-4.1-0, libpcap0.8, linuxptp, ethtool, iproute2, libcap2-bin, openssl
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0, libpcap0.8 | libpcap0.8t64, linuxptp, ethtool, iproute2, libcap2-bin, openssl
 Description: Professional gPTP / IEEE 802.1AS debugging workstation
  gPTP Studio is a Linux-native engineering workstation for Automotive
  Ethernet timing work. It combines linuxptp engine control, PHC and hardware
@@ -80,8 +80,11 @@ echo "== deb metadata smoke =="
 test "$(dpkg-deb --field "$DEB" Package)" = "gptp-studio"
 test "$(dpkg-deb --field "$DEB" Version)" = "$VERSION"
 test "$(dpkg-deb --field "$DEB" Architecture)" = "$ARCH"
-dpkg-deb --field "$DEB" Depends | grep -q 'linuxptp'
-dpkg-deb --field "$DEB" Depends | grep -q 'libwebkit2gtk-4.1-0'
+DEPENDS="$(dpkg-deb --field "$DEB" Depends)"
+printf '%s\n' "$DEPENDS" | grep -Fq 'libgtk-3-0 | libgtk-3-0t64'
+printf '%s\n' "$DEPENDS" | grep -Fq 'libpcap0.8 | libpcap0.8t64'
+printf '%s\n' "$DEPENDS" | grep -Fq 'libwebkit2gtk-4.1-0'
+printf '%s\n' "$DEPENDS" | grep -Fq 'linuxptp'
 
 mkdir -p "$EXTRACT_ROOT"
 dpkg-deb -x "$DEB" "$EXTRACT_ROOT"
@@ -108,7 +111,6 @@ assert report["privacy"]["network_identifiers_redacted"] is True
 assert report["accuracy_claim"] == "not-calibrated"
 PY
 
-GPTP_STUDIO_SELFCHECK_PORT="${GPTP_STUDIO_DEB_SELFCHECK_PORT:-18742}" \
-  "$BINARY" --selfcheck --port "${GPTP_STUDIO_DEB_SELFCHECK_PORT:-18742}"
+"$BINARY" --selfcheck --port "${GPTP_STUDIO_DEB_SELFCHECK_PORT:-18742}"
 
 echo "packaged: $DEB"
