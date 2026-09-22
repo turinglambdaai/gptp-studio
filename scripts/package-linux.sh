@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the relocatable Linux distribution, smoke-test the distributed binary,
-# and produce a tarball + SHA-256 checksum.
+# verify license payloads, and produce a tarball + SHA-256 checksum.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -24,7 +24,12 @@ echo "== raco distribute =="
 raco distribute dist/gptp-studio-distributed dist/gptp-studio
 cp -r public dist/gptp-studio-distributed/
 
-BINARY="dist/gptp-studio-distributed/bin/gptp-studio"
+DIST_ROOT="dist/gptp-studio-distributed"
+BINARY="$DIST_ROOT/bin/gptp-studio"
+
+# License/attribution material is part of the product artifact, not merely the
+# source repository. Keep the filenames stable for procurement/compliance tools.
+cp LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md "$DIST_ROOT/"
 
 echo "== packaged artifact smoke =="
 ACTUAL_VERSION="$("$BINARY" --version)"
@@ -46,6 +51,18 @@ assert report["privacy"]["network_identifiers_redacted"] is True
 assert isinstance(report["interfaces"], list)
 assert report["accuracy_claim"] == "not-calibrated"
 PY
+
+for notice in LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md; do
+  test -s "$DIST_ROOT/$notice" || {
+    echo "missing distribution license payload: $notice" >&2
+    exit 1
+  }
+done
+
+grep -q "Apache License" "$DIST_ROOT/LICENSE"
+grep -q "Glaze" "$DIST_ROOT/THIRD_PARTY_NOTICES.md"
+grep -q "Racket CS" "$DIST_ROOT/THIRD_PARTY_NOTICES.md"
+grep -q "不会撤销、限制或缩小" "$DIST_ROOT/EULA.md"
 
 echo "== archive =="
 ARCHIVE="gPTP-Studio-${TAG_LABEL}-linux-x64.tar.gz"
