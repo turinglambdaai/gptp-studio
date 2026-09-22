@@ -62,6 +62,7 @@ import json, sys
 payload = {
     "schema_version": 1,
     "product": "gPTP Studio",
+    "platform": "linux",
     "version": version,
     "tag": tag,
     "source_commit": source_commit,
@@ -126,6 +127,7 @@ with open(sys.argv[1], encoding="utf-8") as f:
     info = json.load(f)
 assert info["schema_version"] == 1
 assert info["product"] == "gPTP Studio"
+assert info["platform"] == "linux"
 assert info["version"] == sys.argv[2]
 assert info["glaze_revision"] == sys.argv[3]
 assert len(info["source_commit"]) in (7, 40) or info["source_commit"] == "unknown"
