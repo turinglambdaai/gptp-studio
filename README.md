@@ -70,7 +70,7 @@ cd gptp-studio-distributed
 
 ```bash
 sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
-  libgtk-3-0 libwebkit2gtk-4.1-0
+  libgtk-3-dev libwebkit2gtk-4.1-dev
 
 raco pkg install --auto --no-docs --link /path/to/glaze
 raco make main.rkt
