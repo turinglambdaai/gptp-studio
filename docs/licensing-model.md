@@ -44,11 +44,11 @@ Apache-licensed project.
 
 The defensible product moat should instead be the combination of:
 
-- trustworthy release engineering;
+- trustworthy Linux release engineering;
 - hardware qualification and repeatable timing validation;
 - support and enterprise procurement;
 - automotive-specific workflows and domain expertise;
-- curated reference platforms;
+- curated Linux reference platforms;
 - future Studio Box hardware / automotive Ethernet interfaces;
 - optional future components that are intentionally kept under a separate
   commercial license from their first release.
@@ -79,26 +79,27 @@ The commercial terms therefore focus restrictions on:
 
 ## Distribution compliance
 
-Official release artifacts must contain:
+Official Linux release artifacts must contain:
 
 - `LICENSE`
 - `NOTICE`
 - `EULA.md`
 - `THIRD_PARTY_NOTICES.md`
 
-The packaging smoke tests check those files in both the Linux distributed
-artifact and the macOS application bundle.
+The relocatable tarball smoke test checks these files in the application
+payload. The Debian package smoke test additionally verifies the copies under
+`/usr/share/doc/gptp-studio/`.
 
 ## Dependency policy
 
 Before adding a new bundled dependency:
 
 1. identify its exact license and copyright notices;
-2. determine whether the dependency is linked/bundled or merely a system
+2. determine whether the dependency is linked/bundled or merely a Linux system
    dependency;
 3. update `THIRD_PARTY_NOTICES.md` and package payloads as required;
 4. review reciprocal/copyleft obligations before merge;
-5. rerun the distribution smoke tests.
+5. rerun the distribution smoke tests on both supported Ubuntu LTS versions.
 
 System-provided tools/libraries that are merely invoked or dynamically loaded
 are still engineering dependencies, but they are not automatically copied into

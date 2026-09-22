@@ -1,21 +1,34 @@
 # Linux real-engine setup
 
-This guide is for GrandMaster / Slave operation on a Linux debug host. Passive
-capture, offline analysis and the simulator have fewer requirements.
+This guide is for GrandMaster / Slave operation on the supported gPTP Studio
+platform: Ubuntu 22.04 LTS or Ubuntu 24.04 LTS.
 
-## 1. Runtime packages
+## 1. Prefer the official Debian package
 
-On Debian / Ubuntu, install the timing and NIC inspection tools:
+```bash
+sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
+gptp-studio --doctor
+```
+
+The package declares linuxptp, WebKitGTK, GTK, libpcap, ethtool, iproute2,
+libcap2-bin and OpenSSL dependencies. It uses Debian alternatives for the GTK
+and libpcap runtime package names so the same package can be installed on both
+22.04 and 24.04 despite the 24.04 `t64` library transition.
+
+The package intentionally does **not** modify sudoers or assign file
+capabilities during installation.
+
+## 2. Tarball / source host dependencies
+
+For a tarball or source checkout, install the timing tools plus development
+meta-packages that resolve to the correct runtime libraries on both supported
+Ubuntu LTS releases:
 
 ```bash
 sudo apt update
-sudo apt install linuxptp ethtool iproute2 libcap2-bin libpcap0.8
+sudo apt install linuxptp ethtool iproute2 libcap2-bin openssl \
+  libpcap-dev libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
-
-A source build also needs development headers (for example `libpcap-dev` and the
-WebKitGTK development package used by Glaze). A distributed GUI still relies on
-the host WebKitGTK runtime supplied by the distribution; gPTP Studio's tarball
-does not attempt to bundle kernel-facing/system GUI libraries.
 
 Verify the linuxptp tools:
 
@@ -25,7 +38,7 @@ phc2sys -v
 pmc -v
 ```
 
-## 2. Verify NIC hardware timing support
+## 3. Verify NIC hardware timing support
 
 Choose the Ethernet interface connected to the DUT/switch and run:
 
@@ -38,11 +51,10 @@ and RX hardware timestamping plus a PTP Hardware Clock. Typical output includes
 hardware timestamp capability flags and a non-negative `PTP Hardware Clock`
 index corresponding to `/dev/ptpN`.
 
-Studio's Preflight page performs the same capability probe automatically. A
-successful probe is a **capability** result, not a calibrated timing-accuracy
-claim.
+Studio Preflight performs the same capability probe automatically. A successful
+probe is a **capability** result, not a calibrated timing-accuracy claim.
 
-## 3. Choose a privilege path
+## 4. Choose a privilege path
 
 ### Development / first validation: root or passwordless sudo
 
@@ -82,7 +94,7 @@ source, does not require Studio to start `phc2sys`.
 Package upgrades can replace the linuxptp binaries and therefore remove file
 capabilities. Re-run `getcap` after upgrading `linuxptp`.
 
-## 4. Run Preflight before the first real session
+## 5. Run Preflight before the first real session
 
 In **链路与网卡 / Links & NICs**, run Preflight for the intended interface and
 role.
@@ -98,20 +110,26 @@ The engine supervisor repeats this check automatically when a real GM/Slave
 session is started. This prevents an API/CLI caller from bypassing the GUI's
 hardware checks.
 
-## 5. Link-down behavior
+## 6. Link-down behavior
 
 A link that is currently DOWN is intentionally a warning, not a hard failure.
 Engine startup may be useful before the DUT or switch is powered. Synchronization
 cannot occur until carrier is present.
 
-## 6. Support bundle
+## 7. Support workflow
 
-If a real session still fails, export the diagnostic snapshot from the NIC page.
-By default it removes MAC and IP addresses while retaining the information
-needed for support: interface/driver, PHC, linuxptp tooling, Preflight result,
-engine/capture state, current configuration and recent logs.
+If a real session still fails:
 
-## 7. Timing claims
+```bash
+gptp-studio --doctor > doctor.txt
+gptp-studio --doctor-json > doctor.json
+```
+
+Doctor removes MAC and IP addresses by default while retaining interface/driver,
+PHC, linuxptp tooling, privilege and per-role qualification facts. The GUI NIC
+page also exposes the same qualification model and recent runtime state/logs.
+
+## 8. Timing claims
 
 Do not infer end-to-end timing accuracy from any of the following alone:
 

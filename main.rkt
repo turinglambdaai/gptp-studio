@@ -1,8 +1,8 @@
 #lang racket/base
 
-;; gPTP Studio entry point.
+;; gPTP Studio entry point (Linux product platform only).
 ;;
-;;   racket main.rkt               GUI (native webview window)
+;;   racket main.rkt               GUI (native WebKitGTK window)
 ;;   racket main.rkt --simulator   GUI with the simulator running (GM role)
 ;;   racket main.rkt --port N      fixed server port (default: free port)
 ;;   racket main.rkt --selfcheck   headless check: server + API, exit code
@@ -36,6 +36,15 @@
     (call-with-output-file "/tmp/gptp-bundle-debug.log"
       (lambda (out) (fprintf out "~a ~a\n" (current-seconds) msg))
       #:exists 'append)))
+
+(define (require-linux!)
+  (unless (supported-platform?)
+    (fprintf (current-error-port)
+             (string-append
+              "gPTP Studio supports Linux only.\n"
+              "The professional timing path requires Linux sysfs, PHC/SO_TIMESTAMPING, "
+              "linuxptp, libpcap and Linux privilege controls.\n"))
+    (exit 3)))
 
 (define (run-doctor mode)
   (with-handlers ([exn:fail?
@@ -79,6 +88,10 @@
     (displayln version)
     (exit 0)])
 
+  ;; The application is deliberately Linux-only. Keep --version/--help usable
+  ;; everywhere, but never present a partial-analysis mode as product support.
+  (require-linux!)
+
   (debug-log! (format "launch: sim=~a port=~a selfcheck=~a doctor=~a"
                       sim? port-arg selfcheck? doctor-mode))
   (cond
@@ -100,45 +113,35 @@
                                                         (exn-message e)))])
                    (engine-start "grandmaster" "sim" "")))))
      (log-add! app-logs 'app 'info
-               (format "gPTP Studio ~a 启动（~a / ~a 许可）"
-                       version (platform-name) (gate-tier)))
+               (format "gPTP Studio ~a 启动（Linux / ~a 许可）"
+                       version (gate-tier)))
      (define-values (kind shutdown)
        (with-handlers ([exn:fail? (lambda (e)
                                     (debug-log! (format "FATAL: ~a" (exn-message e)))
                                     (raise e))])
          (run-app #:public-dir public-dir
-                #:api api-routes
-                #:events app-bus
-                #:api-token token-arg
-                #:title "gPTP Studio"
-                #:width 1280
-                #:height 820
-                #:port port-arg
-                #:on-error
-                (lambda (exn uri)
-                  (log-add! app-logs 'app 'error
-                            (format "~a (~a)" (exn-message exn) uri))
-                  (bus-broadcast! app-bus 'backend-error
-                                  (hasheq 'uri uri 'message (exn-message exn))))
-                #:on-close
-                (lambda ()
-                  (sup-stop app-supervisor)
-                  (cm-stop app-capture))
+                  #:api api-routes
+                  #:events app-bus
+                  #:api-token token-arg
+                  #:title "gPTP Studio"
+                  #:width 1280
+                  #:height 820
+                  #:port port-arg
+                  #:on-error
+                  (lambda (exn uri)
+                    (log-add! app-logs 'app 'error
+                              (format "~a (~a)" (exn-message exn) uri))
+                    (bus-broadcast! app-bus 'backend-error
+                                    (hasheq 'uri uri 'message (exn-message exn))))
+                  #:on-close
+                  (lambda ()
+                    (sup-stop app-supervisor)
+                    (cm-stop app-capture))
                   #:on-ready
                   (lambda (wv url)
                     (set-box! app-wv-box wv)
                     (debug-log! "window ready")
-                    (log-add! app-logs 'app 'info (format "窗口就绪 ~a" url))
-                    ;; WKWebView in a bare process occasionally stalls before
-                    ;; first paint (same quirk glaze's showcase works around):
-                    ;; detect via title and reload once.
-                    (thread
-                     (lambda ()
-                       (sleep 4)
-                       (define t1 (and wv (webview-title wv)))
-                       (when (or (not t1) (string=? t1 ""))
-                         (log-add! app-logs 'app 'warn "页面首帧卡住，重载一次")
-                         (webview-navigate wv url))))))))
+                    (log-add! app-logs 'app 'info (format "窗口就绪 ~a" url))))))
      (when (eq? kind 'browser)
        ;; browser fallback keeps the server alive; wait for Ctrl-C
        (sync never-evt))]))
@@ -163,7 +166,9 @@
        (printf "[ok] ~a\n" name)]
       [else
        (set! ok #f)
-       (printf "[FAIL] ~a (~a)\n" name (and body (substring body 0 (min 120 (string-length body)))))]))
+       (printf "[FAIL] ~a (~a)\n"
+               name
+               (and body (substring body 0 (min 120 (string-length body)))))]))
   (check "static page" "/" "gPTP Studio")
   (check "bootstrap api" "/api/bootstrap" "\"version\"")
   (check "conf api" "/api/conf" "ptp4l.conf")
@@ -177,6 +182,7 @@
 ;; minimal HTTP/1.0 GET over raw TCP (no net-lib dependency)
 (require racket/port
          racket/tcp)
+
 (define (tcp-connect* host url)
   (define m (regexp-match #px"^http://[^:]+:([0-9]+)(.*)$" url))
   (define port (string->number (second m)))
