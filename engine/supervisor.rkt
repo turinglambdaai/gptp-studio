@@ -19,8 +19,10 @@
          racket/system
          glaze/events
          "config.rkt"
+         "detect.rkt"
          "ptp4l.rkt"
          "process-runtime.rkt"
+         "qualification.rkt"
          "runtime-config.rkt"
          "simulator.rkt"
          "../data/series.rkt"
@@ -92,6 +94,26 @@
 
 (define (linuxptp-available?)
   (and (find-executable-path "ptp4l") #t))
+
+(define (real-start-preflight sup role iface)
+  (qualify-interface #:platform (platform-name)
+                     #:nics (detect-interfaces)
+                     #:iface iface
+                     #:role (symbol->string role)
+                     #:reference (symbol->string (state-ref sup 'reference 'system))))
+
+(define (preflight-block-message qualification)
+  (define fail-actions
+    (for/list ([c (in-list (hash-ref qualification 'checks '()))]
+               #:when (and (string=? (hash-ref c 'state "") "fail")
+                           (not (string=? (hash-ref c 'action "") ""))))
+      (hash-ref c 'action)))
+  (string-append
+   "Preflight 阻止真实引擎启动："
+   (hash-ref qualification 'summary "存在未满足的真实引擎前置条件。")
+   (if (null? fail-actions)
+       ""
+       (format " 建议：~a" (string-join fail-actions "；")))))
 
 ;; One application owns one supervisor, so one worker registry is sufficient.
 (define worker-threads (box '()))
@@ -172,6 +194,17 @@
 ;; Returns (values ok? error-string).
 (define (sup-start sup role iface params mode)
   (sup-stop sup)
+  (define (launch!)
+    (mutate-state! sup 'role role)
+    (mutate-state! sup 'iface iface)
+    (mutate-state! sup 'params params)
+    (mutate-state! sup 'mode mode)
+    (mutate-state! sup 'started-at (now-ms))
+    (mutate-state! sup 'restarts 0)
+    (mutate-state! sup 'reference-status (if (eq? mode 'sim) "simulated" "starting"))
+    (if (eq? mode 'sim)
+        (begin (sim-start! sup role) (values #t #f))
+        (real-start! sup role iface params)))
   (cond
     [(and (eq? mode 'real) (not (eq? (system-type 'os) 'unix)))
      (values #f "真实引擎需要 Linux（linuxptp 依赖内核 SO_TIMESTAMPING 与 PHC 子系统）。macOS 上请使用模拟器模式或被动监听。")]
@@ -181,17 +214,19 @@
      (values #f "未找到 ptp4l。请先安装 linuxptp：sudo apt install linuxptp")]
     [(and (eq? mode 'real) (not iface))
      (values #f "真实引擎需要选择物理网卡")]
-    [else
-     (mutate-state! sup 'role role)
-     (mutate-state! sup 'iface iface)
-     (mutate-state! sup 'params params)
-     (mutate-state! sup 'mode mode)
-     (mutate-state! sup 'started-at (now-ms))
-     (mutate-state! sup 'restarts 0)
-     (mutate-state! sup 'reference-status (if (eq? mode 'sim) "simulated" "starting"))
-     (if (eq? mode 'sim)
-         (begin (sim-start! sup role) (values #t #f))
-         (real-start! sup role iface params))]))
+    [(eq? mode 'real)
+     (define qualification (real-start-preflight sup role iface))
+     (cond
+       [(qualification-blocking? qualification)
+        (define msg (preflight-block-message qualification))
+        (log! sup 'app 'error msg)
+        (values #f msg)]
+       [else
+        (when (positive? (hash-ref qualification 'warn_count 0))
+          (log! sup 'app 'warn
+                (format "Preflight=VERIFY：~a" (hash-ref qualification 'summary "存在待确认项"))))
+        (launch!)])]
+    [else (launch!)]))
 
 (define (sup-stop sup)
   ;; Mark idle before terminating subprocesses so exit watchers can distinguish
