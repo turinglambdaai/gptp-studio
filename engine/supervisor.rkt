@@ -193,8 +193,10 @@
 
 ;; Returns (values ok? error-string).
 (define (sup-start sup role iface params mode)
-  (sup-stop sup)
+  ;; Validate the requested session before stopping an already-running one.
+  ;; A rejected switch must never destroy a healthy existing session.
   (define (launch!)
+    (sup-stop sup)
     (mutate-state! sup 'role role)
     (mutate-state! sup 'iface iface)
     (mutate-state! sup 'params params)
