@@ -66,11 +66,27 @@
     (define v (dpkg-version name))
     (and v (hasheq 'package name 'version v))))
 
+;; systemd-detect-virt intentionally exits 1 when no virtualization is found.
+;; The generic run-out helper only preserves exit-0 output, so handle this
+;; command separately to distinguish a real bare-metal result from probe
+;; failure/absence.
 (define (virtualization)
-  (define v (run-out "systemd-detect-virt"))
+  (define exe (find-executable-path "systemd-detect-virt"))
   (cond
-    [(or (not v) (string=? v "")) "unknown"]
-    [else v]))
+    [(not exe) "unknown"]
+    [else
+     (with-handlers ([exn:fail? (lambda (_) "unknown")])
+       (define out (open-output-string))
+       (define rc
+         (parameterize ([current-output-port out]
+                        [current-error-port (open-output-nowhere)]
+                        [current-input-port (open-input-string "")])
+           (system*/exit-code exe)))
+       (define text (string-trim (get-output-string out)))
+       (cond
+         [(zero? rc) (if (string=? text "") "unknown" text)]
+         [(= rc 1) "none"]
+         [else "unknown"]))]))
 
 (define (collect-platform-fingerprint)
   (define osr (read-os-release))
