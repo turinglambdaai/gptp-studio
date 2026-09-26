@@ -31,6 +31,7 @@
          "../data/series.rkt"
          "../data/logstore.rkt"
          "../support/diagnostics.rkt"
+         "../support/engineering-report.rkt"
          "../support/platform-fingerprint.rkt")
 
 (provide api-routes engine-start bootstrap)
@@ -125,6 +126,44 @@
                 'path (path->string path)
                 'redacted #t
                 'qualification qualification)]))]
+
+  [(POST "api/report/export")
+   (report-export [format string? "markdown"]
+                  [iface string? ""]
+                  [role string? ""]
+                  [reference string? ""])
+   (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+     (define report (current-engineering-report iface role reference))
+     (define fmt (string-downcase format))
+     (cond
+       [(or (string=? fmt "markdown") (string=? fmt "md"))
+        (define path
+          (save-file-dialog #:title "导出 gPTP Studio 工程报告（Markdown）"
+                            #:default-name "gptp-studio-engineering-report.md"
+                            #:filters '(("Markdown" "*.md" "*.markdown"))))
+        (if (not path)
+            (hasheq 'ok #f 'cancelled #t)
+            (begin
+              (write-engineering-report-markdown! path report)
+              (hasheq 'ok #t
+                      'format "markdown"
+                      'path (path->string path)
+                      'redacted #t)))]
+       [(string=? fmt "json")
+        (define path
+          (save-file-dialog #:title "导出 gPTP Studio 工程报告（JSON）"
+                            #:default-name "gptp-studio-engineering-report.json"
+                            #:filters '(("JSON" "*.json"))))
+        (if (not path)
+            (hasheq 'ok #f 'cancelled #t)
+            (begin
+              (write-engineering-report-json! path report)
+              (hasheq 'ok #t
+                      'format "json"
+                      'path (path->string path)
+                      'redacted #t)))]
+       [else
+        (hasheq 'ok #f 'error "report format must be markdown or json")]))]
 
   ;; ---- engine -------------------------------------------------------------
   [(POST "api/engine/start")
@@ -453,6 +492,41 @@
                      #:role role
                      #:reference reference
                      #:capture-status (cm-status app-capture)))
+
+(define (nonempty-string-or value fallback)
+  (if (and (string? value) (not (string=? value ""))) value fallback))
+
+(define (current-engineering-report requested-iface requested-role requested-reference)
+  (define engine (sup-status app-supervisor))
+  (define capture (cm-status app-capture))
+  (define nics (detect-interfaces))
+  (define role
+    (nonempty-string-or requested-role (hash-ref engine 'role "listener")))
+  (define reference
+    (nonempty-string-or requested-reference (hash-ref engine 'reference "system")))
+  (define iface
+    (nonempty-string-or
+     requested-iface
+     (or (hash-ref engine 'iface #f)
+         (hash-ref capture 'iface #f)
+         (settings-ref 'capture-iface)
+         "")))
+  (define qualification (current-qualification iface role reference nics))
+  (define threshold-ns (* (settings-ref 'offset-warn-us) 1000))
+  (make-engineering-report
+   #:version app-version
+   #:platform (platform-name)
+   #:nics nics
+   #:qualification qualification
+   #:engine engine
+   #:capture capture
+   #:params (params->jsexpr (current-params))
+   #:conf (params->conf (current-params) #:role role)
+   #:offset-points (series-snapshot app-offset-series 5000)
+   #:delay-points (series-snapshot app-delay-series 5000)
+   #:packets (packet-store-snapshot app-packets 5000)
+   #:logs (log-snapshot app-logs #:limit 300)
+   #:offset-jump-threshold-ns threshold-ns))
 
 (define (sup-set-alarm-threshold! sup ns)
   (set-box! (supervisor-state sup)
