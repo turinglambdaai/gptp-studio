@@ -256,6 +256,33 @@
           (hasheq 'ok #t 'settings result)
           (hasheq 'ok #f 'error result))])]
 
+  ;; ---- simulator fault injection (Free; applies to the sim pipeline only) ---
+  [(GET "api/simulator/faults")
+   (simulator-faults)
+   (hasheq 'ok #t 'faults (hash-ref (sup-status app-supervisor) 'faults))]
+
+  [(POST "api/simulator/faults")
+   (simulator-faults-apply
+    [sync_drop_pct exact-integer? -1]
+    [announce_drop_pct exact-integer? -1]
+    [followup_delay_ms exact-integer? -1]
+    [sequence_gap_every exact-integer? -1]
+    [offset_spike_ns exact-integer? -1]
+    [offset_spike_every_s exact-integer? -1])
+   (define provided
+     (for/hasheq ([(k v) (in-hash (hasheq 'sync_drop_pct sync_drop_pct
+                                          'announce_drop_pct announce_drop_pct
+                                          'followup_delay_ms followup_delay_ms
+                                          'sequence_gap_every sequence_gap_every
+                                          'offset_spike_ns offset_spike_ns
+                                          'offset_spike_every_s offset_spike_every_s))]
+                  #:when (not (= v -1)))
+       (values k v)))
+   (define-values (ok? result) (sup-set-faults! app-supervisor provided))
+   (if ok?
+       (hasheq 'ok #t 'faults result)
+       (hasheq 'ok #f 'error result))]
+
   ;; ---- params & conf preview ---------------------------------------------
   [(POST "api/params/merge")
    (merge-params [domain exact-integer? -999] [priority1 exact-integer? -999]

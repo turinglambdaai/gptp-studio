@@ -13,11 +13,11 @@
 
 ## v1.2 — 专业分析与负向测试（进行中）
 
-- 报文 / 异常 / fault injection
+- ✅ 报文 / 异常 / fault injection（模拟器内：Sync/Announce 丢弃、Follow_Up 延迟、sequenceId 跳变、offset 尖峰；真实引擎注入随 v2 专用硬件）
 - ✅ BMCA 演化时间轴
 - ✅ offset jump ↔ packet ↔ engine-state 根因关联
 - ✅ 测试报告导出（JSON / Markdown，后续 PDF）
-- 多接口与 Boundary Clock 工作流
+- 多接口与 Boundary Clock 工作流（v1.2 最后一项）
 
 ## v1.x — 参考平台与可重复性
 

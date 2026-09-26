@@ -42,6 +42,7 @@
          sup-check-offsets
          sup-gm-settings
          sup-gm-settings-set!
+         sup-set-faults!
          linuxptp-available?)
 
 (struct supervisor (sema
@@ -77,7 +78,8 @@
                            'last-failure #f
                            'restarts 0
                            'offset-warn-ns 100000
-                           'auto-restart #t))
+                           'auto-restart #t
+                           'faults empty-faults))
               bus logs offset-series delay-series packets run-dir))
 
 ;; ---- state / logging helpers -------------------------------------------------
@@ -302,6 +304,7 @@
           'freq_ppb (hash-ref s 'freq-ppb)
           'uptime_ms (let ([t0 (hash-ref s 'started-at)])
                        (and t0 (inexact->exact (floor (- (now-ms) t0)))))
+          'faults (hash-ref s 'faults empty-faults)
           'processes
           (for/list ([entry (in-list (hash-ref s 'processes '()))])
             (hasheq 'name (symbol->string (process-entry-name entry))
@@ -418,6 +421,24 @@
        (values #t merged)])))
 
 
+;; Session-level simulator fault profile (negative testing). Applies only to
+;; the simulated pipeline; never to a real linuxptp session.
+(define (sup-set-faults! sup provided)
+  (define merged (merge-faults (state-ref sup 'faults empty-faults) provided))
+  (define-values (clean err) (sanitize-faults merged))
+  (cond
+    [err (values #f err)]
+    [else
+     (mutate-state! sup 'faults clean)
+     (define active
+       (for/list ([(k v) (in-hash clean)] #:when (> v 0)) (format "~a=~a" k v)))
+     (log! sup 'sim 'info
+           (if (null? active)
+               "Fault injection 已清除（模拟器恢复正常波形）"
+               (format "Fault injection 生效：~a" (string-join active "，"))))
+     (emit! sup 'state-changed (sup-status sup))
+     (values #t clean)]))
+
 (define (run-out . args)
   (define exe (find-executable-path (car args)))
   (and exe
@@ -449,7 +470,7 @@
 (define (sim-tick! sup role t tick)
   (case role
     [(slave)
-     (define off (sim-offset-ns t))
+     (define off (sim-offset-ns t #:faults (state-ref sup 'faults empty-faults)))
      (series-push! (supervisor-offset-series sup) t off)
      (mutate-state! sup 'offset-ns off)
      (define dl (sim-path-delay-ns t))
@@ -472,7 +493,7 @@
                          "b6:2f:08:11:22:33:44:55"
                          "a0:0b:1c:2d:3e:4f:50:61")))
     (emit! sup 'state-changed (sup-status sup)))
-  (define frames (make-sim-frames role t tick))
+  (define frames (make-sim-frames role t tick #:faults (state-ref sup 'faults empty-faults)))
   (define decoded
     (for/list ([raw (in-list frames)])
       (decode-frame raw #:ts (+ (current-seconds) (- t (floor t)))
