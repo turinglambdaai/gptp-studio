@@ -68,3 +68,70 @@
   color: var(--muted);
   font-size: 11px;
 }
+
+/* Reference-platform inventory: deliberately compact and evidence-oriented. */
+.reference-platform-card { margin-top: 14px; }
+.reference-platform-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+.reference-platform-actions select {
+  max-width: 220px;
+  min-width: 150px;
+}
+.reference-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.reference-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+.reference-section h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.reference-section dl { margin: 0; }
+.reference-section dl > div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 9px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+.reference-section dl > div:first-child { border-top: 0; }
+.reference-section dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+.reference-section dd {
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.reference-platform-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.reference-platform-foot strong { color: #E65100; }
+.nic-meta {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .reference-platform-grid { grid-template-columns: 1fr; }
+  .reference-platform-actions { flex-wrap: wrap; justify-content: flex-end; }
+}

@@ -57,6 +57,7 @@ jobs:
           node --check public/js/session-controls.js
           node --check public/js/capture-quality.js
           node --check public/js/qualification.js
+          node --check public/js/reference-platform.js
           node tests/timing-evidence-test.js
           node tests/bmca-timeline-test.js
           test -f public/css/app.css

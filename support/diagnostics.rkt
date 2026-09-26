@@ -2,10 +2,10 @@
 
 ;; Support-oriented diagnostic snapshots.
 ;;
-;; Default snapshots deliberately remove MAC/IP data. Interface name, driver,
-;; PHC/tooling capability, engine/capture state and recent logs are enough for
-;; most support cases and avoid exporting customer network identifiers by
-;; default.
+;; Default snapshots deliberately remove MAC/IP data from NIC inventory and
+;; include the same already-redacted host fingerprint used by Doctor. Interface
+;; name, driver/firmware/PCI/PHC facts, engine/capture state and recent logs are
+;; useful for support without exporting unique host identity fields by default.
 
 (require json
          racket/file
@@ -26,6 +26,7 @@
 
 (define (make-diagnostic-snapshot #:version version
                                   #:platform platform
+                                  #:host [host (hasheq)]
                                   #:nics nics
                                   #:qualification qualification
                                   #:engine engine
@@ -39,7 +40,9 @@
           'app (hasheq 'name "gPTP Studio"
                        'version version
                        'platform platform)
-          'privacy (hasheq 'network_identifiers_redacted redact-network?)
+          'privacy (hasheq 'network_identifiers_redacted redact-network?
+                           'host_identifiers_redacted #t)
+          'host host
           'nics (if redact-network?
                     (map redact-nic nics)
                     nics)
