@@ -17,6 +17,7 @@
          "state.rkt"
          "i18n.rkt"
          "gate.rkt"
+         "api-input.rkt"
          "../engine/config.rkt"
          "../engine/detect.rkt"
          "../engine/qualification.rkt"
@@ -229,9 +230,13 @@
 
   [(GET "api/packets/:n")
    (packets-n n)
-   (hasheq 'list (packet-store-snapshot app-packets n)
-           'stored (packet-store-count app-packets)
-           'total (let-values (((_c total) (packet-store-stats app-packets))) total))]
+   (define limit (parse-bounded-positive-integer n #:max 5000))
+   (if limit
+       (hasheq 'list (packet-store-snapshot app-packets limit)
+               'stored (packet-store-count app-packets)
+               'total (let-values (((_c total) (packet-store-stats app-packets))) total))
+       (hasheq 'ok #f
+               'error "packet limit must be an integer from 1 to 5000"))]
 
   [(POST "api/packets/clear")
    (packets-clear)

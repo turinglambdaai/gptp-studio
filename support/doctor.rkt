@@ -12,7 +12,8 @@
          racket/string
          "../engine/detect.rkt"
          "../engine/qualification.rkt"
-         "platform-fingerprint.rkt")
+         "platform-fingerprint.rkt"
+         "host-quality.rkt")
 
 (provide make-doctor-report
          collect-doctor-report
@@ -69,7 +70,10 @@
 (define (make-doctor-report #:version version
                             #:platform platform
                             #:nics nics
-                            #:host [host (hasheq)])
+                            #:host [host (hasheq)]
+                            #:host-quality
+                            [host-quality
+                             (assess-host-quality host (empty-host-runtime-context))])
   (define interfaces
     (for/list ([nic (in-list nics)])
       (interface-report platform nic)))
@@ -79,6 +83,7 @@
           'version version
           'platform platform
           'host host
+          'host_quality host-quality
           'privacy (hasheq 'network_identifiers_redacted #t
                            'host_identifiers_redacted #t
                            'note "MAC/IP, hostname, machine-id and hardware serials are intentionally omitted.")
@@ -96,12 +101,14 @@
           'interfaces interfaces
           'accuracy_claim "not-calibrated"
           'accuracy_note
-          "Doctor reports prerequisites and observed capabilities only; it does not establish end-to-end timing accuracy."))
+          "Doctor reports prerequisites, host context and observed capabilities only; it does not establish end-to-end timing accuracy."))
 
 (define (collect-doctor-report version)
+  (define host (collect-platform-fingerprint))
   (make-doctor-report #:version version
                       #:platform (platform-name)
-                      #:host (collect-platform-fingerprint)
+                      #:host host
+                      #:host-quality (collect-host-quality host)
                       #:nics (detect-interfaces)))
 
 (define (bool-label v) (if v "yes" "no"))
@@ -132,6 +139,24 @@
 (define (tool-label host tool)
   (define v (nested-ref host (list 'tools tool) #f))
   (if (and v (not (string=? v ""))) v "not detected"))
+
+(define (host-quality-lines report)
+  (define quality (hash-ref report 'host_quality (hasheq)))
+  (define checks (hash-ref quality 'checks '()))
+  (append
+   (list ""
+         (format "Timing host context: ~a (~a advisory warning(s))"
+                 (string-upcase (hash-ref quality 'status "context"))
+                 (hash-ref quality 'warning_count 0)))
+   (for/list ([c (in-list checks)])
+     (define state (string-upcase (hash-ref c 'state "info")))
+     (define action (hash-ref c 'action ""))
+     (format "  [~a] ~a: ~a~a"
+             state
+             (hash-ref c 'title (hash-ref c 'id "check"))
+             (hash-ref c 'detail "")
+             (if (string=? action "") "" (format " | ~a" action))))
+   (list "  Host-quality checks are context only and never block engine startup.")))
 
 (define (doctor->text report)
   (define host (hash-ref report 'host (hasheq)))
@@ -214,6 +239,7 @@
                           (format "    - ~a" w))))))))
   (string-join
    (append header
+           (host-quality-lines report)
            interface-lines
            (list ""
                  (format "Timing note: ~a" (hash-ref report 'accuracy_note ""))))

@@ -12,8 +12,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Verify tag, app version and changelog
-        run: bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
+      - name: Verify tag, app version, changelog and pinned dependencies
+        shell: bash
+        run: |
+          bash -n scripts/check-release-version.sh
+          bash -n scripts/install-glaze.sh
+          test "$(tr -d '[:space:]' < GLAZE_REVISION)" != ""
+          bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
 
   linux:
     needs: verify
@@ -35,15 +40,16 @@ jobs:
             ethtool \
             iproute2 \
             libcap2-bin
-      - name: Install Glaze
-        run: |
-          git clone --depth 1 https://github.com/turinglambdaai/glaze.git "$HOME/glaze-src"
-          raco pkg install --auto --no-docs --link "$HOME/glaze-src"
+      - name: Install pinned Glaze
+        shell: bash
+        run: bash scripts/install-glaze.sh
       - name: Build and smoke-test Linux tarball + Debian package
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
+          test "$(tr -d '[:space:]' < GLAZE_REVISION)" = \
+            "$(git -C "$HOME/glaze-src" rev-parse HEAD)"
           raco make main.rkt
           bash scripts/package-deb.sh "$VERSION" "$GITHUB_REF_NAME"
       - name: Upload artifacts

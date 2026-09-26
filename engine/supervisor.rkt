@@ -20,6 +20,7 @@
          glaze/events
          "config.rkt"
          "detect.rkt"
+         "failure-diagnosis.rkt"
          "ptp4l.rkt"
          "process-runtime.rkt"
          "qualification.rkt"
@@ -70,6 +71,7 @@
                            'started-at #f
                            'processes '()
                            'launch-mode #f
+                           'last-failure #f
                            'restarts 0
                            'offset-warn-ns 100000
                            'auto-restart #t))
@@ -166,6 +168,27 @@
              (when ev (handle-ptp4l-event! sup ev))]
             [else (log! sup source level-or-parser line)])))))))
 
+;; Capture a short startup stderr tail while still logging every line normally.
+;; The tail is intentionally local to one process start so stale errors from a
+;; previous session can never contaminate a diagnosis.
+(define (start-error-pump! sup source port [limit 20])
+  (define tail (box '()))
+  (register-worker!
+   (thread
+    (lambda ()
+      (with-handlers ([exn:fail? (lambda (_) (void))])
+        (for ([line (in-lines port)])
+          (define current (append (unbox tail) (list line)))
+          (set-box! tail
+                    (if (> (length current) limit)
+                        (drop current (- (length current) limit))
+                        current))
+          (log! sup source 'error line))))))
+  tail)
+
+(define (error-tail->string tail)
+  (string-join (unbox tail) "\n"))
+
 (define (spawn-managed! sup name executable args required-caps)
   (define-values (argv launch-mode)
     (launch-plan executable args #:required-capabilities required-caps))
@@ -176,6 +199,16 @@
   (log! sup name 'info
         (format "~a 已启动（pid=~a，方式=~a）" name (subprocess-pid p) launch-mode))
   (values p out err launch-mode))
+
+(define (record-start-failure! sup process stderr-text exit-code launch-mode)
+  (define d
+    (diagnose-linuxptp-failure
+     (if (symbol? process) (symbol->string process) (format "~a" process))
+     stderr-text
+     exit-code
+     launch-mode))
+  (mutate-state! sup 'last-failure d)
+  d)
 
 (define (abort-real-start! sup message)
   ;; If called from an auto-restart watcher, do not kill that watcher before it
@@ -203,13 +236,14 @@
     (mutate-state! sup 'mode mode)
     (mutate-state! sup 'started-at (now-ms))
     (mutate-state! sup 'restarts 0)
+    (mutate-state! sup 'last-failure #f)
     (mutate-state! sup 'reference-status (if (eq? mode 'sim) "simulated" "starting"))
     (if (eq? mode 'sim)
         (begin (sim-start! sup role) (values #t #f))
         (real-start! sup role iface params)))
   (cond
-    [(and (eq? mode 'real) (not (eq? (system-type 'os) 'unix)))
-     (values #f "真实引擎需要 Linux（linuxptp 依赖内核 SO_TIMESTAMPING 与 PHC 子系统）。macOS 上请使用模拟器模式或被动监听。")]
+    [(and (eq? mode 'real) (not (supported-platform?)))
+     (values #f "真实引擎仅支持 Linux timing host（需要 sysfs、SO_TIMESTAMPING、PHC 与 linuxptp）。")]
     [(and (eq? mode 'real) (eq? role 'listener))
      (values #f "真实 Listener 是被动抓包角色，不启动 ptp4l。请使用“开始会话”或报文分析页开始抓包。")]
     [(and (eq? mode 'real) (not (linuxptp-available?)))
@@ -257,6 +291,7 @@
           'reference_status (hash-ref s 'reference-status "idle")
           'launch_mode (let ([m (hash-ref s 'launch-mode #f)])
                          (and m (symbol->string m)))
+          'last_failure (hash-ref s 'last-failure #f)
           'port_state (hash-ref s 'port-state)
           'gm_id (hash-ref s 'gm-id)
           'offset_ns (hash-ref s 'offset-ns)
@@ -398,7 +433,7 @@
   (define ptp4l-path (find-executable-path "ptp4l"))
   (cond
     [(not ptp4l-path)
-     (abort-real-start! sup "未找到 ptp4l。请先安装 linuxptp。")]
+     (abort-real-start! sup "未找到 ptp4l。请先安装 linuxptp。")] 
     [else
      (define ptp4l-exe (path->string ptp4l-path))
      (define-values (p out err launch-mode)
@@ -407,17 +442,17 @@
                        '("cap_net_raw" "cap_net_admin")))
      (mutate-state! sup 'launch-mode launch-mode)
      (start-pump! sup 'ptp4l out parse-ptp4l-line)
-     (start-pump! sup 'ptp4l err 'error)
+     (define error-tail (start-error-pump! sup 'ptp4l err))
 
      ;; Catch permissions/config/NIC failures before registering restart watchers.
      (sleep 0.65)
      (cond
        [(not (process-entry-running? (cons 'ptp4l p)))
         (define code (subprocess-status p))
-        (abort-real-start!
-         sup
-         (format "ptp4l 启动失败（rc=~a，方式=~a）。若使用文件 capability，请确认目标主机的网络/时钟权限满足当前角色；否则以 root/免密 sudo 运行，并检查网卡硬件时间戳与配置。"
-                 code launch-mode))]
+        (define d
+          (record-start-failure!
+           sup 'ptp4l (error-tail->string error-tail) code launch-mode))
+        (abort-real-start! sup (failure-diagnosis->message d))]
        [else
         (define-values (ref-ok? ref-err phc-process)
           (start-reference-clock! sup role iface params))
@@ -451,7 +486,7 @@
         (define-values (p out err launch-mode)
           (spawn-managed! sup 'phc2sys phc-exe args '("cap_sys_time")))
         (start-pump! sup 'phc2sys out 'info)
-        (start-pump! sup 'phc2sys err 'error)
+        (define error-tail (start-error-pump! sup 'phc2sys err))
         (sleep 0.20)
         (if (process-entry-running? (cons 'phc2sys p))
             (begin
@@ -462,10 +497,10 @@
                             (path->string (runtime-uds-path (supervisor-run-dir sup)))
                             launch-mode))
               (values #t #f p))
-            (values #f
-                    (format "phc2sys 启动失败（rc=~a，方式=~a）。写 PHC 通常需要 CAP_SYS_TIME、root 或免密 sudo。"
-                            (subprocess-status p) launch-mode)
-                    p))])]))
+            (let* ([code (subprocess-status p)]
+                   [d (record-start-failure!
+                       sup 'phc2sys (error-tail->string error-tail) code launch-mode)])
+              (values #f (failure-diagnosis->message d) p)))])]))
 
 (define (register-exit-watcher! sup name p)
   (register-worker!

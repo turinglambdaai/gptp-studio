@@ -38,6 +38,7 @@ ln -s /opt/gptp-studio/bin/gptp-studio "$PKG_ROOT/usr/bin/gptp-studio"
 cp assets/icon.png "$PKG_ROOT/usr/share/pixmaps/gptp-studio.png"
 cp LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md \
   "$PKG_ROOT/usr/share/doc/gptp-studio/"
+cp "$DIST_ROOT/BUILD-INFO.json" "$PKG_ROOT/usr/share/doc/gptp-studio/BUILD-INFO.json"
 
 cat > "$PKG_ROOT/usr/share/applications/gptp-studio.desktop" <<'DESKTOP'
 [Desktop Entry]
@@ -97,6 +98,19 @@ test -s "$EXTRACT_ROOT/usr/share/pixmaps/gptp-studio.png"
 for notice in LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md; do
   test -s "$EXTRACT_ROOT/usr/share/doc/gptp-studio/$notice"
 done
+test -s "$EXTRACT_ROOT/usr/share/doc/gptp-studio/BUILD-INFO.json"
+test -s "$EXTRACT_ROOT/opt/gptp-studio/BUILD-INFO.json"
+
+python3 - "$EXTRACT_ROOT/opt/gptp-studio/BUILD-INFO.json" "$VERSION" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    info = json.load(f)
+assert info["product"] == "gPTP Studio"
+assert info["version"] == sys.argv[2]
+assert info["glaze_revision"]
+assert len(info["glaze_revision"]) >= 12
+assert info["platform"] == "linux"
+PY
 
 test "$("$BINARY" --version)" = "$VERSION"
 "$BINARY" --doctor-json > "dist/gptp-studio-deb-doctor-smoke.json"

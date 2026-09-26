@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the relocatable Linux distribution, smoke-test the distributed binary,
-# verify license payloads, and produce a tarball + SHA-256 checksum.
+# verify license payloads, record build provenance, and produce a tarball +
+# SHA-256 checksum.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -11,6 +12,12 @@ SELF_CHECK_PORT="${GPTP_STUDIO_SELFCHECK_PORT:-18732}"
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "invalid package version: $VERSION (expected x.y.z)" >&2
+  exit 2
+fi
+
+GLAZE_REVISION="$(tr -d '[:space:]' < GLAZE_REVISION)"
+if [[ ! "$GLAZE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "invalid pinned Glaze revision: $GLAZE_REVISION" >&2
   exit 2
 fi
 
@@ -30,6 +37,61 @@ BINARY="$DIST_ROOT/bin/gptp-studio"
 # License/attribution material is part of the product artifact, not merely the
 # source repository. Keep the filenames stable for procurement/compliance tools.
 cp LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md "$DIST_ROOT/"
+
+# Record enough provenance to identify the exact source/framework/runtime used
+# for an official binary without embedding machine-specific identifiers.
+# Do not `source /etc/os-release`: it defines VERSION and can silently overwrite
+# the product version used by the rest of this release script.
+SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
+RACKET_VERSION="$(racket --version 2>&1 | head -n 1)"
+BUILD_ARCH="$(uname -m)"
+python3 - "$DIST_ROOT/BUILD-INFO.json" \
+  "$VERSION" "$TAG_LABEL" "$SOURCE_COMMIT" "$GLAZE_REVISION" \
+  "$RACKET_VERSION" "$BUILD_ARCH" <<'PY'
+import json
+import os
+import sys
+
+out, version, tag, source_commit, glaze_revision, racket_version, arch = sys.argv[1:]
+
+def os_release():
+    values = {}
+    path = "/etc/os-release"
+    try:
+        with open(path, encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw or raw.startswith("#") or "=" not in raw:
+                    continue
+                key, value = raw.split("=", 1)
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                    value = value[1:-1]
+                values[key] = value
+    except OSError:
+        pass
+    return values
+
+osr = os_release()
+payload = {
+    "schema_version": 1,
+    "product": "gPTP Studio",
+    "platform": "linux",
+    "version": version,
+    "tag": tag,
+    "source_commit": source_commit,
+    "glaze_revision": glaze_revision,
+    "racket_version": racket_version,
+    "build_arch": arch,
+    "build_distro": {
+        "id": osr.get("ID", "unknown"),
+        "version_id": osr.get("VERSION_ID", "unknown"),
+    },
+}
+with open(out, "w", encoding="utf-8") as f:
+    json.dump(payload, f, ensure_ascii=False, indent=2, sort_keys=True)
+    f.write("\n")
+PY
 
 echo "== packaged artifact smoke =="
 ACTUAL_VERSION="$("$BINARY" --version)"
@@ -74,6 +136,23 @@ for notice in LICENSE NOTICE EULA.md THIRD_PARTY_NOTICES.md; do
     exit 1
   }
 done
+
+test -s "$DIST_ROOT/BUILD-INFO.json"
+python3 - "$DIST_ROOT/BUILD-INFO.json" "$VERSION" "$GLAZE_REVISION" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    info = json.load(f)
+assert info["schema_version"] == 1
+assert info["product"] == "gPTP Studio"
+assert info["platform"] == "linux"
+assert info["version"] == sys.argv[2]
+assert info["glaze_revision"] == sys.argv[3]
+assert len(info["source_commit"]) in (7, 40) or info["source_commit"] == "unknown"
+assert info["racket_version"]
+assert info["build_arch"]
+assert info["build_distro"]["id"]
+assert info["build_distro"]["version_id"]
+PY
 
 grep -q "Apache License" "$DIST_ROOT/LICENSE"
 grep -q "Glaze" "$DIST_ROOT/THIRD_PARTY_NOTICES.md"
