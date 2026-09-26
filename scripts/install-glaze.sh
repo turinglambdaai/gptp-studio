@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Install exactly the Glaze revision pinned by this repository.
 # This keeps CI, release rebuilds and developer source builds reproducible.
+#
+# Bootstrap note: this script must run on machines where glaze (and therefore
+# `raco glaze install`) is not yet available, so it performs the clone/link
+# itself and then verifies the result with `raco glaze doctor` — the same
+# check the CLI's own install path performs.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -32,5 +37,14 @@ if [[ "$ACTUAL" != "$REV" ]]; then
   exit 1
 fi
 
-raco pkg install --auto --no-docs --link "$DEST"
+# --name registers the package under its canonical name. Without it raco
+# names a link after its checkout directory (glaze-src, ...), which is how
+# machines drift into duplicate conflicting owners of the glaze collection.
+# A failed remove (nothing installed, fresh CI machine) is not an error.
+raco pkg remove --force glaze >/dev/null 2>&1 || true
+raco pkg install --auto --no-docs --link --name glaze "$DEST"
+
+# Since the pin >= glaze 59ca209 the CLI ships its own hygiene check; use it
+# so a broken machine fails here instead of mid-build with a module error.
+raco glaze doctor
 printf 'Glaze revision installed: %s\n' "$REV"
