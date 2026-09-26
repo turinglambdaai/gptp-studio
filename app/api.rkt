@@ -206,6 +206,55 @@
       (sup-set-reference app-supervisor ref)
       (hasheq 'ok #t 'status (sup-status app-supervisor))])]
 
+  ;; ---- GM runtime tuning (real engine only, Pro feature) --------------------
+  ;; Absent fields keep the sentinel; only provided keys are applied on top of
+  ;; the engine's current settings.
+  [(GET "api/engine/gm-settings")
+   (engine-gm-settings)
+   (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+     (hasheq 'ok #t 'settings (sup-gm-settings app-supervisor)))]
+
+  [(POST "api/engine/gm-settings")
+   (engine-gm-settings-apply
+    [clock_class exact-integer? -999999]
+    [clock_accuracy exact-integer? -999999]
+    [offset_scaled_log_variance exact-integer? -999999]
+    [current_utc_offset exact-integer? -999999]
+    [leap61 exact-integer? -999999]
+    [leap59 exact-integer? -999999]
+    [current_utc_offset_valid exact-integer? -999999]
+    [ptp_timescale exact-integer? -999999]
+    [time_traceable exact-integer? -999999]
+    [frequency_traceable exact-integer? -999999]
+    [time_source exact-integer? -999999]
+    [priority1 exact-integer? -999999]
+    [priority2 exact-integer? -999999])
+   (cond
+     [(not (gate-pro?))
+      (hasheq 'ok #f 'need_pro #t 'error (gate-check 'engine))]
+     [else
+      (define provided
+        (for/hasheq ([(k v) (in-hash (hasheq 'clock_class clock_class
+                                             'clock_accuracy clock_accuracy
+                                             'offset_scaled_log_variance offset_scaled_log_variance
+                                             'current_utc_offset current_utc_offset
+                                             'leap61 leap61
+                                             'leap59 leap59
+                                             'current_utc_offset_valid current_utc_offset_valid
+                                             'ptp_timescale ptp_timescale
+                                             'time_traceable time_traceable
+                                             'frequency_traceable frequency_traceable
+                                             'time_source time_source
+                                             'priority1 priority1
+                                             'priority2 priority2))]
+                    #:when (not (eq? v -999999)))
+          (values k v)))
+      (define-values (ok? result)
+        (sup-gm-settings-set! app-supervisor provided))
+      (if ok?
+          (hasheq 'ok #t 'settings result)
+          (hasheq 'ok #f 'error result))])]
+
   ;; ---- params & conf preview ---------------------------------------------
   [(POST "api/params/merge")
    (merge-params [domain exact-integer? -999] [priority1 exact-integer? -999]
