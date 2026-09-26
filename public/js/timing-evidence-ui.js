@@ -213,7 +213,8 @@
   async function refreshEvidence(force = false) {
     ensureCard();
     updateLabels();
-    if (loading || !window.TimingEvidence) return;
+    const engine = window.TimingEvidence;
+    if (loading || !engine) return;
     if (!force) {
       const page = q("#page-overview");
       if (!page || !page.classList.contains("active")) return;
@@ -222,15 +223,15 @@
     try {
       const [series, packetResult, logResult] = await Promise.all([
         api("/api/series"),
-        api("/api/packets/1000"),
+        api("/api/packets/500"),
         api("/api/logs"),
       ]);
-      const jumps = TimingEvidence.detectOffsetJumps(
+      const jumps = engine.detectOffsetJumps(
         (series && series.offset) || [],
         S.thresholdNs || 100000,
         { minSpacingSec: 0.05, maxEvents: 12 },
       );
-      const evidence = TimingEvidence.buildEvidenceWindows(
+      const evidence = engine.buildEvidenceWindows(
         jumps,
         (packetResult && packetResult.list) || [],
         (logResult && logResult.list) || [],
@@ -248,7 +249,7 @@
   function install() {
     ensureCard();
     refreshEvidence(true);
-    setInterval(() => refreshEvidence(false), 3000);
+    setInterval(() => refreshEvidence(false), 5000);
     setInterval(updateLabels, 1000);
   }
 
