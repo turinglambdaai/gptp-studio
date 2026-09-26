@@ -20,73 +20,38 @@ assert.strictEqual(jumps[1].before_ns, 250);
 assert.strictEqual(jumps[1].after_ns, 120_500);
 assert.strictEqual(jumps[1].delta_ns, 120_250);
 
+function packet(ts, index, type, seq, body = {}, timestampSource = "adapter") {
+  return {
+    ts,
+    index,
+    is_ptp: true,
+    timestamp_source: timestampSource,
+    ptp: {
+      message_type_name: type,
+      sequence_id: seq,
+      domain_number: 0,
+      source_port_identity: "aa.1",
+      correction_field_ns: type === "Follow_Up" ? 25 : 0,
+    },
+    body,
+  };
+}
+
 const packets = [
-  {
-    ts: base + 0.10,
-    index: 10,
-    is_ptp: true,
-    ptp: {
-      message_type_name: "Sync",
-      sequence_id: 100,
-      domain_number: 0,
-      source_port_identity: "aa.1",
-      correction_field_ns: 0,
-    },
-    body: {},
-  },
-  {
-    ts: base + 0.20,
-    index: 11,
-    is_ptp: true,
-    ptp: {
-      message_type_name: "Follow_Up",
-      sequence_id: 100,
-      domain_number: 0,
-      source_port_identity: "aa.1",
-      correction_field_ns: 25,
-    },
-    body: {},
-  },
-  {
-    ts: base + 0.22,
-    index: 12,
-    is_ptp: true,
-    ptp: {
-      message_type_name: "Announce",
-      sequence_id: 200,
-      domain_number: 0,
-      source_port_identity: "aa.1",
-      correction_field_ns: 0,
-    },
-    body: { grandmaster_identity: "gm-a" },
-  },
-  {
-    ts: base + 0.30,
-    index: 13,
-    is_ptp: true,
-    ptp: {
-      message_type_name: "Announce",
-      sequence_id: 202,
-      domain_number: 0,
-      source_port_identity: "aa.1",
-      correction_field_ns: 0,
-    },
-    body: { grandmaster_identity: "gm-b" },
-  },
-  {
-    ts: base + 5,
-    index: 99,
-    is_ptp: true,
-    ptp: {
-      message_type_name: "Sync",
-      sequence_id: 999,
-      domain_number: 0,
-      source_port_identity: "zz.1",
-      correction_field_ns: 0,
-    },
-    body: {},
-  },
+  packet(base + 0.10, 10, "Sync", 100),
+  packet(base + 0.20, 11, "Follow_Up", 100, {}, "host-high-precision"),
+  packet(base + 0.22, 12, "Announce", 200, { grandmaster_identity: "gm-a" }),
+  packet(base + 0.30, 13, "Announce", 202, { grandmaster_identity: "gm-b" }),
+  // This packet is close in wall-clock value but libpcap only reports the
+  // generic HOST source, which is not guaranteed to be synchronized with the
+  // OS clock. It must never become Timing Evidence packet correlation.
+  packet(base + 0.28, 14, "Sync", 101, {}, "host"),
+  packet(base + 5, 99, "Sync", 999),
 ];
+
+assert.strictEqual(TimingEvidence.packetTimeSourceVerified(packets[0]), true);
+assert.strictEqual(TimingEvidence.packetTimeSourceVerified(packets[1]), true);
+assert.strictEqual(TimingEvidence.packetTimeSourceVerified(packets[4]), false);
 
 const logs = [
   [(base + 0.24) * 1000, "ptp4l", "info", "port 1: LISTENING to SLAVE"],
@@ -102,8 +67,12 @@ assert.strictEqual(evidence.length, 1);
 const ev = evidence[0];
 assert.strictEqual(ev.correlation_supported, true);
 assert.strictEqual(ev.causality, "not-established");
+assert.strictEqual(ev.packet_timebase_policy, "verified-host-synchronized-only");
 assert.strictEqual(ev.packets.length, 4);
+assert.strictEqual(ev.unverified_packet_count, 1);
+assert.deepStrictEqual(ev.unverified_timestamp_sources, ["host"]);
 assert.deepStrictEqual(ev.summary.packet_types, ["Sync", "Follow_Up", "Announce"]);
+assert.deepStrictEqual(ev.summary.packet_timestamp_sources, ["adapter", "host-high-precision"]);
 assert.deepStrictEqual(ev.summary.announce_grandmasters, ["gm-a", "gm-b"]);
 assert.strictEqual(ev.summary.sequence_observation_count, 1);
 assert.strictEqual(ev.sequence_observations[0].kind, "sequence-gap");
