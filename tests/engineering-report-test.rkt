@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require rackunit
+         racket/list
          racket/string
          "../support/engineering-report.rkt")
 
