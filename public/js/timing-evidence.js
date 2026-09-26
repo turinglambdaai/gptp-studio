@@ -10,6 +10,11 @@
   if (root) root.TimingEvidence = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function timingEvidenceFactory() {
   const EPOCH_FLOOR_SECONDS = 100000000;
+  const VERIFIED_PACKET_TIME_SOURCES = new Set([
+    "adapter",
+    "host-high-precision",
+    "host-low-precision",
+  ]);
 
   function finiteNumber(v) {
     const n = Number(v);
@@ -62,6 +67,14 @@
     return finiteNumber(packet && packet.ts);
   }
 
+  function packetTimestampSource(packet) {
+    return packet && packet.timestamp_source ? String(packet.timestamp_source) : "unknown";
+  }
+
+  function packetTimeSourceVerified(packet) {
+    return VERIFIED_PACKET_TIME_SOURCES.has(packetTimestampSource(packet));
+  }
+
   function packetObservation(packet) {
     const h = packet && packet.ptp ? packet.ptp : {};
     const b = packet && packet.body ? packet.body : {};
@@ -75,7 +88,7 @@
       correction_field_ns: finiteNumber(h.correction_field_ns),
       grandmaster_identity: b.grandmaster_identity || null,
       interface: packet && packet.iface ? packet.iface : null,
-      timestamp_source: packet && packet.timestamp_source ? packet.timestamp_source : null,
+      timestamp_source: packetTimestampSource(packet),
     };
   }
 
@@ -136,20 +149,26 @@
     return [...new Set(values.filter((v) => v !== null && v !== undefined && v !== ""))];
   }
 
-  function summarizeEvidence(packets, logs, seq) {
+  function summarizeEvidence(packets, logs, seq, meta = {}) {
     const packetTypes = unique(packets.map((p) => p.message_type));
     const announceGms = unique(packets.map((p) => p.grandmaster_identity));
     const portStateLogs = logs.filter((l) => /\b(LISTENING|SLAVE|MASTER|GRAND_MASTER|FAULTY|UNCALIBRATED|PASSIVE)\b/i.test(l.message));
     const gmLogs = logs.filter((l) => /grand\s*master|best master|主时钟|GM\b/i.test(l.message));
+    const excluded = Math.max(0, Number(meta.unverifiedPacketCount) || 0);
+    const excludedSources = unique(meta.unverifiedTimestampSources || []);
     return {
       packet_count: packets.length,
       packet_types: packetTypes,
+      packet_timestamp_sources: unique(packets.map((p) => p.timestamp_source)),
+      unverified_packet_count: excluded,
+      unverified_timestamp_sources: excludedSources,
       announce_grandmasters: announceGms,
       sequence_observation_count: seq.length,
       port_state_log_count: portStateLogs.length,
       gm_log_count: gmLogs.length,
       labels: [
-        packets.length ? `${packets.length} packet(s)` : null,
+        packets.length ? `${packets.length} verified-time packet(s)` : null,
+        excluded ? `${excluded} packet(s) excluded: unverified timebase` : null,
         seq.length ? `${seq.length} sequence observation(s)` : null,
         portStateLogs.length ? `${portStateLogs.length} port-state log(s)` : null,
         gmLogs.length ? `${gmLogs.length} GM-related log(s)` : null,
@@ -170,6 +189,7 @@
           ...jump,
           correlation_supported: false,
           correlation_note: "Offset series is not on an epoch timebase, so packet/log timestamp correlation is disabled for this sample.",
+          packet_timebase_policy: "verified-host-synchronized-only",
           window_before_sec: beforeSec,
           window_after_sec: afterSec,
           packets: [],
@@ -182,26 +202,36 @@
 
       const start = ts - beforeSec;
       const end = ts + afterSec;
-      const windowPackets = allPackets
-        .filter((p) => {
-          const pTs = packetTimestamp(p);
-          return isEpochSeconds(pTs) && pTs >= start && pTs <= end;
-        })
+      const nearbyRawPackets = allPackets.filter((p) => {
+        const pTs = packetTimestamp(p);
+        return isEpochSeconds(pTs) && pTs >= start && pTs <= end;
+      });
+      const verifiedRawPackets = nearbyRawPackets.filter(packetTimeSourceVerified);
+      const unverifiedRawPackets = nearbyRawPackets.filter((p) => !packetTimeSourceVerified(p));
+      const windowPackets = verifiedRawPackets
         .map(packetObservation)
         .sort((a, b) => a.ts - b.ts);
+      const unverifiedSources = unique(unverifiedRawPackets.map(packetTimestampSource));
       const windowLogs = relevantLogs(logs, start, end);
       const seq = sequenceObservations(windowPackets);
 
       return {
         ...jump,
         correlation_supported: true,
-        correlation_note: "Events are temporally adjacent to the offset jump; temporal proximity alone does not establish causality.",
+        correlation_note: "Logs share the host epoch timebase. Packet evidence is included only when libpcap reports a host-synchronized timestamp source; temporal proximity alone does not establish causality.",
+        packet_timebase_policy: "verified-host-synchronized-only",
+        verified_packet_timestamp_sources: unique(windowPackets.map((p) => p.timestamp_source)),
+        unverified_packet_count: unverifiedRawPackets.length,
+        unverified_timestamp_sources: unverifiedSources,
         window_before_sec: beforeSec,
         window_after_sec: afterSec,
         packets: windowPackets,
         logs: windowLogs,
         sequence_observations: seq,
-        summary: summarizeEvidence(windowPackets, windowLogs, seq),
+        summary: summarizeEvidence(windowPackets, windowLogs, seq, {
+          unverifiedPacketCount: unverifiedRawPackets.length,
+          unverifiedTimestampSources: unverifiedSources,
+        }),
         causality: "not-established",
       };
     });
@@ -212,5 +242,6 @@
     detectOffsetJumps,
     buildEvidenceWindows,
     sequenceObservations,
+    packetTimeSourceVerified,
   };
 });
