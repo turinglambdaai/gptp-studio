@@ -45,7 +45,7 @@ gptp-studio --simulator
 ### Debian 包
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.1.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-v1.2.0-linux-amd64.deb
 command -v gptp-studio
 gptp-studio --doctor
 ```
@@ -60,7 +60,7 @@ gptp-studio --doctor
 ### Relocatable tarball
 
 ```bash
-tar -xzf gPTP-Studio-v1.1.0-linux-x64.tar.gz
+tar -xzf gPTP-Studio-v1.2.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --version
 ./bin/gptp-studio --doctor
@@ -109,6 +109,18 @@ gptp-studio --doctor
 - [ ] offset jump 时能回看同一时间附近的 Sync / Follow_Up / PDelay / Announce；
 - [ ] 抓包 timestamp source 与 NIC capability 分开显示。
 
+## 5b. Boundary Clock 双端口真机
+
+在两张支持硬件时间戳的网卡上：
+
+- [ ] Preflight 对每个端口单独列出 HW timestamp/PHC/权限检查（带端口号）；
+- [ ] 只选一个端口、或重复选择同一网卡时启动被拒绝，且不影响运行中会话；
+- [ ] 生成的 `ptp4l.conf` 包含 `boundary_clock_jbod 0`；上游端口为 port 1；
+- [ ] 运行时有 `ptp4l -i <上游> -i <下游>` 与 `phc2sys -a -r -w`（共享 UDS）；
+- [ ] 状态栏逐口显示（P1 SLAVE · P2 GRAND_MASTER）；
+- [ ] 上游接真实 GM、下游接 DUT 时，DUT 能同步，`pmc GET CURRENT_DATA_SET` 与 UI 一致；
+- [ ] 模拟器 Boundary 剧本双端口有流量且不影响其它角色。
+
 ## 6. 工程质量
 
 ```bash
@@ -116,7 +128,7 @@ raco make main.rkt
 raco test tests/
 racket main.rkt --selfcheck
 racket main.rkt --doctor-json | python3 -m json.tool >/dev/null
-bash scripts/package-deb.sh 1.1.0 v1.1.0-local
+bash scripts/package-deb.sh 1.2.0 v1.2.0-local
 ```
 
 GitHub Actions 必须在 **Ubuntu 22.04 + Ubuntu 24.04** 同时通过：

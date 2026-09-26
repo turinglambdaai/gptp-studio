@@ -64,10 +64,12 @@
               (box (hasheq 'mode #f
                            'role 'listener
                            'iface #f
+                           'ifaces '()
                            'params (default-params-for-role 'listener)
                            'reference 'system
                            'reference-status "idle"
                            'port-state #f
+                           'port-states (hasheq)
                            'gm-id #f
                            'offset-ns #f
                            'delay-ns #f
@@ -102,12 +104,17 @@
 (define (linuxptp-available?)
   (and (find-executable-path "ptp4l") #t))
 
-(define (real-start-preflight sup role iface)
-  (qualify-interface #:platform (platform-name)
+(define (real-start-preflight sup role iface ifaces)
+  (if (eq? role 'boundary)
+      (qualify-ports #:platform (platform-name)
                      #:nics (detect-interfaces)
-                     #:iface iface
-                     #:role (symbol->string role)
-                     #:reference (symbol->string (state-ref sup 'reference 'system))))
+                     #:ifaces ifaces
+                     #:reference (symbol->string (state-ref sup 'reference 'system)))
+      (qualify-interface #:platform (platform-name)
+                         #:nics (detect-interfaces)
+                         #:iface iface
+                         #:role (symbol->string role)
+                         #:reference (symbol->string (state-ref sup 'reference 'system)))))
 
 (define (preflight-block-message qualification)
   (define fail-actions
@@ -230,22 +237,37 @@
 ;; ---- public API --------------------------------------------------------------
 
 ;; Returns (values ok? error-string).
-(define (sup-start sup role iface params mode)
+;; ifaces: for 'boundary, the ordered port list (first = upstream); other
+;; roles derive it from the single iface.
+(define (sup-start sup role iface params mode #:ifaces [ifaces '()])
+  (define effective-ifaces
+    (if (eq? role 'boundary) ifaces (if iface (list iface) '())))
+  (define boundary-args-ok?
+    (or (not (eq? role 'boundary))
+        (and (>= (length effective-ifaces) 2)
+             (= (length (remove-duplicates effective-ifaces))
+                (length effective-ifaces))
+             (andmap (lambda (i) (and (string? i) (non-empty-string? i)))
+                     effective-ifaces))))
   ;; Validate the requested session before stopping an already-running one.
   ;; A rejected switch must never destroy a healthy existing session.
   (define (launch!)
     (sup-stop sup)
     (mutate-state! sup 'role role)
-    (mutate-state! sup 'iface iface)
+    (mutate-state! sup 'iface (if (eq? role 'boundary)
+                                  (and (pair? effective-ifaces) (first effective-ifaces))
+                                  iface))
+    (mutate-state! sup 'ifaces effective-ifaces)
     (mutate-state! sup 'params params)
     (mutate-state! sup 'mode mode)
     (mutate-state! sup 'started-at (now-ms))
     (mutate-state! sup 'restarts 0)
     (mutate-state! sup 'last-failure #f)
+    (mutate-state! sup 'port-states (hasheq))
     (mutate-state! sup 'reference-status (if (eq? mode 'sim) "simulated" "starting"))
     (if (eq? mode 'sim)
         (begin (sim-start! sup role) (values #t #f))
-        (real-start! sup role iface params)))
+        (real-start! sup role effective-ifaces params)))
   (cond
     [(and (eq? mode 'real) (not (supported-platform?)))
      (values #f "真实引擎仅支持 Linux timing host（需要 sysfs、SO_TIMESTAMPING、PHC 与 linuxptp）。")]
@@ -253,10 +275,12 @@
      (values #f "真实 Listener 是被动抓包角色，不启动 ptp4l。请使用“开始会话”或报文分析页开始抓包。")]
     [(and (eq? mode 'real) (not (linuxptp-available?)))
      (values #f "未找到 ptp4l。请先安装 linuxptp：sudo apt install linuxptp")]
-    [(and (eq? mode 'real) (not iface))
+    [(and (eq? role 'boundary) (not boundary-args-ok?))
+     (values #f "Boundary clock 需要至少两个不同的物理网卡（第一个为上游端口）。")]
+    [(and (eq? mode 'real) (not (eq? role 'boundary)) (not iface))
      (values #f "真实引擎需要选择物理网卡")]
     [(eq? mode 'real)
-     (define qualification (real-start-preflight sup role iface))
+     (define qualification (real-start-preflight sup role iface effective-ifaces))
      (cond
        [(qualification-blocking? qualification)
         (define msg (preflight-block-message qualification))
@@ -279,6 +303,8 @@
   (cleanup-runtime-sockets! (supervisor-run-dir sup))
   (mutate-state! sup 'reference-status "idle")
   (mutate-state! sup 'port-state #f)
+  (mutate-state! sup 'port-states (hasheq))
+  (mutate-state! sup 'ifaces '())
   (mutate-state! sup 'gm-id #f)
   (mutate-state! sup 'offset-ns #f)
   (mutate-state! sup 'delay-ns #f)
@@ -292,12 +318,14 @@
   (hasheq 'mode (let ([m (hash-ref s 'mode)]) (and m (symbol->string m)))
           'role (symbol->string (hash-ref s 'role))
           'iface (hash-ref s 'iface)
+          'ifaces (hash-ref s 'ifaces '())
           'reference (symbol->string (hash-ref s 'reference))
           'reference_status (hash-ref s 'reference-status "idle")
           'launch_mode (let ([m (hash-ref s 'launch-mode #f)])
                          (and m (symbol->string m)))
           'last_failure (hash-ref s 'last-failure #f)
           'port_state (hash-ref s 'port-state)
+          'port_states (hash-ref s 'port-states (hasheq))
           'gm_id (hash-ref s 'gm-id)
           'offset_ns (hash-ref s 'offset-ns)
           'delay_ns (hash-ref s 'delay-ns)
@@ -314,10 +342,11 @@
   (define mode (state-ref sup 'mode))
   (define role (state-ref sup 'role))
   (define iface (state-ref sup 'iface))
+  (define ifaces (state-ref sup 'ifaces '()))
   (mutate-state! sup 'params params)
   (when mode
     (log! sup 'app 'info "参数变更，重启引擎以生效")
-    (sup-start sup role iface params mode)))
+    (sup-start sup role iface params mode #:ifaces ifaces)))
 
 (define (sup-set-reference sup ref)
   (unless (memq ref '(system none))
@@ -469,7 +498,9 @@
 
 (define (sim-tick! sup role t tick)
   (case role
-    [(slave)
+    [(slave boundary)
+     ;; A BC tracks the upstream GM like a slave; its downstream master side
+     ;; keeps offset at zero by construction.
      (define off (sim-offset-ns t #:faults (state-ref sup 'faults empty-faults)))
      (series-push! (supervisor-offset-series sup) t off)
      (mutate-state! sup 'offset-ns off)
@@ -483,21 +514,48 @@
      (mutate-state! sup 'delay-ns dl)
      (mutate-state! sup 'offset-ns 0)]
     [else (void)])
-  (define new-state (sim-state-at role t))
-  (unless (equal? new-state (state-ref sup 'port-state))
-    (mutate-state! sup 'port-state new-state)
-    (log! sup 'ptp4l 'info (format "port 1: 状态 → ~a（模拟）" new-state))
-    (when (or (string=? new-state "SLAVE") (string=? new-state "GRAND_MASTER"))
-      (mutate-state! sup 'gm-id
-                     (if (eq? role 'grandmaster)
-                         "b6:2f:08:11:22:33:44:55"
-                         "a0:0b:1c:2d:3e:4f:50:61")))
-    (emit! sup 'state-changed (sup-status sup)))
-  (define frames (make-sim-frames role t tick #:faults (state-ref sup 'faults empty-faults)))
+  ;; Per-port states: a BC reports port 1 (upstream/SLAVE) and port 2
+  ;; (downstream/GRAND_MASTER); single-port roles keep the plain state.
+  (cond
+    [(eq? role 'boundary)
+     (define new-states (sim-bc-port-states t))
+     (unless (equal? new-states (state-ref sup 'port-states))
+       (mutate-state! sup 'port-states new-states)
+       (mutate-state! sup 'port-state (hash-ref new-states 1 #f))
+       (when (>= t 2.5)
+         (mutate-state! sup 'gm-id "a0:0b:1c:2d:3e:4f:50:61"))
+       (log! sup 'ptp4l 'info
+             (format "port 1: 状态 → ~a（模拟）· port 2: 状态 → ~a（模拟）"
+                     (hash-ref new-states 1) (hash-ref new-states 2)))
+       (emit! sup 'state-changed (sup-status sup)))]
+    [else
+     (define new-state (sim-state-at role t))
+     (unless (equal? new-state (state-ref sup 'port-state))
+       (mutate-state! sup 'port-state new-state)
+       (mutate-state! sup 'port-states (hasheq 1 new-state))
+       (log! sup 'ptp4l 'info (format "port 1: 状态 → ~a（模拟）" new-state))
+       (when (or (string=? new-state "SLAVE") (string=? new-state "GRAND_MASTER"))
+         (mutate-state! sup 'gm-id
+                        (if (eq? role 'grandmaster)
+                            "b6:2f:08:11:22:33:44:55"
+                            "a0:0b:1c:2d:3e:4f:50:61")))
+       (emit! sup 'state-changed (sup-status sup)))])
+  ;; Frames: upstream side carries the remote GM's traffic (slave view),
+  ;; downstream side carries this station's GM traffic, on distinct ifaces.
+  (define frames
+    (if (eq? role 'boundary)
+        (append
+         (make-sim-frames 'slave t tick #:faults (state-ref sup 'faults empty-faults))
+         (make-sim-frames 'grandmaster t tick #:faults (state-ref sup 'faults empty-faults)))
+        (make-sim-frames role t tick #:faults (state-ref sup 'faults empty-faults))))
   (define decoded
-    (for/list ([raw (in-list frames)])
+    (for/list ([raw (in-list frames)]
+               [i (in-naturals)])
       (decode-frame raw #:ts (+ (current-seconds) (- t (floor t)))
-                    #:iface "sim" #:source "simulator")))
+                    #:iface (if (and (eq? role 'boundary) (>= i (quotient (length frames) 2)))
+                                "sim-down"
+                                (if (eq? role 'boundary) "sim-up" "sim"))
+                    #:source "simulator")))
   (for ([d (in-list decoded)])
     (packet-store-push! (supervisor-packets sup) d))
   (emit! sup 'packets decoded)
@@ -521,12 +579,15 @@
 
 ;; ---- real engine -------------------------------------------------------------
 
-(define (real-start! sup role iface params)
+(define (real-start! sup role ifaces params)
   (define run-dir (supervisor-run-dir sup))
   (make-directory* run-dir)
   (cleanup-runtime-sockets! run-dir)
   (define conf-path (build-path run-dir "ptp4l.conf"))
-  (define base-conf (params->conf params #:role (role-name role) #:iface iface))
+  (define base-conf
+    (params->conf params #:role (role-name role)
+                  #:iface (and (pair? ifaces) (first ifaces))
+                  #:ifaces (if (eq? role 'boundary) ifaces '())))
   (display-to-file (runtime-conf base-conf run-dir)
                    conf-path #:mode 'text #:exists 'replace)
   (log! sup 'app
@@ -538,12 +599,12 @@
   (define ptp4l-path (find-executable-path "ptp4l"))
   (cond
     [(not ptp4l-path)
-     (abort-real-start! sup "未找到 ptp4l。请先安装 linuxptp。")] 
+     (abort-real-start! sup "未找到 ptp4l。请先安装 linuxptp。")]
     [else
      (define ptp4l-exe (path->string ptp4l-path))
      (define-values (p out err launch-mode)
        (spawn-managed! sup 'ptp4l ptp4l-exe
-                       (list "-f" (path->string conf-path) "-i" iface "-m")
+                       (ptp4l-iface-args conf-path ifaces)
                        '("cap_net_raw" "cap_net_admin")))
      (mutate-state! sup 'launch-mode launch-mode)
      (start-pump! sup 'ptp4l out parse-ptp4l-line)
@@ -560,7 +621,7 @@
         (abort-real-start! sup (failure-diagnosis->message d))]
        [else
         (define-values (ref-ok? ref-err phc-process)
-          (start-reference-clock! sup role iface params))
+          (start-reference-clock! sup role ifaces params))
         (cond
           [(not ref-ok?) (abort-real-start! sup ref-err)]
           [else
@@ -569,8 +630,36 @@
            (emit! sup 'state-changed (sup-status sup))
            (values #t #f)])])]))
 
-(define (start-reference-clock! sup role iface params)
+(define (start-reference-clock! sup role ifaces params)
   (cond
+    ;; A boundary clock always needs phc2sys -a -r to keep the port PHCs and
+    ;; the system clock aligned with whichever port BMCA selects upstream;
+    ;; the operator's GM reference choice does not apply to it.
+    [(eq? role 'boundary)
+     (define phc-path (find-executable-path "phc2sys"))
+     (cond
+       [(not phc-path)
+        (values #f "Boundary clock 需要 phc2sys（-a -r 跟随端口状态同步 PHC 与系统时钟）。请安装 linuxptp。" #f)]
+       [else
+        (define phc-exe (path->string phc-path))
+        (define args (phc2sys-boundary-args (supervisor-run-dir sup)))
+        (define-values (p out err launch-mode)
+          (spawn-managed! sup 'phc2sys phc-exe args '("cap_sys_time")))
+        (start-pump! sup 'phc2sys out 'info)
+        (define error-tail (start-error-pump! sup 'phc2sys err))
+        (sleep 0.20)
+        (if (process-entry-running? (cons 'phc2sys p))
+            (begin
+              (mutate-state! sup 'reference-status "running")
+              (log! sup 'phc2sys 'info
+                    (format "Boundary clock 参考生效：phc2sys -a -r（UDS=~a，跟随 ptp4l 端口状态，方式=~a）"
+                            (path->string (runtime-uds-path (supervisor-run-dir sup)))
+                            launch-mode))
+              (values #t #f p))
+            (let* ([code (subprocess-status p)]
+                   [d (record-start-failure!
+                       sup 'phc2sys (error-tail->string error-tail) code launch-mode)])
+              (values #f (failure-diagnosis->message d) p)))])]
     [(not (eq? role 'grandmaster))
      (mutate-state! sup 'reference-status "not-applicable")
      (values #t #f #f)]
@@ -587,7 +676,7 @@
         ;; Domain-server direction: CLOCK_REALTIME (UTC) -> PHC (PTP timescale).
         ;; -w waits for ptp4l and obtains currentUtcOffset from the same UDS.
         (define args
-          (phc2sys-reference-args (supervisor-run-dir sup) iface params))
+          (phc2sys-reference-args (supervisor-run-dir sup) (and (pair? ifaces) (first ifaces)) params))
         (define-values (p out err launch-mode)
           (spawn-managed! sup 'phc2sys phc-exe args '("cap_sys_time")))
         (start-pump! sup 'phc2sys out 'info)
@@ -598,7 +687,7 @@
               (mutate-state! sup 'reference-status "running")
               (log! sup 'phc2sys 'info
                     (format "参考源生效：CLOCK_REALTIME → ~a（UDS=~a，等待 ptp4l 提供 UTC/PTP offset，方式=~a）"
-                            iface
+                            (and (pair? ifaces) (first ifaces))
                             (path->string (runtime-uds-path (supervisor-run-dir sup)))
                             launch-mode))
               (values #t #f p))
@@ -625,6 +714,7 @@
     [(and (state-ref sup 'auto-restart #t) (< tries 3))
      (define role (state-ref sup 'role))
      (define iface (state-ref sup 'iface))
+     (define ifaces (state-ref sup 'ifaces '()))
      (define params (state-ref sup 'params))
      (log! sup 'app 'warn (format "运行时进程异常，第 ~a 次重启完整 linuxptp 会话" tries))
      ;; Kill sibling pumps/watchers but never the watcher currently executing.
@@ -634,7 +724,9 @@
      (mutate-state! sup 'reference-status "restarting")
      (sleep 1)
      (when (eq? (state-ref sup 'mode) 'real)
-       (define-values (ok? err) (real-start! sup role iface params))
+       (define restart-ifaces
+         (if (eq? role 'boundary) ifaces (list iface)))
+       (define-values (ok? err) (real-start! sup role restart-ifaces params))
        (unless ok?
          (finalize-runtime-failure! sup name code (or err "自动重启失败"))))]
     [else
@@ -675,6 +767,8 @@
                                    'delay_ns delay))]
     [(list 'state port from to reason)
      (mutate-state! sup 'port-state to)
+     (mutate-state! sup 'port-states
+                    (hash-set (state-ref sup 'port-states (hasheq)) port to))
      (log! sup 'ptp4l 'info (format "port ~a: ~a → ~a（~a）" port from to reason))
      (emit! sup 'state-changed (sup-status sup))]
     [(list 'best-master id)

@@ -25,6 +25,7 @@
          sim-offset-ns
          sim-path-delay-ns
          sim-state-at
+         sim-bc-port-states
          empty-faults
          sanitize-faults
          merge-faults
@@ -103,12 +104,21 @@
   (+ 800.0 (* 60.0 (sin (* t 1.3))) (- (random 80) 40)))
 
 ;; port state at time t (seconds since start), per role
+;; For a boundary clock both ports are reported: port 1 follows the remote
+;; GM (upstream/slave side), port 2 holds GM downstream.
 (define (sim-state-at role t)
   (cond
     [(< t 0.5) "INITIALIZING"]
     [(< t 2.5) "LISTENING"]
-    [(memq role '(grandmaster slave)) (if (eq? role 'grandmaster) "GRAND_MASTER" "SLAVE")]
+    [(memq role '(grandmaster slave boundary))
+     (if (memq role '(grandmaster boundary)) "GRAND_MASTER" "SLAVE")]
     [else "LISTENING"]))
+
+(define (sim-bc-port-states t)
+  (cond
+    [(< t 0.5) (hasheq 1 "INITIALIZING" 2 "INITIALIZING")]
+    [(< t 2.5) (hasheq 1 "LISTENING" 2 "LISTENING")]
+    [else (hasheq 1 "SLAVE" 2 "GRAND_MASTER")]))
 
 ;; Build the frame set for one tick (returns a list of ethernet frames).
 ;; role: 'grandmaster | 'slave | 'listener ; t: seconds; tick: integer

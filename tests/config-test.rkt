@@ -30,8 +30,11 @@
 (check-true (string-contains? conf "# role: grandmaster   iface: enp3s0\n"))
 (check-true (string-contains? conf "[global]\n"))
 (check-equal? (conf-get conf "priority1") "0")
-(check-equal? (conf-get conf "clientOnly") "0")
-(check-false (conf-get conf "slaveOnly"))
+;; Ubuntu 22.04 LTS ships linuxptp 3.1.1 which has no `clientOnly` key; the
+;; generated conf must therefore emit `slaveOnly` (still accepted by 4.x as a
+;; deprecated alias) and never `clientOnly`.
+(check-equal? (conf-get conf "slaveOnly") "0")
+(check-false (conf-get conf "clientOnly"))
 (check-equal? (conf-get conf "gmCapable") "1")
 (check-equal? (conf-get conf "domainNumber") "0")
 (check-equal? (conf-get conf "logSyncInterval") "-3")
@@ -48,7 +51,8 @@
 (check-equal? (conf-get conf "time_stamping") "hardware")
 
 (define slave-conf (params->conf slave #:role "slave"))
-(check-equal? (conf-get slave-conf "clientOnly") "1")
+(check-equal? (conf-get slave-conf "slaveOnly") "1")
+(check-false (conf-get slave-conf "clientOnly"))
 (check-equal? (conf-get slave-conf "priority1") "248")
 
 ;; Role bits are server-side invariants. Even stale/corrupt UI state cannot
@@ -57,13 +61,13 @@
 (define stale-listener (default-params-for-role 'listener))
 (define forced-gm-conf (params->conf stale-listener #:role "grandmaster"))
 (check-equal? (conf-get forced-gm-conf "gmCapable") "1")
-(check-equal? (conf-get forced-gm-conf "clientOnly") "0")
+(check-equal? (conf-get forced-gm-conf "slaveOnly") "0")
 (check-equal? (conf-get forced-gm-conf "priority1") "248")
 
 (define stale-gm (default-params-for-role 'grandmaster))
 (define forced-slave-conf (params->conf stale-gm #:role "slave"))
 (check-equal? (conf-get forced-slave-conf "gmCapable") "0")
-(check-equal? (conf-get forced-slave-conf "clientOnly") "1")
+(check-equal? (conf-get forced-slave-conf "slaveOnly") "1")
 (check-equal? (conf-get forced-slave-conf "priority1") "0")
 
 (define constrained-gm (apply-role-constraints stale-listener 'grandmaster))

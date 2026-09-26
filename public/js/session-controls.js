@@ -27,6 +27,10 @@
       role: S.role || "listener",
       mode: q("#cfg-mode") ? q("#cfg-mode").value : "sim",
       iface: q("#cfg-iface") ? q("#cfg-iface").value : "",
+      ifaces: S.role === "boundary"
+        ? [q("#cfg-iface") ? q("#cfg-iface").value : "",
+           q("#cfg-iface2") ? q("#cfg-iface2").value : ""].filter(Boolean)
+        : [],
     };
   }
 
@@ -62,6 +66,10 @@
         toast("真实调试会话需要先选择网卡", "warn", 7000);
         return;
       }
+      if (cfg.mode === "real" && cfg.role === "boundary" && cfg.ifaces.length < 2) {
+        toast("Boundary clock 需要选择上游与下游两个不同网卡", "warn", 7000);
+        return;
+      }
 
       // A real Listener does not need a local ptp4l clock role; capture is the
       // useful operation and avoids changing the host clock/port state.
@@ -75,7 +83,9 @@
         return;
       }
 
-      const er = await api("/api/engine/start", { role: cfg.role, mode: cfg.mode, iface: cfg.iface });
+      const startPayload = { role: cfg.role, mode: cfg.mode, iface: cfg.iface };
+      if (cfg.role === "boundary") startPayload.ifaces = cfg.ifaces;
+      const er = await api("/api/engine/start", startPayload);
       if (!er.ok) {
         toast(er.error || "引擎启动失败", er.need_pro ? "warn" : "error", 9000);
         return;

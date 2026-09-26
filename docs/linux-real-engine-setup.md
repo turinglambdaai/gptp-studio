@@ -116,7 +116,43 @@ A link that is currently DOWN is intentionally a warning, not a hard failure.
 Engine startup may be useful before the DUT or switch is powered. Synchronization
 cannot occur until carrier is present.
 
-## 7. Support workflow
+## 7. Boundary clock (two-port) workflow
+
+A boundary clock relays time between two segments: the **upstream port**
+(listed first) synchronizes to the existing GM, and the **downstream port**
+serves that time to the devices behind it.
+
+Requirements on the Studio host:
+
+- two physical NICs, each with hardware TX/RX timestamping and its own
+  `/dev/ptpN` (Preflight qualifies every port and blocks the session when
+  one port lacks hardware support);
+- ptp4l and phc2sys installed; the phc2sys privilege path must be usable
+  because a BC always runs `phc2sys -a -r` (clock set follows port states).
+
+What Studio generates:
+
+```ini
+[global]
+...
+boundary_clock_jbod        0      # one discipline source across ports
+...
+```
+
+and launches `ptp4l -f <conf> -i <upstream> -i <downstream> -m` plus
+`phc2sys -a -r -w -z <shared-uds> -m`. Since linuxptp 3.0 multiple `-i`
+ports imply a boundary clock (`boundary_clock_enabled` no longer exists).
+
+Notes:
+
+- Port numbering follows the `-i` order: port 1 = upstream. The status bar
+  shows per-port states (`P1 SLAVE · P2 GRAND_MASTER`).
+- `boundary_clock_jbod 0` keeps one clock across ports; per-port PHC islands
+  (`jbod 1`) are out of scope for this workflow.
+- GM runtime tuning (`pmc GRANDMASTER_SETTINGS_NP`) applies to what the BC
+  announces on its master side.
+
+## 8. Support workflow
 
 If a real session still fails:
 
@@ -129,7 +165,7 @@ Doctor removes MAC and IP addresses by default while retaining interface/driver,
 PHC, linuxptp tooling, privilege and per-role qualification facts. The GUI NIC
 page also exposes the same qualification model and recent runtime state/logs.
 
-## 8. Timing claims
+## 9. Timing claims
 
 Do not infer end-to-end timing accuracy from any of the following alone:
 

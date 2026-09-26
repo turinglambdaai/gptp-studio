@@ -18,7 +18,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 
 ## 核心能力
 
-- **三角色一台工作站**：GrandMaster、从钟、被动监听，自动生成 `ptp4l.conf`
+- **四角色一台工作站**：GrandMaster、从钟、双端口 Boundary Clock（多接口 `ptp4l` + `phc2sys -a -r`）、被动监听，自动生成 `ptp4l.conf`
 - **linuxptp 生命周期管理**：统一监督 `ptp4l`、`phc2sys`、`pmc`
 - **硬件时钟资格检查**：启动真实引擎前检查 HW timestamp、PHC、驱动和权限路径
 - **实时同步曲线**：`offsetFromMaster` / `meanPathDelay`、告警、端口状态
@@ -52,7 +52,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 ### Debian / Ubuntu 包
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.1.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-v1.2.0-linux-amd64.deb
 gptp-studio --doctor
 gptp-studio
 ```
@@ -62,7 +62,7 @@ gptp-studio
 ### 可移植 tarball
 
 ```bash
-tar -xzf gPTP-Studio-v1.1.0-linux-x64.tar.gz
+tar -xzf gPTP-Studio-v1.2.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
 ./bin/gptp-studio

@@ -95,10 +95,12 @@
           <div class="seg" id="role-seg">
             <button data-role="grandmaster">GrandMaster</button>
             <button data-role="slave" data-i18n="role-slave">从钟</button>
+            <button data-role="boundary" data-i18n="role-boundary">边界时钟</button>
             <button data-role="listener" class="active" data-i18n="role-listener">被动监听</button>
           </div>
           <div class="form-grid">
             <label data-i18n="cfg-iface">网卡</label><select id="cfg-iface"></select>
+            <div class="bc-only" id="bc-iface2-row"><label data-i18n="cfg-iface2">下游端口</label><select id="cfg-iface2"></select></div>
             <label data-i18n="cfg-mode">运行方式</label><select id="cfg-mode"><option value="sim" data-i18n="mode-sim">模拟器</option><option value="real" data-i18n="mode-real">真实引擎 (linuxptp)</option></select>
             <label data-i18n="cfg-domain">Domain</label><input id="cfg-domain" type="number" min="0" max="127" value="0">
             <label data-i18n="cfg-priority1">Priority1</label><input id="cfg-priority1" type="number" min="0" max="255" value="0">

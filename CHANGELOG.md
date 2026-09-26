@@ -1,5 +1,31 @@
 # 更新日志 / Changelog
 
+## 1.2.0 — 2026-09-26
+
+专业分析与负向测试版本：v1.2 路线图全部交付。
+
+### 新增 — Boundary Clock（多接口工作流）
+
+- 第四角色「边界时钟」：双端口 `ptp4l -i <上游> -i <下游>`（linuxptp 3.0+ 多口即 BC）+ `phc2sys -a -r -w`（经共享 UDS 跟随端口状态同步 PHC 与系统时钟），`boundary_clock_jbod 0` 单一时钟源
+- 逐口 Preflight：每个端口独立硬件时间戳/PHC/权限判定（带端口号），任一口不达标整体阻断；单口/重复端口选择结构性拒绝，被拒会话不影响运行中的健康会话
+- 状态栏逐口显示（P1 SLAVE · P2 GRAND_MASTER），`ptp4l.conf` 预览含 BC 端口清单
+- 模拟器 Boundary 剧本：上游从钟波形 + 下游 GM 流量，双口分开入库
+- BC 属引擎控制，Pro 门控；真机配置见 docs/linux-real-engine-setup.md 第 7 节
+
+### 新增 — 模拟器故障注入（负向测试）
+
+- Sync/Announce 按比例丢弃（孤儿 Follow_Up、BMCA 候选断档）、Follow_Up 时间戳延迟、sequenceId 周期跳变、从钟 offset 周期尖峰
+- 注入帧仍为语法合法 gPTP，走同一 encode/decode/store 管线；Free 功能
+
+### 修复 — Ubuntu 22.04 兼容
+
+- 生成的 `ptp4l.conf` 改回 `slaveOnly`：22.04 的 linuxptp 3.1.1 解析器没有 `clientOnly` 键（该键会导致 ptp4l 拒绝配置退出）；4.x 仍接受 `slaveOnly` 为弃用别名，两边通吃
+
+### 质量
+
+- 测试 440 项（新增 BC 26 项：配置生成、进程参数、逐口资格、会话校验）
+- CI 双 LTS 全绿
+
 ## 1.1.0 — 2026-09-26
 
 Linux 专业 timing 工作站版本：产品契约收敛为 Linux-only，v1.1 路线图（Linux 工程体验）全部交付。

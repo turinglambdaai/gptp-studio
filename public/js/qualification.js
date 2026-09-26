@@ -15,12 +15,19 @@
 
   function currentPayload() {
     const refBtn = q("#source-seg button.active");
-    return {
+    const payload = {
       iface: (q("#cfg-iface") && q("#cfg-iface").value) || "",
       role: (typeof S !== "undefined" && S.role) || "listener",
       reference: (refBtn && refBtn.dataset.source) ||
                  ((typeof S !== "undefined" && S.engine && S.engine.reference) || "system"),
     };
+    if (payload.role === "boundary") {
+      payload.ifaces = [
+        (q("#cfg-iface") && q("#cfg-iface").value) || "",
+        (q("#cfg-iface2") && q("#cfg-iface2").value) || "",
+      ].filter(Boolean);
+    }
+    return payload;
   }
 
   function ensureUi() {
