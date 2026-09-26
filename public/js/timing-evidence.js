@@ -152,7 +152,11 @@
   function summarizeEvidence(packets, logs, seq, meta = {}) {
     const packetTypes = unique(packets.map((p) => p.message_type));
     const announceGms = unique(packets.map((p) => p.grandmaster_identity));
-    const portStateLogs = logs.filter((l) => /\b(LISTENING|SLAVE|MASTER|GRAND_MASTER|FAULTY|UNCALIBRATED|PASSIVE)\b/i.test(l.message));
+    // A port-state observation must actually be in a port context. A generic
+    // "best master clock" message contains the word MASTER but is a BMCA/GM
+    // observation, not a port-state transition.
+    const portStateLogs = logs.filter((l) =>
+      /\bport\b[^\n]*\b(LISTENING|SLAVE|MASTER|GRAND_MASTER|FAULTY|UNCALIBRATED|PASSIVE)\b/i.test(l.message));
     const gmLogs = logs.filter((l) => /grand\s*master|best master|主时钟|GM\b/i.test(l.message));
     const excluded = Math.max(0, Number(meta.unverifiedPacketCount) || 0);
     const excludedSources = unique(meta.unverifiedTimestampSources || []);
