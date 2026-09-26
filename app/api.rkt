@@ -30,7 +30,8 @@
          "../data/preset.rkt"
          "../data/series.rkt"
          "../data/logstore.rkt"
-         "../support/diagnostics.rkt")
+         "../support/diagnostics.rkt"
+         "../support/platform-fingerprint.rkt")
 
 (provide api-routes engine-start bootstrap)
 
@@ -53,6 +54,7 @@
      (define lang (settings-ref 'language))
      (hasheq 'version app-version
              'platform (platform-name)
+             'host (collect-platform-fingerprint)
              'gate (gate-info)
              'i18n (i18n-dict lang)
              'language lang
@@ -109,6 +111,7 @@
           (make-diagnostic-snapshot
            #:version app-version
            #:platform (platform-name)
+           #:host (collect-platform-fingerprint)
            #:nics nics
            #:qualification qualification
            #:engine (sup-status app-supervisor)
