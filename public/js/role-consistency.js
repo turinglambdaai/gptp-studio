@@ -12,7 +12,7 @@
   const qa = (sel) => Array.from(document.querySelectorAll(sel));
 
   function roleFields(role = S.role) {
-    if (role === "grandmaster") return { gm_capable: 1, slave_only: 0 };
+    if (role === "grandmaster" || role === "boundary") return { gm_capable: 1, slave_only: 0 };
     return { gm_capable: 0, slave_only: 1 };
   }
 

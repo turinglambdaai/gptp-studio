@@ -11,6 +11,7 @@
          racket/string)
 
 (provide qualify-interface
+         qualify-ports
          qualification-status-rank
          qualification-blocking?)
 
@@ -66,8 +67,12 @@
 (define (privilege-check nic role reference)
   (define privilege (nic-ref nic 'privilege_mode "direct-best-effort"))
   (define ptp4l-caps? (nic-ref nic 'ptp4l_file_capabilities #f))
+  ;; A boundary clock always runs phc2sys (-a -r) to keep port PHCs and the
+  ;; system clock aligned with the port selected upstream, exactly like a
+  ;; system-referenced GrandMaster.
   (define needs-phc2sys?
-    (and (string=? role "grandmaster") (string=? reference "system")))
+    (or (and (string=? role "grandmaster") (string=? reference "system"))
+        (string=? role "boundary")))
   (define phc2sys-caps? (nic-ref nic 'phc2sys_file_capabilities #f))
   (define file-caps-ok?
     (and ptp4l-caps? (or (not needs-phc2sys?) phc2sys-caps?)))
@@ -109,7 +114,9 @@
                            #:capture-status [capture-status #f])
   (define nic (find-nic nics iface))
   (define selected-iface (and nic (nic-ref nic 'name #f)))
-  (define real-clock-role? (member role '("grandmaster" "slave")))
+  ;; A BC port set transmits AND receives as master/slave depending on BMCA,
+  ;; so every port carries the full hardware-timestamp requirement.
+  (define real-clock-role? (member role '("grandmaster" "slave" "boundary")))
   (define listener? (string=? role "listener"))
   (define linux? (string=? platform "linux"))
 
@@ -168,7 +175,8 @@
                          [ethtool-available? "Verify the NIC driver exposes a PHC and ethtool -T reports it."]
                          [else "Install ethtool and rerun Preflight to verify the PHC mapping."])))
       (add! (tool-check nic 'ptp4l_available "ptp4l" "ptp4l" "Install the linuxptp package (for Debian/Ubuntu: sudo apt install linuxptp)."))
-      (when (and (string=? role "grandmaster") (string=? reference "system"))
+      (when (or (and (string=? role "grandmaster") (string=? reference "system"))
+                (string=? role "boundary"))
         (add! (tool-check nic 'phc2sys_available "phc2sys" "phc2sys reference clock" "Install the linuxptp package or select no external reference.")))
       (add! (tool-check nic 'pmc_available "pmc" "pmc cross-check" "Install the linuxptp package for management cross-checks." #:required? #f))
       (add! (tool-check nic 'ethtool_available "ethtool" "NIC capability probe" "Install ethtool; without it NIC timing capability detection remains incomplete." #:required? #f))
@@ -227,6 +235,80 @@
           'blocking (positive? fails)
           'blocking_check_ids
           (for/list ([c (in-list checks)]
+                     #:when (string=? (hash-ref c 'state) "fail"))
+            (hash-ref c 'id))
+          'accuracy_claim "not-calibrated"
+          'accuracy_note "Preflight verifies prerequisites and observed timestamp paths only. It does not establish end-to-end timing accuracy."))
+
+;; ---- boundary-clock aggregate ---------------------------------------------------
+
+;; Qualify every port of a boundary-clock set with the same hardware-first
+;; rules, then merge into one preflight verdict: per-port qualifications stay
+;; inspectable, the aggregate fails if any port fails, and a duplicated port
+;; selection is structurally wrong before anything is spawned.
+(define (qualify-ports #:platform platform
+                       #:nics nics
+                       #:ifaces ifaces
+                       #:reference [reference "system"]
+                       #:capture-status [capture-status #f])
+  (define distinct? (and (pair? ifaces)
+                         (= (length (remove-duplicates ifaces)) (length ifaces))))
+  (define port-qualifications
+    (for/list ([iface (in-list (if distinct? ifaces '()))])
+      (qualify-interface #:platform platform
+                         #:nics nics
+                         #:iface iface
+                         #:role "boundary"
+                         #:reference reference
+                         #:capture-status capture-status)))
+  (define base-checks
+    (cond
+      [(not (pair? ifaces))
+       (list (check "bc-ports" "fail" "Boundary clock port set"
+                    "at least two interfaces are required"
+                    "Select an upstream and a downstream interface."))]
+      [(not distinct?)
+       (list (check "bc-ports" "fail" "Boundary clock port set"
+                    (format "each port must be a distinct interface, got ~a"
+                            (string-join ifaces ", "))
+                    "Select two different physical interfaces."))]
+      [else (list (check "bc-ports" "pass" "Boundary clock port set"
+                         (format "~a ports: ~a (port 1 = upstream)"
+                                 (length ifaces) (string-join ifaces ", "))
+                         ""))]))
+  (define port-checks
+    (for/list ([q (in-list port-qualifications)]
+               [i (in-naturals 1)])
+      (for/list ([c (in-list (hash-ref q 'checks '()))])
+        (hash-set c 'port i))))
+  (define all-checks (append base-checks (apply append port-checks)))
+  (define fails (count (lambda (c) (string=? (hash-ref c 'state) "fail")) all-checks))
+  (define warns (count (lambda (c) (string=? (hash-ref c 'state) "warn")) all-checks))
+  (define status
+    (cond
+      [(positive? fails) "blocked"]
+      [(positive? warns) "candidate"]
+      [else "ready"]))
+  (hasheq 'status status
+          'role "boundary"
+          'reference reference
+          'iface (and (pair? ifaces) (first ifaces))
+          'ifaces ifaces
+          'summary
+          (cond
+            [(positive? fails)
+             "Boundary clock preflight 存在阻断项：每个端口都需要硬件时间戳与 PHC；先修复 FAIL 再启动。"]
+            [(positive? warns)
+             "Boundary clock 端口当前无硬阻断，但有待确认项；可以继续验证，不应据此宣称测量精度。"]
+            [else
+             "Boundary clock 各端口已满足已知前置条件；仍需用目标拓扑实测确认时间性能。"])
+          'ports port-qualifications
+          'checks all-checks
+          'fail_count fails
+          'warn_count warns
+          'blocking (positive? fails)
+          'blocking_check_ids
+          (for/list ([c (in-list all-checks)]
                      #:when (string=? (hash-ref c 'state) "fail"))
             (hash-ref c 'id))
           'accuracy_claim "not-calibrated"

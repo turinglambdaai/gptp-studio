@@ -27,6 +27,7 @@
    ;; roles
    'role-grandmaster (cons "GrandMaster" "GrandMaster")
    'role-slave      (cons "从钟" "Slave")
+   'role-boundary   (cons "边界时钟" "Boundary Clock")
    'role-listener   (cons "被动监听" "Listener")
    'role            (cons "角色" "Role")
    ;; overview page
@@ -48,6 +49,7 @@
    'cfg-transport   (cons "传输模式" "Transport")
    'cfg-delay       (cons "延迟机制" "Delay mechanism")
    'cfg-iface       (cons "网卡" "Interface")
+   'cfg-iface2      (cons "下游端口" "Downstream port")
    'cfg-mode        (cons "运行方式" "Run mode")
    'mode-real       (cons "真实引擎 (linuxptp)" "Real engine (linuxptp)")
    'mode-sim        (cons "模拟器" "Simulator")

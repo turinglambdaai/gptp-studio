@@ -301,3 +301,7 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgb
 /* license card */
 .lic-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
 .lic-line .k { color: var(--muted); }
+
+/* ======== boundary clock port row ======== */
+.bc-only { display: none; }
+.bc-only.on { display: contents; }

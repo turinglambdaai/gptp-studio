@@ -2,7 +2,7 @@
 
 (define collection "gptp-studio")
 (define pkg-desc "gPTP Studio - gPTP / IEEE 802.1AS debugging workstation (Racket + Glaze)")
-(define version "1.1.0")
+(define version "1.2.0")
 (define pkg-authors '("turinglambdaai"))
 (define license 'Apache-2.0)
 

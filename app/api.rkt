@@ -91,11 +91,25 @@
    (hasheq 'list (detect-interfaces))]
 
   [(POST "api/qualification")
-   (qualification [iface string? ""] [role string? "listener"] [reference string? "system"])
+   (qualification [iface string? ""] [role string? "listener"] [reference string? "system"]
+                  [ifaces (lambda (v) (and (list? v) (andmap string? v))) '()])
    (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
      (define nics (detect-interfaces))
+     (define qualification
+       (if (string=? role "boundary")
+           (qualify-ports #:platform (platform-name)
+                          #:nics nics
+                          #:ifaces ifaces
+                          #:reference reference
+                          #:capture-status (cm-status app-capture))
+           (qualify-interface #:platform (platform-name)
+                              #:nics nics
+                              #:iface iface
+                              #:role role
+                              #:reference reference
+                              #:capture-status (cm-status app-capture))))
      (hasheq 'ok #t
-             'qualification (current-qualification iface role reference nics)))]
+             'qualification qualification))]
 
   [(POST "api/diagnostics/export")
    (diagnostics-export [iface string? ""] [role string? "listener"] [reference string? "system"])
@@ -168,17 +182,33 @@
 
   ;; ---- engine -------------------------------------------------------------
   [(POST "api/engine/start")
-   (engine-start [role string?] [mode string?] [iface string? ""])
+   (engine-start [role string?] [mode string?] [iface string? ""]
+                 [ifaces (lambda (v) (and (list? v) (andmap string? v))) '()])
    (define role* (string->symbol role))
    (define mode* (string->symbol mode))
    (define iface* (if (= (string-length iface) 0) #f iface))
+   (define ifaces*
+     (filter (lambda (i) (> (string-length i) 0)) ifaces))
    (cond
-     [(not (member role* '(grandmaster slave listener)))
+     [(not (member role* '(grandmaster slave listener boundary)))
       (hasheq 'ok #f 'error "未知角色")]
      [(not (member mode* '(real sim)))
       (hasheq 'ok #f 'error "未知运行方式")]
      [(and (eq? mode* 'real) (not (eq? role* 'listener)) (not (gate-pro?)))
       (hasheq 'ok #f 'need_pro #t 'error (gate-check 'engine))]
+     [(and (eq? role* 'boundary) (null? ifaces*) (not iface*))
+      (hasheq 'ok #f 'error "Boundary clock 需要提供端口列表（ifaces）")]
+     [(eq? role* 'boundary)
+      ;; Boundary: ifaces wins; tolerate a single legacy iface by rejecting it
+      ;; with a clear message instead of silently degrading to one port.
+      (define-values (ok? err)
+        (if (null? ifaces*)
+            (values #f "Boundary clock 需要至少两个不同的物理网卡（第一个为上游端口）。")
+            (sup-start app-supervisor role* (first ifaces*) (current-params) mode*
+                       #:ifaces ifaces*)))
+      (if ok?
+          (hasheq 'ok #t 'status (sup-status app-supervisor))
+          (hasheq 'ok #f 'error (or err "启动失败")))]
      [else
       (define-values (ok? err)
         (sup-start app-supervisor role* iface* (current-params) mode*))
@@ -297,7 +327,8 @@
                  [assume_two_step exact-integer? -999]
                  [path_trace_enabled exact-integer? -999]
                  [follow_up_info exact-integer? -999]
-                 [clock_class exact-integer? -999])
+                 [clock_class exact-integer? -999]
+                 [ifaces (lambda (v) (and (list? v) (andmap string? v))) '()])
    (define body
      (for/hasheq ([k (in-list '(domain priority1 priority2 log_announce_interval
                                 log_sync_interval network_transport delay_mechanism
@@ -313,10 +344,15 @@
    (define p (update-params-from-json (current-params) body))
    (set-current-params! p)
    (define errs (validate-params p))
+   (define app-role (sup-status-app-role))
+   (define preview-ifaces
+     (if (eq? app-role 'boundary)
+         (filter (lambda (i) (> (string-length i) 0)) ifaces)
+         '()))
    (hasheq 'ok (null? errs)
            'errors errs
            'params (params->jsexpr p)
-           'conf (params->conf p #:role (role-name (sup-status-app-role))))]
+           'conf (params->conf p #:role (role-name app-role) #:ifaces preview-ifaces))]
 
   [(GET "api/conf")
    (conf-preview)

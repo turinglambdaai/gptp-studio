@@ -82,8 +82,20 @@ function renderStatus(eng, cap) {
     roleEl.textContent = "idle";
   }
   const ps = $("#st-portstate");
-  ps.textContent = eng.port_state || "—";
-  ps.className = "pill " + (eng.port_state === "SLAVE" || eng.port_state === "GRAND_MASTER" || eng.port_state === "MASTER" ? "ok" : eng.mode ? "live" : "");
+  const portStates = eng.port_states || {};
+  const portKeys = Object.keys(portStates);
+  if (portKeys.length > 1) {
+    // Boundary clock: one pill per port, numbered like ptp4l.
+    ps.textContent = portKeys
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => `P${k} ${portStates[k]}`)
+      .join(" · ");
+    const active = portKeys.some((k) => ["SLAVE", "GRAND_MASTER", "MASTER"].includes(portStates[k]));
+    ps.className = "pill " + (active ? "ok" : eng.mode ? "live" : "");
+  } else {
+    ps.textContent = eng.port_state || "—";
+    ps.className = "pill " + (eng.port_state === "SLAVE" || eng.port_state === "GRAND_MASTER" || eng.port_state === "MASTER" ? "ok" : eng.mode ? "live" : "");
+  }
   $("#st-gm").textContent = eng.gm_id ? `GM ${eng.gm_id.slice(0, 17)}` : "—";
   const off = $("#st-offset");
   off.textContent = `offset ${fmtNs(eng.offset_ns)}`;
@@ -134,8 +146,9 @@ function renderNics(nics) {
       <td class="mono">${(n.ips || []).join(", ") || "—"}</td>`;
     tb.appendChild(tr);
   }
-  // also feed the two interface selects
-  for (const sel of [$("#cfg-iface"), $("#pk-iface")]) {
+  // also feed the interface selects
+  for (const sel of [$("#cfg-iface"), $("#cfg-iface2"), $("#pk-iface")]) {
+    if (!sel) continue;
     const cur = sel.value;
     sel.innerHTML = "";
     for (const n of nics) {
@@ -181,6 +194,7 @@ async function mergeParams() {
     network_transport: $("#cfg-transport").value,
     delay_mechanism: $("#cfg-delay").value,
   };
+  if (S.role === "boundary") body.ifaces = boundaryIfaces();
   const r = await api("/api/params/merge", body);
   $("#conf-preview").textContent = r.conf;
   const alert = $("#cfg-alert");
@@ -190,12 +204,26 @@ async function mergeParams() {
   } else alert.hidden = true;
 }
 
+// Boundary clock port set: upstream first, downstream second. Kept in one
+// place so the conf preview, engine start and session start all agree.
+function boundaryIfaces() {
+  const up = ($("#cfg-iface") && $("#cfg-iface").value) || "";
+  const down = ($("#cfg-iface2") && $("#cfg-iface2").value) || "";
+  return down ? [up, down] : [up];
+}
+
+function updateBoundaryUI() {
+  const row = $("#bc-iface2-row");
+  if (row) row.classList.toggle("on", S.role === "boundary");
+}
+
 function renderRole(role) {
   $$("#role-seg button").forEach((b) => b.classList.toggle("active", b.dataset.role === role));
   S.role = role;
   // role presets: fill typical values on explicit switch
   if (role === "grandmaster") { $("#cfg-priority1").value = 0; }
-  if (role === "slave") { $("#cfg-priority1").value = 248; }
+  if (role === "slave" || role === "boundary") { $("#cfg-priority1").value = 248; }
+  updateBoundaryUI();
   mergeParams().catch(() => {});
 }
 
@@ -495,12 +523,15 @@ async function boot() {
   for (const id of ["cfg-domain", "cfg-priority1", "cfg-priority2", "cfg-sync", "cfg-announce", "cfg-transport", "cfg-delay"]) {
     $("#" + id).addEventListener("change", mergeParams);
   }
+  if ($("#cfg-iface2")) $("#cfg-iface2").addEventListener("change", mergeParams);
 
   $("#engine-start").addEventListener("click", async () => {
     try {
       const mode = $("#cfg-mode").value;
       const iface = $("#cfg-iface").value;
-      const r = await api("/api/engine/start", { role: S.role, mode, iface });
+      const payload = { role: S.role, mode, iface };
+      if (S.role === "boundary") payload.ifaces = boundaryIfaces();
+      const r = await api("/api/engine/start", payload);
       if (!r.ok) {
         if (r.need_pro) toast(r.error, "warn", 8000);
         else toast(r.error, "error", 8000);

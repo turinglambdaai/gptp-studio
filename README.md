@@ -18,7 +18,7 @@ Built with [Racket](https://racket-lang.org/) + [Glaze](https://github.com/turin
 
 ## Highlights
 
-- **Three roles, one workstation** — GrandMaster, Slave and passive Listener with generated `ptp4l.conf`
+- **Four roles, one workstation** — GrandMaster, Slave, two-port Boundary Clock (multi-interface `ptp4l` + `phc2sys -a -r`) and passive Listener with generated `ptp4l.conf`
 - **linuxptp lifecycle management** — supervised `ptp4l`, `phc2sys` and `pmc`
 - **Hardware timing qualification** — detects NIC HW timestamp support, mapped PHC and privilege path before starting a real engine
 - **Real-time sync curves** — `offsetFromMaster` / `meanPathDelay`, alarms and engine state
@@ -52,7 +52,7 @@ A NIC reporting hardware timestamping and `/dev/ptpN` means the host has the req
 ### Debian / Ubuntu package
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.1.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-v1.2.0-linux-amd64.deb
 gptp-studio --doctor
 gptp-studio
 ```
@@ -62,7 +62,7 @@ The Debian package declares the Linux runtime dependencies and installs the desk
 ### Relocatable tarball
 
 ```bash
-tar -xzf gPTP-Studio-v1.1.0-linux-x64.tar.gz
+tar -xzf gPTP-Studio-v1.2.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
 ./bin/gptp-studio
@@ -89,7 +89,7 @@ For real hardware work, start with `gptp-studio --doctor`, fix structural FAIL i
 |---|---|
 | Overview | Live offset/delay curves, port state, current GM, alarm threshold |
 | Links & NICs | NIC HW timestamp / PHC capability and actual capture timestamp path |
-| Role & Config | Role switch, gPTP parameters, generated `ptp4l.conf`, start/stop |
+| Role & Config | Role switch (incl. Boundary Clock port set), gPTP parameters, generated `ptp4l.conf`, start/stop |
 | Reference | Managed `phc2sys` reference-source lifecycle |
 | Packets | Capture, packet table, decoded tree, exact timestamp metadata, hex, import/export |
 | Runtime & Logs | Process state, logs, presets and license |
@@ -102,7 +102,7 @@ For real hardware work, start with `gptp-studio --doctor`, fix structural FAIL i
 | Offline pcap import | ✅ | ✅ |
 | Simulator | ✅ | ✅ |
 | Config editor + `ptp4l.conf` preview | ✅ | ✅ |
-| GM / Slave engine control | — | ✅ |
+| GM / Slave / Boundary Clock engine control | — | ✅ |
 | Reference source (`phc2sys`) | — | ✅ |
 | pcap export | — | ✅ |
 | Packet store | 2,000 frames | 50,000 frames |

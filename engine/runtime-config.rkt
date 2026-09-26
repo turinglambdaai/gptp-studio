@@ -9,6 +9,7 @@
 
 (require racket/file
          racket/format
+         racket/list
          racket/path
          "config.rkt")
 
@@ -17,6 +18,8 @@
          runtime-conf
          cleanup-runtime-sockets!
          phc2sys-reference-args
+         phc2sys-boundary-args
+         ptp4l-iface-args
          pmc-current-data-set-args)
 
 (define (runtime-uds-path run-dir)
@@ -59,3 +62,18 @@
         "-d" (number->string (gptp-params-domain params))
         "-t" (format "~x" (gptp-params-transport-specific params))
         "GET CURRENT_DATA_SET"))
+
+;; Boundary-clock companion: -a reads the port/clock set from the running
+;; ptp4l over the same per-user UDS and follows BMCA port-state changes;
+;; -r also disciplines the system clock; -w waits for ptp4l.
+(define (phc2sys-boundary-args run-dir)
+  (list "-a" "-r" "-w"
+        "-z" (path->string (runtime-uds-path run-dir))
+        "-m"))
+
+;; ptp4l takes one -i per port; since linuxptp 3.0 multiple ports imply a
+;; boundary clock (boundary_clock_enabled was removed).
+(define (ptp4l-iface-args conf-path ifaces)
+  (append (list "-f" (path->string conf-path))
+          (append* (for/list ([iface (in-list ifaces)]) (list "-i" iface)))
+          (list "-m")))
