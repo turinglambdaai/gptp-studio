@@ -61,6 +61,7 @@ jobs:
           node --check public/js/report-export.js
           node --check public/js/gm-tuning.js
           node --check public/js/wireshark-launch.js
+          node --check public/js/sim-faults.js
           node tests/timing-evidence-test.js
           node tests/bmca-timeline-test.js
           test -f public/css/app.css
