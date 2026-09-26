@@ -59,6 +59,7 @@ jobs:
           node --check public/js/qualification.js
           node --check public/js/reference-platform.js
           node --check public/js/report-export.js
+          node --check public/js/gm-tuning.js
           node tests/timing-evidence-test.js
           node tests/bmca-timeline-test.js
           test -f public/css/app.css

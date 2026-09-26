@@ -22,6 +22,7 @@
          "detect.rkt"
          "failure-diagnosis.rkt"
          "ptp4l.rkt"
+         "pmc-tuning.rkt"
          "process-runtime.rkt"
          "qualification.rkt"
          "runtime-config.rkt"
@@ -39,6 +40,8 @@
          sup-update-params
          sup-set-reference
          sup-check-offsets
+         sup-gm-settings
+         sup-gm-settings-set!
          linuxptp-available?)
 
 (struct supervisor (sema
@@ -333,6 +336,87 @@
   (define blocks (if out (parse-pmc-output out) '()))
   (log! sup 'pmc 'info (format "pmc 对照查询返回 ~a 块" (length blocks)))
   blocks)
+
+;; ---- GM runtime tuning --------------------------------------------------------
+
+;; Raises unless a real linuxptp session owns the management socket.
+(define (require-real-engine! sup who)
+  (unless (eq? (state-ref sup 'mode) 'real)
+    (raise-user-error who "仅真实引擎支持 GM 运行时调优（模拟器与空闲状态不可用）")))
+
+(define (pmc-block sup who args #:want want-key #:what what)
+  (define out (apply run-out (cons "pmc" args)))
+  (cond
+    [(not out)
+     (raise-user-error who (format "pmc 查询 ~a 失败：引擎可能未就绪、socket 不可用或权限不足" what))])
+  (define block
+    (findf (lambda (b) (hash-has-key? b want-key)) (parse-pmc-output out)))
+  (unless block
+    (raise-user-error who (format "pmc 未返回 ~a 数据" what)))
+  block)
+
+;; Current GM settings plus BMCA priorities, normalized from pmc output.
+;; Both linuxptp 3.1.x (gm-prefixed fields + gmFlags) and newer formats parse.
+(define (sup-gm-settings sup)
+  (require-real-engine! sup 'sup-gm-settings)
+  (define params (state-ref sup 'params))
+  (define run-dir (supervisor-run-dir sup))
+  (define gm-block
+    (pmc-block sup 'sup-gm-settings (gm-settings-get-args run-dir params)
+               #:want 'clockClass #:what "GRANDMASTER_SETTINGS_NP"))
+  (define settings (parse-gm-settings-block gm-block))
+  (define (priority which)
+    (define b (pmc-block sup 'sup-gm-settings (priority-get-args run-dir params which)
+                         #:want which #:what (format "~a" which)))
+    (hash-ref b which 128))
+  (hash-set* settings
+             'priority1 (priority 'priority1)
+             'priority2 (priority 'priority2)))
+
+;; Apply a partial settings overlay: current values are read first so pmc's
+;; positional 11-value SET always receives a complete field set. Returns
+;; (values ok? result-or-error).
+(define (sup-gm-settings-set! sup provided)
+  (with-handlers ([exn:fail? (lambda (e) (values #f (exn-message e)))])
+    (require-real-engine! sup 'sup-gm-settings-set!)
+    (define-values (checked check-err) (validate-gm-settings provided))
+    (cond
+      [check-err (values #f check-err)]
+      [else
+       (define params (state-ref sup 'params))
+       (define run-dir (supervisor-run-dir sup))
+       (define current (sup-gm-settings sup))
+       (define merged (merge-gm-settings current checked))
+       ;; GRANDMASTER_SETTINGS_NP
+       (define out (apply run-out
+                          (cons "pmc" (gm-settings-set-args run-dir params merged))))
+       (unless (and out
+                    (findf (lambda (b) (hash-has-key? b 'clockClass))
+                           (parse-pmc-output out)))
+         (raise-user-error 'sup-gm-settings-set!
+                           "pmc SET GRANDMASTER_SETTINGS_NP 未被确认：引擎可能未进入可调状态"))
+       ;; Priorities only when the operator asked to change them.
+       (for ([which '(priority1 priority2)]
+             #:when (hash-has-key? checked which))
+         (define p-out
+           (apply run-out
+                  (cons "pmc" (priority-set-args run-dir params which
+                                                 (hash-ref merged which)))))
+         (unless (and p-out
+                      (findf (lambda (b) (hash-has-key? b which))
+                             (parse-pmc-output p-out)))
+           (raise-user-error 'sup-gm-settings-set!
+                             (format "pmc SET ~a 未被确认" which))))
+       (define changed
+         (for/list ([k (in-list (hash-keys checked))])
+           (format "~a: ~a → ~a"
+                   k (hash-ref current k '—) (hash-ref merged k '—))))
+       (log! sup 'pmc 'info
+             (string-append "GM 运行时调优已应用（"
+                            (string-join changed "，")
+                            "）；调试用途，非校准声明"))
+       (values #t merged)])))
+
 
 (define (run-out . args)
   (define exe (find-executable-path (car args)))

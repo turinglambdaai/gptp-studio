@@ -83,6 +83,7 @@
 ;;   \tb62f08.fffe.1a2b3c-1\t <some id>
 ;;   \tportState                    SLAVE
 ;;   \toffsetFromMaster             12.000000
+;; Hex values (e.g. gmClockAccuracy 0xfe) are stored as decimal numbers.
 (define (parse-pmc-output text)
   (define blocks '())
   (define current (make-hasheq))
@@ -90,22 +91,26 @@
     (when (> (hash-count current) 0)
       (set! blocks (cons current blocks))
       (set! current (make-hasheq))))
+  (define (hex-string->number v)
+    (string->number (string-replace (string-downcase v) "0x" "#x")))
   (for ([raw (in-list (string-split text "\n"))])
     (define line (string-trim raw))
     (cond
-      [(regexp-match #px"^(?:sending|settle):\\s*GET ([A-Z_]+)" line)
+      [(regexp-match #px"^(?:sending|settle):\\s*(?:GET|SET) ([A-Z_]+)" line)
        => (lambda (m)
             (flush!)
             (hash-set! current 'command (second m)))]
       [(regexp-match #px"^(GET|SET) ([A-Z_]+)" line)
        => (lambda (m)
             (flush!)
-            (hash-set! current 'command (second m)))]
-      [(regexp-match #px"^([A-Za-z_][A-Za-z0-9_.]*)\\s+(-?[0-9.]+|ok|SLAVE|MASTER|LISTENING|PASSIVE|PRE_MASTER|UNCALIBRATED|FAULTY|DISABLED|INITIALIZING)$" line)
+            (hash-set! current 'command (third m)))]
+      [(regexp-match #px"^([A-Za-z_][A-Za-z0-9_.]*)\\s+(-?[0-9.]+|0[xX][0-9a-fA-F]+|ok|SLAVE|MASTER|LISTENING|PASSIVE|PRE_MASTER|UNCALIBRATED|FAULTY|DISABLED|INITIALIZING)$" line)
        => (lambda (m)
             (define key (string->symbol (second m)))
             (define vstr (third m))
-            (hash-set! current key (or (string->number vstr) vstr)))]
+            (hash-set! current key (or (string->number vstr)
+                                       (hex-string->number vstr)
+                                       vstr)))]
       [(regexp-match #px"^([A-Za-z_][A-Za-z0-9_.]*)\\s+([0-9a-f:.]+-[0-9]+)$" line)
        => (lambda (m)
             (hash-set! current (string->symbol (second m)) (third m)))]
