@@ -2,21 +2,21 @@
 
 路线图只围绕 **Linux 平台上的专业 gPTP / TSN 调试与验证能力** 展开。不会再投入 Windows/macOS 桌面端兼容工作。
 
-## v1.1 — Linux 工程体验
+## v1.1 — Linux 工程体验（已交付，v1.1.0）
 
-- `.deb` 安装与 Ubuntu 22.04 / 24.04 双 LTS 验证
-- GM 运行时调优：`pmc GRANDMASTER_SETTINGS_NP`
-- 更完整的权限安装向导：root / file capability / sudo-n，不自动提权
-- Wireshark 一键联动
-- Doctor 支持包导出与参考平台指纹
-- 真实引擎启动失败分类与恢复建议
+- ✅ `.deb` 安装与 Ubuntu 22.04 / 24.04 双 LTS 验证
+- ✅ GM 运行时调优：`pmc GRANDMASTER_SETTINGS_NP` + PRIORITY1/PRIORITY2
+- ✅ 权限路径：Doctor / Preflight 识别 root / file capability / sudo-n 并给出可执行建议，安装动作不自动提权
+- ✅ Wireshark 一键联动（实时 + 回放）
+- ✅ Doctor 支持包导出与参考平台指纹
+- ✅ 真实引擎启动失败分类与恢复建议
 
-## v1.2 — 专业分析与负向测试
+## v1.2 — 专业分析与负向测试（进行中）
 
 - 报文 / 异常 / fault injection
-- BMCA 演化时间轴
-- offset jump ↔ packet ↔ engine-state 根因关联
-- 测试报告导出（JSON / Markdown / 后续 PDF）
+- ✅ BMCA 演化时间轴
+- ✅ offset jump ↔ packet ↔ engine-state 根因关联
+- ✅ 测试报告导出（JSON / Markdown，后续 PDF）
 - 多接口与 Boundary Clock 工作流
 
 ## v1.x — 参考平台与可重复性

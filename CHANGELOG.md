@@ -1,5 +1,46 @@
 # 更新日志 / Changelog
 
+## 1.1.0 — 2026-09-26
+
+Linux 专业 timing 工作站版本：产品契约收敛为 Linux-only，v1.1 路线图（Linux 工程体验）全部交付。
+
+### 新增 — 引擎可靠性与诊断
+
+- 真实引擎强制 Preflight：硬件时间戳/PHC/权限路径未达标时阻止 ptp4l 启动；被拒会话不误伤运行中的健康会话
+- 引擎启动失败分类：从 ptp4l/phc2sys stderr 证据给出结构化原因与恢复建议，运行页直接展示
+- 无头支持 Doctor：`--doctor` / `--doctor-json` 报告 NIC/PHC/linuxptp/权限就绪度，MAC/IP 默认脱敏
+- Linux timing host 质量提示（clocksource/虚拟化等，advisory）与可复现参考平台指纹（发行版/内核/驱动/固件/PCI）
+- GUI 参考平台卡片：同一脱敏事实的界面化展示与快照复制
+
+### 新增 — 专业分析
+
+- offset jump ↔ 报文 ↔ 引擎状态根因关联：跳变时刻附近回看 Sync/Follow_Up/PDelay/Announce 证据
+- 观测性 BMCA 演化时间轴：基于捕获 Announce 的候选 GM 演化，不替代协议本身判定
+- 工程报告导出：JSON / Markdown，同步曲线统计、跳变观测、报文统计、BMCA 候选、脱敏 NIC 清单、ptp4l.conf 与日志（明确 not-calibrated 与 observational 声明）
+- 报文快照路径限制解析与防护
+
+### 新增 — 运行时调优与联动
+
+- GM 运行时调优：`pmc SET GRANDMASTER_SETTINGS_NP`（clockClass/clockAccuracy/offsetScaledLogVariance/currentUtcOffset/leap 标志/timeSource）+ PRIORITY1/PRIORITY2，不重启引擎；GET 后覆盖式合并，兼容 linuxptp 3.1.x 与新版输出格式；Pro 功能
+- Wireshark 一键联动：实时（同网卡 gPTP 捕获过滤器并行抓包）与回放（保留报文写临时 pcap 后打开，随 pcap 导出走 Pro 门控）；分离启动，关闭 Studio 不影响 Wireshark
+
+### 打包与分发
+
+- Linux-only 产品契约：不再维护功能缩水的桌面移植
+- 可复现构建 + Debian 包 CI 安装实测（Ubuntu 22.04 / 24.04 双 LTS）；tarball 与 .deb 带 sha256
+- 许可对齐：Apache-2.0 源码 / EULA 官方分发条款 / THIRD_PARTY_NOTICES
+
+### 质量
+
+- 测试 396 项（协议、配置、pcap 往返、诊断、资格判定、指纹、报告、调优、Wireshark、许可证门控）
+- CI 双 LTS 全绿：编译 / 测试 / selfcheck / doctor 断言 / 包冒烟 / 安装卸载与用户数据保留验证
+
+### 已知限制
+
+- 角色切换仍需重启引擎（设计取舍：会话状态一致性优先）
+- 报文/异常 fault injection 与多接口 Boundary Clock 工作流在 v1.2 路线图
+- Wireshark 联动需要本机安装 wireshark（Doctor 与按钮都会给出安装指引）
+
 ## 1.0.0 — 2026-09-16
 
 gPTP Studio 首个商业级版本。Racket + Glaze 全面重写（原型 v0.2 的 `racket/gui` 路线终止，代码保留于 `v0.2.0-racket-prototype` tag）。

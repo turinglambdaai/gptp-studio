@@ -50,7 +50,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 ### Debian / Ubuntu 包
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-v1.1.0-linux-amd64.deb
 gptp-studio --doctor
 gptp-studio
 ```
@@ -60,7 +60,7 @@ gptp-studio
 ### 可移植 tarball
 
 ```bash
-tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
+tar -xzf gPTP-Studio-v1.1.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
 ./bin/gptp-studio

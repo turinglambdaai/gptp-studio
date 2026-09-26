@@ -77,7 +77,7 @@ jobs:
           bash -n scripts/package-deb.sh
           test "$(tr -d '[:space:]' < GLAZE_REVISION)" = \
             "$(git -C "$HOME/glaze-src" rev-parse HEAD)"
-          bash scripts/check-release-version.sh v1.0.0
+          bash scripts/check-release-version.sh v1.1.0
 
       - name: Compile
         run: raco make main.rkt
@@ -132,16 +132,16 @@ jobs:
         run: |
           GPTP_STUDIO_SELFCHECK_PORT=18741 \
           GPTP_STUDIO_DEB_SELFCHECK_PORT=18742 \
-            bash scripts/package-deb.sh 1.0.0 v1.0.0-ci
+            bash scripts/package-deb.sh 1.1.0 v1.1.0-ci
 
       - name: Install, validate and remove Debian package
         shell: bash
         run: |
           set -euo pipefail
-          DEB="gPTP-Studio-v1.0.0-ci-linux-amd64.deb"
+          DEB="gPTP-Studio-v1.1.0-ci-linux-amd64.deb"
           test -s "$DEB"
           sudo apt-get install -y "./$DEB"
-          test "$(gptp-studio --version)" = "1.0.0"
+          test "$(gptp-studio --version)" = "1.1.0"
           desktop-file-validate /usr/share/applications/gptp-studio.desktop
           gptp-studio --doctor-json > "$RUNNER_TEMP/gptp-installed-doctor.json"
           python3 - "$RUNNER_TEMP/gptp-installed-doctor.json" <<'PY'
