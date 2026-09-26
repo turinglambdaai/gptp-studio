@@ -25,7 +25,9 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 - **gPTP 抓包与完整解码**：libpcap 抓取 EtherType `0x88f7`，支持 Sync / Follow_Up / Announce / PDelay_* / Signalling、精确 sec+nsec 元数据、hex、pcap/pcapng
 - **时间路径透明**：网卡“能力”与当前抓包“实际 timestamp source”分开显示，不把纳秒分辨率包装成已校准精度
 - **无头 Doctor**：`--doctor` / `--doctor-json` 不打开 GUI 就能输出 NIC、PHC、linuxptp、权限和角色就绪状态，默认不输出 MAC/IP
-- **内置模拟器**：合成 802.1AS 帧继续走真实 encode/decode/store 管线
+- **内置模拟器 + 故障注入**：合成 802.1AS 帧继续走真实 encode/decode/store 管线；可注入 Sync/Announce 丢弃、Follow_Up 延迟、sequenceId 跳变与 offset 尖峰，对告警、BMCA 判读与报告做负向测试
+- **GM 运行时调优**：经 `pmc GRANDMASTER_SETTINGS_NP` 在线修改 clockClass、clockAccuracy、timeSource 与 BMCA 优先级，无需重启引擎（Pro）
+- **Wireshark 一键联动**：实时（gPTP 捕获过滤器）或回放保留报文；工程报告导出 JSON/Markdown
 - **聚合日志与预设**：引擎、抓包、应用事件统一观察
 - **离线授权**：适合内网和保密研发环境，不依赖云端许可服务
 

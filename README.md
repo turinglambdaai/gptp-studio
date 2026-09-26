@@ -25,7 +25,9 @@ Built with [Racket](https://racket-lang.org/) + [Glaze](https://github.com/turin
 - **gPTP packet capture & decode** — libpcap capture of EtherType `0x88f7`, full Sync / Follow_Up / Announce / PDelay_* / Signalling decode, exact sec+nsec timestamp metadata, hex view and pcap/pcapng workflows
 - **Timing-path transparency** — NIC capability and actual capture timestamp source are shown separately; timestamp resolution is never presented as calibrated accuracy
 - **Headless support Doctor** — `--doctor` / `--doctor-json` report NIC, PHC, linuxptp and privilege readiness without opening the GUI; MAC/IP are omitted by default
-- **Built-in simulator** — synthetic 802.1AS sessions flow through the same encode/decode/store pipeline as real traffic
+- **Built-in simulator with fault injection** — synthetic 802.1AS sessions flow through the same encode/decode/store pipeline as real traffic; inject Sync/Announce drops, Follow_Up delay, sequence gaps and offset spikes to negative-test your alerts, BMCA reading and reports
+- **GM runtime tuning** — change clockClass, clockAccuracy, timeSource and BMCA priorities on a running engine via `pmc GRANDMASTER_SETTINGS_NP`, no restart (Pro)
+- **Wireshark one-click** — live capture with a gPTP filter, or replay retained packets; engineering reports export to JSON/Markdown
 - **Aggregated logs and presets** — engine, capture and application events in one place
 - **Offline licensing** — signed offline license files; no cloud dependency required for protected environments
 
