@@ -32,7 +32,8 @@
          "../data/logstore.rkt"
          "../support/diagnostics.rkt"
          "../support/engineering-report.rkt"
-         "../support/platform-fingerprint.rkt")
+         "../support/platform-fingerprint.rkt"
+         "../support/wireshark.rkt")
 
 (provide api-routes engine-start bootstrap)
 
@@ -377,6 +378,28 @@
            (hasheq 'ok #t 'count (length frames) 'path (path->string path))]))])]
 
   ;; ---- series backfill ----------------------------------------------------
+
+  ;; ---- Wireshark one-click integration -------------------------------------
+  [(POST "api/tools/wireshark")
+   (tools-wireshark [action string? ""] [iface string? ""])
+   (cond
+     [(not (member action '("live" "retained")))
+      (hasheq 'ok #f 'error "未知 Wireshark 联动方式")]
+     [(not (wireshark-available?))
+      (hasheq 'ok #f 'error "未找到 wireshark。请先安装：sudo apt install wireshark")]
+     [(string=? action "live")
+      (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+        (define filter
+          (gptp-capture-filter (gptp-params-network-transport (current-params))))
+        (define result (launch-wireshark-live! iface filter))
+        (log-add! app-logs 'app 'info
+                  (format "Wireshark 实时联动：iface=~a filter=~a" iface filter))
+        result)]
+     [(not (eq? (gate-check 'export) #t))
+      (hasheq 'ok #f 'need_pro #t 'error (gate-check 'export))]
+     [else (open-retained-in-wireshark)])]
+
+  ;; ---- series backfill ----------------------------------------------------
   [(GET "api/series")
    (series)
    (hasheq 'offset (series->points app-offset-series 1200)
@@ -544,6 +567,26 @@
 
 (define (nonempty-string-or value fallback)
   (if (and (string? value) (not (string=? value ""))) value fallback))
+
+;; Retained packets → temp pcap → wireshark. Same data as the pcap export,
+;; so it lives behind the same Pro gate (checked at the route).
+(define (open-retained-in-wireshark)
+  (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+    (define frames
+      (reverse
+       (for/list ([f (in-list (packet-store-snapshot app-packets 999999))])
+         (packet->capture-file-frame f))))
+    (cond
+      [(null? frames)
+       (hasheq 'ok #f 'error "报文存储为空：没有可打开的报文")]
+      [else
+       (define path (wireshark-temp-pcap-path))
+       (write-capture-file path frames)
+       (define result (launch-wireshark-file! path))
+       (define file (hash-ref result 'path))
+       (log-add! app-logs 'app 'info
+                 (format "Wireshark 打开已存报文：~a 帧 → ~a" (length frames) file))
+       (hasheq 'ok #t 'count (length frames) 'path file)])))
 
 (define (current-engineering-report requested-iface requested-role requested-reference)
   (define engine (sup-status app-supervisor))
