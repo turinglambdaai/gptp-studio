@@ -223,7 +223,7 @@
     try {
       const [series, packetResult, logResult] = await Promise.all([
         api("/api/series"),
-        api("/api/packets/500"),
+        api("/api/packets"),
         api("/api/logs"),
       ]);
       const jumps = engine.detectOffsetJumps(
