@@ -49,10 +49,13 @@ jobs:
           node --check public/js/ux.js
           node --check public/js/tools.js
           node --check public/js/packet-analysis.js
+          node --check public/js/timing-evidence.js
+          node --check public/js/timing-evidence-ui.js
           node --check public/js/readiness-tools.js
           node --check public/js/session-controls.js
           node --check public/js/capture-quality.js
           node --check public/js/qualification.js
+          node tests/timing-evidence-test.js
           test -f public/css/app.css
           test -f public/css/ux.css
           test -f public/css/packet-analysis.css
