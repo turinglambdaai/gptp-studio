@@ -100,6 +100,7 @@
     const s = ev.summary || {};
     const tags = [];
     if ((s.packet_types || []).length) tags.push(`PTP: ${(s.packet_types || []).join(" / ")}`);
+    if (s.unverified_packet_count) tags.push(`${s.unverified_packet_count} packet(s) excluded: unverified timebase`);
     if (s.sequence_observation_count) tags.push(`Seq: ${s.sequence_observation_count}`);
     if ((s.announce_grandmasters || []).length > 1) tags.push(`Announce GM: ${(s.announce_grandmasters || []).length}`);
     if (s.port_state_log_count) tags.push(`Port-state: ${s.port_state_log_count}`);
@@ -121,6 +122,9 @@
     if (ev.correlation_supported) {
       lines.push("", "Packets:");
       for (const p of ev.packets || []) lines.push(`- ${packetLine(p, ev.ts)}`);
+      if (ev.unverified_packet_count) {
+        lines.push(`- excluded ${ev.unverified_packet_count} packet(s): unverified timestamp source(s) ${(ev.unverified_timestamp_sources || []).join(", ")}`);
+      }
       lines.push("", "Sequence observations:");
       for (const s of ev.sequence_observations || []) {
         lines.push(`- ${s.kind}: ${s.previous_sequence_id} -> ${s.sequence_id} (${s.key})`);
