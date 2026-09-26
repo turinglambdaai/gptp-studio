@@ -45,7 +45,7 @@ gptp-studio --simulator
 ### Debian 包
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-v1.1.0-linux-amd64.deb
 command -v gptp-studio
 gptp-studio --doctor
 ```
@@ -60,7 +60,7 @@ gptp-studio --doctor
 ### Relocatable tarball
 
 ```bash
-tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
+tar -xzf gPTP-Studio-v1.1.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --version
 ./bin/gptp-studio --doctor
@@ -116,7 +116,7 @@ raco make main.rkt
 raco test tests/
 racket main.rkt --selfcheck
 racket main.rkt --doctor-json | python3 -m json.tool >/dev/null
-bash scripts/package-deb.sh 1.0.0 v1.0.0-local
+bash scripts/package-deb.sh 1.1.0 v1.1.0-local
 ```
 
 GitHub Actions 必须在 **Ubuntu 22.04 + Ubuntu 24.04** 同时通过：

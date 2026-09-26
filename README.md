@@ -50,7 +50,7 @@ A NIC reporting hardware timestamping and `/dev/ptpN` means the host has the req
 ### Debian / Ubuntu package
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-v1.1.0-linux-amd64.deb
 gptp-studio --doctor
 gptp-studio
 ```
@@ -60,7 +60,7 @@ The Debian package declares the Linux runtime dependencies and installs the desk
 ### Relocatable tarball
 
 ```bash
-tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
+tar -xzf gPTP-Studio-v1.1.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
 ./bin/gptp-studio
