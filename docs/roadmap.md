@@ -2,7 +2,7 @@
 
 路线图只围绕 **Linux 平台上的专业 gPTP / TSN 调试与验证能力** 展开。不会再投入 Windows/macOS 桌面端兼容工作。
 
-## v1.1 — Linux 工程体验（已交付，v1.1.0）
+## v1.1 — Linux 工程体验（已随 1.0.0 首发交付）
 
 - ✅ `.deb` 安装与 Ubuntu 22.04 / 24.04 双 LTS 验证
 - ✅ GM 运行时调优：`pmc GRANDMASTER_SETTINGS_NP` + PRIORITY1/PRIORITY2
@@ -11,7 +11,7 @@
 - ✅ Doctor 支持包导出与参考平台指纹
 - ✅ 真实引擎启动失败分类与恢复建议
 
-## v1.2 — 专业分析与负向测试（已交付，v1.2.0）
+## v1.2 — 专业分析与负向测试（已随 1.0.0 首发交付）
 
 - ✅ 报文 / 异常 / fault injection（模拟器内：Sync/Announce 丢弃、Follow_Up 延迟、sequenceId 跳变、offset 尖峰；真实引擎注入随 v2 专用硬件）
 - ✅ BMCA 演化时间轴
