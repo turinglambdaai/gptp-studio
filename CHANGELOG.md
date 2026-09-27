@@ -1,97 +1,47 @@
 # 更新日志 / Changelog
 
-## 1.2.0 — 2026-09-26
+## 1.0.0 — 2026-09-27
 
-专业分析与负向测试版本：v1.2 路线图全部交付。
+gPTP Studio 首个正式版：**Linux 原生 gPTP / IEEE 802.1AS 调试工作站**（Automotive Ethernet）。
 
-### 新增 — Boundary Clock（多接口工作流）
+产品契约为 Linux-only：专业 gPTP 工作依赖 PHC、硬件时间戳、`SO_TIMESTAMPING`、linuxptp、sysfs 网卡自省与显式权限控制，本产品不维护功能缩水的桌面移植。本版本即该方向下的第一个发布。
 
-- 第四角色「边界时钟」：双端口 `ptp4l -i <上游> -i <下游>`（linuxptp 3.0+ 多口即 BC）+ `phc2sys -a -r -w`（经共享 UDS 跟随端口状态同步 PHC 与系统时钟），`boundary_clock_jbod 0` 单一时钟源
-- 逐口 Preflight：每个端口独立硬件时间戳/PHC/权限判定（带端口号），任一口不达标整体阻断；单口/重复端口选择结构性拒绝，被拒会话不影响运行中的健康会话
-- 状态栏逐口显示（P1 SLAVE · P2 GRAND_MASTER），`ptp4l.conf` 预览含 BC 端口清单
-- 模拟器 Boundary 剧本：上游从钟波形 + 下游 GM 流量，双口分开入库
-- BC 属引擎控制，Pro 门控；真机配置见 docs/linux-real-engine-setup.md 第 7 节
+### 引擎
 
-### 新增 — 模拟器故障注入（负向测试）
+- 四角色：GrandMaster、从钟、双端口 Boundary Clock（`ptp4l -i <上游> -i <下游>` + `phc2sys -a -r -w` 共享 UDS、`boundary_clock_jbod 0`）、被动 Listener
+- linuxptp 子进程监督：自动重启（限次）、参考源生命周期（GM: `phc2sys` CLOCK_REALTIME → PHC）
+- 真实引擎强制 Preflight：硬件时间戳/PHC/权限路径逐口判定（BC 带端口号），不达标阻止启动；被拒会话不误伤运行中的健康会话
+- 启动失败分类：从 ptp4l/phc2sys stderr 证据给出结构化原因与恢复建议
+- GM 运行时调优：`pmc SET GRANDMASTER_SETTINGS_NP`（clockClass/clockAccuracy/offsetScaledLogVariance/currentUtcOffset/leap 标志/timeSource）+ PRIORITY1/PRIORITY2，不重启引擎；兼容 linuxptp 3.1.x 与 4.x 输出格式（Pro）
 
-- Sync/Announce 按比例丢弃（孤儿 Follow_Up、BMCA 候选断档）、Follow_Up 时间戳延迟、sequenceId 周期跳变、从钟 offset 周期尖峰
-- 注入帧仍为语法合法 gPTP，走同一 encode/decode/store 管线；Free 功能
+### 分析与诊断
 
-### 修复 — Ubuntu 22.04 兼容
+- IEEE 1588-2008 / 802.1AS 全字段解码：Sync、Follow_Up（含 802.1AS follow-up info TLV）、Announce、PDelay_*、Signalling、Management；L2 与 UDPv4；VLAN；pcap/pcapng 导入
+- libpcap 实时抓包（非阻塞轮询）+ 报文环形存储 + 批量 SSE；抓包时间戳来源与 NIC 能力分开显示
+- 实时 offset / meanPathDelay 曲线、告警阈值、系统通知
+- offset jump ↔ 报文 ↔ 引擎状态根因关联；观测性 BMCA 演化时间轴
+- 工程报告导出：JSON / Markdown（同步统计、跳变观测、BMCA 候选、脱敏 NIC 清单、ptp4l.conf、日志；明确 not-calibrated / observational 声明）
+- 无头 Doctor：`--doctor` / `--doctor-json`；Linux timing host 质量提示；可复现参考平台指纹（GUI 卡片 + 快照复制）
+- Wireshark 一键联动：实时（gPTP 捕获过滤器并行抓包，Free）与回放（保留报文开临时 pcap，随 pcap 导出 Pro）；分离启动，关闭 Studio 不影响 Wireshark
 
-- 生成的 `ptp4l.conf` 改回 `slaveOnly`：22.04 的 linuxptp 3.1.1 解析器没有 `clientOnly` 键（该键会导致 ptp4l 拒绝配置退出）；4.x 仍接受 `slaveOnly` 为弃用别名，两边通吃
+### 模拟器与负向测试
 
-### 质量
+- 内置 gPTP 模拟器（GM / 从钟 / 监听 / Boundary 四剧本）：真实编码帧走同一 encode/decode/store 管道
+- 故障注入：Sync/Announce 按比例丢弃（孤儿 Follow_Up、BMCA 断档）、Follow_Up 时间戳延迟、sequenceId 跳变、offset 尖峰——负向验证告警、BMCA 判读与报告（Free）
 
-- 测试 440 项（新增 BC 26 项：配置生成、进程参数、逐口资格、会话校验）
-- CI 双 LTS 全绿
+### 商业化与打包
 
-## 1.1.0 — 2026-09-26
-
-Linux 专业 timing 工作站版本：产品契约收敛为 Linux-only，v1.1 路线图（Linux 工程体验）全部交付。
-
-### 新增 — 引擎可靠性与诊断
-
-- 真实引擎强制 Preflight：硬件时间戳/PHC/权限路径未达标时阻止 ptp4l 启动；被拒会话不误伤运行中的健康会话
-- 引擎启动失败分类：从 ptp4l/phc2sys stderr 证据给出结构化原因与恢复建议，运行页直接展示
-- 无头支持 Doctor：`--doctor` / `--doctor-json` 报告 NIC/PHC/linuxptp/权限就绪度，MAC/IP 默认脱敏
-- Linux timing host 质量提示（clocksource/虚拟化等，advisory）与可复现参考平台指纹（发行版/内核/驱动/固件/PCI）
-- GUI 参考平台卡片：同一脱敏事实的界面化展示与快照复制
-
-### 新增 — 专业分析
-
-- offset jump ↔ 报文 ↔ 引擎状态根因关联：跳变时刻附近回看 Sync/Follow_Up/PDelay/Announce 证据
-- 观测性 BMCA 演化时间轴：基于捕获 Announce 的候选 GM 演化，不替代协议本身判定
-- 工程报告导出：JSON / Markdown，同步曲线统计、跳变观测、报文统计、BMCA 候选、脱敏 NIC 清单、ptp4l.conf 与日志（明确 not-calibrated 与 observational 声明）
-- 报文快照路径限制解析与防护
-
-### 新增 — 运行时调优与联动
-
-- GM 运行时调优：`pmc SET GRANDMASTER_SETTINGS_NP`（clockClass/clockAccuracy/offsetScaledLogVariance/currentUtcOffset/leap 标志/timeSource）+ PRIORITY1/PRIORITY2，不重启引擎；GET 后覆盖式合并，兼容 linuxptp 3.1.x 与新版输出格式；Pro 功能
-- Wireshark 一键联动：实时（同网卡 gPTP 捕获过滤器并行抓包）与回放（保留报文写临时 pcap 后打开，随 pcap 导出走 Pro 门控）；分离启动，关闭 Studio 不影响 Wireshark
-
-### 打包与分发
-
-- Linux-only 产品契约：不再维护功能缩水的桌面移植
-- 可复现构建 + Debian 包 CI 安装实测（Ubuntu 22.04 / 24.04 双 LTS）；tarball 与 .deb 带 sha256
-- 许可对齐：Apache-2.0 源码 / EULA 官方分发条款 / THIRD_PARTY_NOTICES
+- RSA-2048 离线许可证（机器绑定）、14 天 Pro 试用、Free/Pro 功能门控
+- 可复现构建：Debian 包 + relocatable tarball + sha256；Ubuntu 22.04 / 24.04 双 LTS CI（编译/测试/selfcheck/doctor 断言/包冒烟/安装卸载与用户数据保留）
+- i18n 中/英双语；产品站 gptp-studio.jrtx.site
 
 ### 质量
 
-- 测试 396 项（协议、配置、pcap 往返、诊断、资格判定、指纹、报告、调优、Wireshark、许可证门控）
-- CI 双 LTS 全绿：编译 / 测试 / selfcheck / doctor 断言 / 包冒烟 / 安装卸载与用户数据保留验证
+- 440 项测试（协议 golden、配置生成、pcap 往返、诊断、逐口资格、报告、调优、Wireshark、故障注入、许可证门控）
+- 源码 Apache-2.0；官方分发条款见 EULA
 
 ### 已知限制
 
-- 角色切换仍需重启引擎（设计取舍：会话状态一致性优先）
-- 报文/异常 fault injection 与多接口 Boundary Clock 工作流在 v1.2 路线图
-- Wireshark 联动需要本机安装 wireshark（Doctor 与按钮都会给出安装指引）
-
-## 1.0.0 — 2026-09-16
-
-gPTP Studio 首个商业级版本。Racket + Glaze 全面重写（原型 v0.2 的 `racket/gui` 路线终止，代码保留于 `v0.2.0-racket-prototype` tag）。
-
-### 新增
-
-- 六页工业蓝 UI：同步总览 / 链路与网卡 / 角色与配置 / 参考源 / 报文分析 / 运行与日志
-- IEEE 1588-2008 / 802.1AS 全字段解码器：Sync、Follow_Up（含 802.1AS follow-up info TLV）、Announce、PDelay_\*、Signalling、Management；L2 与 UDPv4 传输；VLAN；pcap/pcapng 离线导入
-- 三角色引擎：GrandMaster / 从钟（linuxptp 子进程监督、`sudo -n` 快速失败、自动重启）/ 被动监听
-- gPTP 参数表单 → `ptp4l.conf` 实时生成预览（对齐 linuxptp 官方 gPTP.cfg 剖面）
-- libpcap FFI 实时抓包（非阻塞轮询，协作调度器安全）+ 报文环形存储 + 批量 SSE 推送
-- 内置 gPTP 模拟器：真实编码帧走同一解码管道（GM / 从钟 / 监听三剧本）
-- 实时 offset / meanPathDelay 曲线 + 告警阈值 + 系统通知
-- 场景预设（保存/应用/删除）、聚合日志（过滤/导出）、pmc 对照查询
-- 商业化层：RSA-2048 离线许可证（机器绑定）、14 天 Pro 试用、Free/Pro 功能门控
-- 打包：macOS .app（含图标 + adhoc 签名）、Linux tarball；GitHub Actions CI + Release
-- i18n 中/英双语
-
-### 质量
-
-- 155 项测试全绿（协议 golden、配置生成、pcap 往返、解析器、数据结构、许可证门控）
-- 无头自检（`--selfcheck`）覆盖静态页 + bootstrap + conf API
-
-### 已知限制
-
-- macOS 无 GM/从钟引擎（linuxptp 依赖内核 SO_TIMESTAMPING/PHC，平台性质限制）
-- 角色切换需重启引擎；GM 运行时调优（pmc GRANDMASTER_SETTINGS_NP）在路线图
-- Windows：UI 栈已就绪，引擎与抓包待评估（npcap / OpenAvnu）
+- 角色切换仍需重启引擎（会话状态一致性优先）
+- Wireshark 联动需要本机安装 wireshark（Doctor 与按钮给出安装指引）
+- 真实引擎注入（delay/drop/corruption）与 TSN/Qbv 联动在 v2 专用硬件路线
