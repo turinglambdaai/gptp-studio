@@ -77,7 +77,7 @@
         <tr><th data-en="Timing engine" data-zh="时间引擎">Timing engine</th><td>linuxptp: ptp4l / phc2sys / pmc</td></tr>
         <tr><th data-en="Hardware path" data-zh="硬件时间路径">Hardware path</th><td>NIC hardware timestamping + PTP Hardware Clock</td></tr>
         <tr><th data-en="Capture" data-zh="抓包">Capture</th><td>libpcap + runtime timestamp-source reporting</td></tr>
-        <tr><th data-en="Packages" data-zh="官方包">Packages</th><td>Relocatable tar.gz</td></tr>
+        <tr><th data-en="Packages" data-zh="官方包">Packages</th><td>.deb (Debian/Ubuntu) · Relocatable tar.gz</td></tr>
       </table>
     </div>
   </section>
@@ -87,15 +87,14 @@
       <span class="eyebrow" data-en="Install" data-zh="安装">Install</span>
       <h2 class="section-title"><span data-en="Start with" data-zh="第一步先运行">Start with</span> <span class="accent">Doctor.</span></h2>
       <div class="download-grid">
-        <div class="download-card"><h3 data-en="Quick start" data-zh="快速开始">Quick start</h3><pre class="command"># from the latest release: gPTP-Studio-&lt;ver&gt;-linux-x64.tar.gz
-tar -xzf gPTP-Studio-*-linux-x64.tar.gz
+        <div class="download-card"><h3 data-en="Quick start" data-zh="快速开始">Quick start</h3><pre class="command"># Debian/Ubuntu: from the latest release
+sudo apt install ./gPTP-Studio-*-linux-amd64.deb
+gptp-studio --doctor
+gptp-studio</pre><p data-en="Validated on Ubuntu 22.04 / 24.04 LTS. Installs to /opt/gptp-studio, adds /usr/bin/gptp-studio and a desktop entry." data-zh="在 Ubuntu 22.04 / 24.04 LTS 上验证。安装到 /opt/gptp-studio，提供 /usr/bin/gptp-studio 命令与桌面入口。">Validated on Ubuntu 22.04 / 24.04 LTS.</p></div>
+        <div class="download-card"><h3 data-en="Relocatable tar.gz" data-zh="Relocatable tar.gz">Relocatable tar.gz</h3><pre class="command">tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
-./bin/gptp-studio</pre><p data-en="Validated on Ubuntu 22.04 / 24.04 LTS. The tarball is self-contained and installs nothing outside its directory." data-zh="在 Ubuntu 22.04 / 24.04 LTS 上验证。压缩包自包含，不在目录外安装任何内容。">Validated on Ubuntu 22.04 / 24.04 LTS. The tarball is self-contained.</p></div>
-        <div class="download-card"><h3 data-en="Pinned to v1.0.0" data-zh="锁定 v1.0.0">Pinned to v1.0.0</h3><pre class="command">tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
-cd gptp-studio-distributed
-./bin/gptp-studio --doctor
-./bin/gptp-studio</pre><p data-en="Useful for controlled lab hosts where the application payload should stay outside the package database." data-zh="适合希望应用 payload 与系统包数据库解耦的实验室主机。">Useful for controlled lab hosts.</p></div>
+./bin/gptp-studio</pre><p data-en="Self-contained; installs nothing outside its directory. Useful for lab hosts where the payload should stay outside the package database." data-zh="自包含，不在目录外安装任何内容。适合希望应用 payload 与系统包数据库解耦的实验室主机。">Self-contained; installs nothing outside its directory.</p></div>
       </div>
       <div class="hero-buttons" style="margin-top:28px">
         <a href="https://github.com/turinglambdaai/gptp-studio/releases/latest" class="btn btn-primary" data-en="Open latest release" data-zh="打开最新 Release">Open latest release</a>
