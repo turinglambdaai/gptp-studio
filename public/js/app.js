@@ -507,8 +507,13 @@ async function boot() {
 
   $("#lang-switch").addEventListener("change", async (e) => {
     await api("/api/settings", { language: e.target.value });
+    // Feature modules (timing evidence, session controls, …) branch on S.lang
+    // via their own langZh()-style helpers; without updating it and telling
+    // them, their labels stayed in the previous language until reload.
+    S.lang = e.target.value;
     const d = await api("/api/i18n");
     S.i18n = d; applyI18n(); renderLicense(S.bootstrap.gate);
+    window.dispatchEvent(new CustomEvent("gptp:lang", { detail: { lang: S.lang } }));
   });
 
   $("#nics-refresh").addEventListener("click", async () => {

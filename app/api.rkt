@@ -14,6 +14,7 @@
          racket/path
          racket/string
          glaze
+         (only-in glaze/webview/main webview-capture!)
          "state.rkt"
          "i18n.rkt"
          "gate.rkt"
@@ -475,6 +476,26 @@
      [(not (eq? (gate-check 'export) #t))
       (hasheq 'ok #f 'need_pro #t 'error (gate-check 'export))]
      [else (open-retained-in-wireshark)])]
+
+  ;; ---- dev screenshot (agent verification) ----------------------------------
+  ;; Captures the NATIVE window via glaze's verification API so UI layout can
+  ;; be checked headlessly — the browser fallback renders with different font
+  ;; metrics and hides native-only layout bugs. Token-protected like the rest
+  ;; of the API. Returns the PNG path instead of bytes (webview-capture!
+  ;; writes the file).
+  [(GET "api/debug/capture")
+   (debug-capture [dest string? ""])
+   (define wv (unbox app-wv-box))
+   (cond
+     [(not wv) (hasheq 'ok #f 'error "no native window (browser fallback?)")]
+     [else
+      (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+        (define path
+          (webview-capture! wv
+                            (if (string=? dest "") #f dest)))
+        (if path
+            (hasheq 'ok #t 'path (path->string path))
+            (hasheq 'ok #f 'error "capture not ready (window not yet composited?)")))])]
 
   ;; ---- series backfill ----------------------------------------------------
   [(GET "api/series")

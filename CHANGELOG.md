@@ -4,6 +4,22 @@
 
 ### 修复
 
+- **语言选择器被窗口边缘裁切一半**：侧栏底部放的是中/英文切换，但侧栏没有滚动兜底、
+  footer 又用 `margin-top:auto` 钉死在底边——内容一旦高过视口（原生 WebKitGTK 字体度量
+  或窗口偏矮时），选择器就被齐边切掉且无法滚到。侧栏现在可滚动（`overflow-y:auto` +
+  `min-height:0`），footer 增加 12px 底部留白。
+- **切换语言后约 70 处界面文字不跟随**：语言切换只刷新 `data-i18n` 静态元素并重取字典，
+  既不更新 `S.lang`（各功能模块的 `langZh()` 分支全部读旧值），也不通知 JS 生成的控件。
+  现在切换时更新 `S.lang` 并广播 `gptp:lang` 事件（时间证据卡、会话按钮监听刷新），
+  并补齐 Overview 首屏静态文案的 `data-i18n` 覆盖（状态卡、快捷键、调试快照、会话按钮、
+  时间证据标题/按钮）。GM 调优 / 故障注入 / BMCA 等深层面板的动态文案仍待逐页接入。
+- **`/api/debug/capture`（新增）**：走 glaze `webview-capture!` 输出原生窗口 PNG——
+  浏览器回退的字体度量与原生窗口不同，headless 视觉验收必须拍原生窗口；本次两个
+  UI 缺陷即由它定位。（注意：Wayland 会话下 gdk 抓屏返回全黑，需 `GDK_BACKEND=x11`
+  运行；已按 glaze 的 agent 验证工作流使用。）
+
+### 修复（上一批，随 v1.0.0 复审发现）
+
 - **Ubuntu/Debian 上安装 deb 后无法启动**：`capture/live` 的 libpcap FFI 只尝试
   `libpcap.so.1`（Fedora/Arch 的 soname），而 Debian/Ubuntu 出于 ABI 历史原因提供
   `libpcap.so.0.8`——deb 声明的 `libpcap0.8` 依赖装了，加载仍然失败，且该 FFI 调用

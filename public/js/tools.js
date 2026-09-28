@@ -180,12 +180,16 @@
     const btn = document.createElement("button");
     btn.id = "copy-support-snapshot";
     btn.className = "btn btn-sm";
+    btn.setAttribute("data-i18n", "snap-copy");
     btn.textContent = "复制调试快照";
     btn.title = "复制平台、网卡、PHC、当前同步状态、最近引擎失败和 ptp4l.conf，方便贴到 issue/聊天中";
     btn.addEventListener("click", () => copyText(supportSnapshot(), "调试快照已复制"));
     if (legend) wrap.appendChild(legend);
     wrap.appendChild(btn);
     head.appendChild(wrap);
+    // this button is created after boot's applyI18n pass; translate it now
+    // (and on every later language switch via its data-i18n attribute)
+    if (typeof applyI18n === "function") applyI18n();
   }
 
   function installLogCopy() {

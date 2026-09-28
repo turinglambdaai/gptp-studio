@@ -339,7 +339,7 @@
     if (q("#shortcut-hint")) return;
     const footer = q(".sidebar-footer");
     if (!footer) return;
-    footer.insertAdjacentHTML("afterbegin", '<div id="shortcut-hint" class="shortcut-hint" title="⌘/Ctrl+1…6 切页 · / 搜报文 · Space 冻结报文 · Esc 关闭详情">⌨ 快捷键</div>');
+    footer.insertAdjacentHTML("afterbegin", '<div id="shortcut-hint" class="shortcut-hint" data-i18n="shortcut-hint" title="⌘/Ctrl+1…6 切页 · / 搜报文 · Space 冻结报文 · Esc 关闭详情">⌨ 快捷键</div>');
   }
 
   function typingTarget(target) {

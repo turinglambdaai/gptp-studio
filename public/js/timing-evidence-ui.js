@@ -42,6 +42,7 @@
     q("#timing-evidence-refresh").addEventListener("click", () => refreshEvidence(true));
     q("#timing-evidence-copy").addEventListener("click", copyCurrentEvidence);
     updateLabels();
+    window.addEventListener("gptp:lang", updateLabels);
     return card;
   }
 

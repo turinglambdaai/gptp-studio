@@ -13,12 +13,15 @@
     if (!host) return;
     const wrap = document.createElement("div");
     wrap.className = "session-controls";
+    // zh literals as the pre-bootstrap render; data-i18n takes over once the
+    // i18n dict arrives (applyI18n) and on language switches
     wrap.innerHTML = `
-      <button class="btn btn-sm btn-primary" id="session-start" title="按当前角色/模式/网卡启动完整调试会话">▶ 开始会话</button>
-      <button class="btn btn-sm btn-danger" id="session-stop" title="停止抓包与引擎">■ 停止全部</button>`;
+      <button class="btn btn-sm btn-primary" id="session-start" data-i18n="sc-start" title="按当前角色/模式/网卡启动完整调试会话">▶ 开始会话</button>
+      <button class="btn btn-sm btn-danger" id="session-stop" data-i18n="sc-stop" title="停止抓包与引擎">■ 停止全部</button>`;
     host.appendChild(wrap);
     q("#session-start").addEventListener("click", startSession);
     q("#session-stop").addEventListener("click", stopSession);
+    window.addEventListener("gptp:lang", refreshButtons);
     refreshButtons();
   }
 
@@ -44,8 +47,8 @@
     if (!start || !stop) return;
     start.disabled = busy || running();
     stop.disabled = busy || !running();
-    if (busy) start.textContent = "处理中…";
-    else start.textContent = "▶ 开始会话";
+    if (busy) start.textContent = t("sc-busy");
+    else start.textContent = t("sc-start");
   }
 
   async function startCapture(iface) {
