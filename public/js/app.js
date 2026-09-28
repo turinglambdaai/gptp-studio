@@ -122,7 +122,7 @@ function renderOverview(eng, cap) {
   $("#ov-gm").textContent = eng.gm_id || "—";
   $("#ov-freq").textContent = eng.freq_ppb !== null && eng.freq_ppb !== undefined ? `${eng.freq_ppb} ppb` : "—";
   $("#ov-threshold").textContent = `±${(S.thresholdNs || 100000) / 1000} µs`;
-  $("#ov-engine").textContent = eng.mode ? `${eng.mode === "sim" ? "模拟器" : "linuxptp"} · ${eng.role}` : "—";
+  $("#ov-engine").textContent = eng.mode ? `${eng.mode === "sim" ? t("eng-mode-sim") : "linuxptp"} · ${eng.role}` : "—";
   $("#ov-capture").textContent = cap && cap.running ? `⏺ ${cap.iface}` : "—";
   const empty = $("#chart-empty");
   if (S.seriesSeen) empty.classList.add("hidden");
@@ -132,6 +132,7 @@ function renderOverview(eng, cap) {
 
 /* ---------- nics ---------- */
 function renderNics(nics) {
+  S.nics = nics;
   const tb = $("#nics-table tbody");
   tb.innerHTML = "";
   for (const n of nics) {
@@ -390,11 +391,11 @@ function renderLicense(gate) {
     detail = `<div class="lic-line"><span class="k">剩余天数</span><span>${gate.detail.days_left ?? "?"} 天</span></div>`;
   }
   body.innerHTML = `
-    <div class="lic-line"><span class="k">版本</span><span>gPTP Studio v${S.version}</span></div>
+    <div class="lic-line"><span class="k">${t("lic-version")}</span><span>gPTP Studio v${S.version}</span></div>
     <div class="lic-line"><span class="k">${t("lic-tier-free")}</span><span>${tierName}</span></div>
     ${detail}
-    <div class="lic-line"><span class="k">Free</span><span>监听抓包 · 离线分析 · 模拟器 · 配置编辑</span></div>
-    <div class="lic-line"><span class="k">Pro</span><span>GM/从钟引擎 · 参考源 · pcap 导出</span></div>`;
+    <div class="lic-line"><span class="k">Free</span><span>${t("lic-free-feats")}</span></div>
+    <div class="lic-line"><span class="k">Pro</span><span>${t("lic-pro-feats")}</span></div>`;
   $("#lic-trial").disabled = gate.tier !== "free";
 }
 
@@ -404,6 +405,9 @@ function navigate() {
   const page = hash.replace("#/", "") || "overview";
   $$(".nav-item").forEach((a) => a.classList.toggle("active", a.dataset.page === page));
   $$(".page").forEach((p) => p.classList.toggle("active", p.id === `page-${page}`));
+  // pages lazily create their toolbars/cards on first visit — after boot's
+  // applyI18n pass — so re-apply the dict on every navigation
+  applyI18n();
 }
 
 /* ---------- SSE ---------- */
@@ -527,6 +531,8 @@ async function boot() {
     S.lang = e.target.value;
     const d = await api("/api/i18n");
     S.i18n = d; applyI18n(); renderLicense(S.bootstrap.gate);
+    if (S.nics) renderNics(S.nics);
+    renderStatus(S.engine, S.capture);
     window.dispatchEvent(new CustomEvent("gptp:lang", { detail: { lang: S.lang } }));
   });
 

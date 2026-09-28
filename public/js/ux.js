@@ -62,7 +62,7 @@
         level: "good",
         badge: "HW + PHC",
         title: `${n.name} · Timing ready`,
-        detail: "已检测到硬件收发时间戳与 PHC。适合真实 gPTP 同步调试；最终精度仍取决于 NIC/PHY/驱动/拓扑并应通过实测确认。",
+        detail: t("nic-detail-ready"),
         path: `HW timestamp → ${n.phc_device}`,
       };
     }
@@ -70,8 +70,8 @@
       return {
         level: "warn",
         badge: "LINK DOWN",
-        title: `${n.name} · 具备硬件时间能力，但链路未就绪`,
-        detail: "硬件时间戳与 PHC 已检测到。连接 DUT/交换机并确认链路 UP 后再启动真实引擎。",
+        title: `${n.name} · ${t("nic-title-warn-link")}`,
+        detail: t("nic-detail-warn-link"),
         path: `HW timestamp → ${n.phc_device}`,
       };
     }
@@ -79,16 +79,16 @@
       return {
         level: "warn",
         badge: "HW / NO PHC",
-        title: `${n.name} · 硬件时间戳可用，未发现 PHC`,
-        detail: "可用于抓包观察，但真实 gPTP 时钟控制路径不完整。请检查驱动是否暴露 /dev/ptpN。",
+        title: `${n.name} · ${t("nic-title-warn-nophc")}`,
+        detail: t("nic-detail-warn-nophc"),
         path: "HW timestamp → no PHC",
       };
     }
     return {
       level: "bad",
       badge: "SW ONLY",
-      title: `${n.name} · 仅软件时间戳`,
-      detail: "适合协议调试，不建议用来判断 ECU 的 ns/µs 级同步精度。优先选择支持硬件时间戳和 PHC 的网卡。",
+      title: `${n.name} · ${t("nic-title-sw")}`,
+      detail: t("nic-detail-sw"),
       path: "software timestamp",
     };
   }
@@ -102,7 +102,7 @@
         <div class="card-head">
           <div>
             <h2>Timing Capability</h2>
-            <div class="muted timing-subtitle">这台电脑当前能否用于真实 gPTP 时间调试</div>
+            <div class="muted timing-subtitle" data-i18n="nic-cap-sub">这台电脑当前能否用于真实 gPTP 时间调试</div>
           </div>
           <span class="timing-readiness" id="timing-readiness">—</span>
         </div>
@@ -255,7 +255,7 @@
     summary.insertAdjacentHTML("beforebegin", `
       <div class="packet-tools" id="pk-filter-tools">
         <select id="pk-type-filter" title="按 gPTP 报文类型过滤">
-          <option value="">全部类型</option>
+          <option value="" data-i18n="pk-type-all">全部类型</option>
           <option value="Sync">Sync</option>
           <option value="Follow_Up">Follow_Up</option>
           <option value="Announce">Announce</option>
@@ -265,7 +265,7 @@
           <option value="Signalling">Signalling</option>
         </select>
         <input id="pk-filter-search" type="search" placeholder="Seq / sourcePort / MAC / domain…" spellcheck="false">
-        <button class="btn btn-sm" id="pk-pause-view" title="只冻结表格视图；后台抓包继续">⏸ 冻结视图</button>
+        <button class="btn btn-sm" id="pk-pause-view" data-i18n="pk-pause-freeze" title="只冻结表格视图；后台抓包继续">⏸ 冻结视图</button>
         <span class="packet-live-state" id="pk-live-state">LIVE</span>
       </div>`);
     q("#pk-type-filter").addEventListener("change", () => renderPacketList());
@@ -312,7 +312,7 @@
     if (!summary) return;
     const loaded = (S.packets || []).length;
     const state = S.packetViewPaused ? "FROZEN" : "LIVE";
-    summary.textContent = `显示 ${visibleCount} / 已载入 ${loaded} / 总计 ${S.packetTotal || 0} · ${state}${S.captureSrc ? ` · ${S.captureSrc}` : ""}`;
+    summary.textContent = `${t("pk-sum-show")} ${visibleCount} / ${t("pk-sum-loaded")} ${loaded} / ${t("pk-sum-total")} ${S.packetTotal || 0} · ${state}${S.captureSrc ? ` · ${S.captureSrc}` : ""}`;
     const live = q("#pk-live-state");
     if (live) {
       live.textContent = state;
@@ -323,7 +323,7 @@
   function setPacketPaused(paused) {
     S.packetViewPaused = !!paused;
     const btn = q("#pk-pause-view");
-    if (btn) btn.textContent = S.packetViewPaused ? "▶ 恢复实时" : "⏸ 冻结视图";
+    if (btn) btn.textContent = S.packetViewPaused ? t("pk-pause-resume") : t("pk-pause-freeze");
     if (!S.packetViewPaused && pendingPacketSnapshot) {
       const snap = pendingPacketSnapshot;
       pendingPacketSnapshot = null;

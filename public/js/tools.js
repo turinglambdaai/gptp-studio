@@ -32,7 +32,7 @@
     }
   }
 
-  function addHeaderButton(card, id, label, handler) {
+  function addHeaderButton(card, id, label, handler, i18nKey) {
     if (!card || q(`#${id}`)) return;
     let head = card.querySelector(":scope > .card-head");
     if (!head) {
@@ -46,6 +46,7 @@
     const btn = document.createElement("button");
     btn.id = id;
     btn.className = "btn btn-sm";
+    if (i18nKey) btn.setAttribute("data-i18n", i18nKey);
     btn.textContent = label;
     btn.addEventListener("click", handler);
     head.appendChild(btn);
@@ -54,7 +55,7 @@
   function installConfigCopy() {
     const pre = q("#conf-preview");
     const card = pre && pre.closest(".card");
-    addHeaderButton(card, "copy-conf", "复制配置", () => copyText(pre.textContent || "", "ptp4l.conf 已复制"));
+    addHeaderButton(card, "copy-conf", "复制配置", () => copyText(pre.textContent || "", t("toast-conf-copied")), "conf-copy");
   }
 
   function selectedPacket() {
@@ -104,7 +105,7 @@
     const actions = document.createElement("div");
     actions.className = "btn-row packet-detail-actions";
     actions.style.marginTop = "0";
-    actions.innerHTML = '<button class="btn btn-sm" id="copy-packet-summary">复制摘要</button><button class="btn btn-sm" id="copy-packet-hex">复制 Hex</button>';
+    actions.innerHTML = '<button class="btn btn-sm" id="copy-packet-summary" data-i18n="pk-copy-summary">复制摘要</button><button class="btn btn-sm" id="copy-packet-hex" data-i18n="pk-copy-hex">复制 Hex</button>';
     head.insertBefore(actions, close);
     q("#copy-packet-summary").addEventListener("click", () => {
       const f = selectedPacket();
@@ -198,6 +199,7 @@
     const btn = document.createElement("button");
     btn.id = "log-copy-visible";
     btn.className = "btn";
+    btn.setAttribute("data-i18n", "log-copy-visible");
     btn.textContent = "复制当前日志";
     btn.title = "复制当前过滤后可见的日志";
     btn.addEventListener("click", () => {
@@ -237,8 +239,8 @@
     card.hidden = true;
     card.innerHTML = `
       <div class="card-head">
-        <h3 id="failure-card-heading">最近一次启动失败</h3>
-        <button class="btn btn-sm" id="copy-last-failure">复制详情</button>
+        <h3 id="failure-card-heading" data-i18n="fail-heading">最近一次启动失败</h3>
+        <button class="btn btn-sm" id="copy-last-failure" data-i18n="fail-copy">复制详情</button>
       </div>
       <div class="failure-kind" id="failure-kind"></div>
       <div class="failure-title" id="failure-title"></div>

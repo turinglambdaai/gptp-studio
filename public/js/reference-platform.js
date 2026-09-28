@@ -53,11 +53,11 @@
         <div class="card-head">
           <div>
             <h2>Reference Platform</h2>
-            <div class="muted">用于复现、售后和硬件资格记录；不代表已校准时间精度</div>
+            <div class="muted" data-i18n="ref-sub">用于复现、售后和硬件资格记录；不代表已校准时间精度</div>
           </div>
           <div class="reference-platform-actions">
             <select id="reference-iface" title="选择要记录的网卡"></select>
-            <button class="btn btn-sm" id="reference-copy" title="复制默认脱敏的平台快照">复制参考平台</button>
+            <button class="btn btn-sm" id="reference-copy" data-i18n="ref-copy" title="复制默认脱敏的平台快照">复制参考平台</button>
           </div>
         </div>
         <div class="reference-platform-grid">

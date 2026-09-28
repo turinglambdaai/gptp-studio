@@ -73,7 +73,7 @@
     const card = q("#timing-capability-card");
     if (!card) return;
     const subtitle = card.querySelector(".timing-subtitle");
-    if (subtitle) subtitle.textContent = "NIC / PHC 能力与真实引擎前置条件；实际抓包时间戳路径单独显示";
+    if (subtitle) subtitle.textContent = t("nic-cap-sub");
     const th = q("#nic-timing-head");
     if (th) th.textContent = "NIC timing capability";
 

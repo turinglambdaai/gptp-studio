@@ -39,8 +39,8 @@
       const actions = document.createElement("div");
       actions.className = "qualification-actions";
       actions.innerHTML = `
-        <button class="btn btn-sm" id="qualification-run" title="检查真实引擎前置条件，不宣称测量精度">运行 Preflight</button>
-        <button class="btn btn-sm" id="diagnostics-export" title="导出默认去除 MAC/IP 的支持诊断 JSON">导出诊断</button>`;
+        <button class="btn btn-sm" id="qualification-run" data-i18n="qual-run" title="检查真实引擎前置条件，不宣称测量精度">运行 Preflight</button>
+        <button class="btn btn-sm" id="diagnostics-export" data-i18n="qual-diag-export" title="导出默认去除 MAC/IP 的支持诊断 JSON">导出诊断</button>`;
       head.appendChild(actions);
     }
 
@@ -139,7 +139,7 @@
       busy = false;
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "运行 Preflight";
+        btn.textContent = t("qual-run");
       }
     }
   }

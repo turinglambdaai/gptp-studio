@@ -224,6 +224,12 @@
     refresh(true);
     setInterval(() => refresh(false), 5000);
     setInterval(updateLabels, 1000);
+    // instant re-render on language switch; the periodic refresh would also
+    // catch it within 5s, but the summary/lists should flip immediately
+    window.addEventListener("gptp:lang", () => {
+      updateLabels();
+      if (S.bmcaTimeline) render(S.bmcaTimeline);
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install);
