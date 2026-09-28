@@ -445,6 +445,20 @@ function openEvents() {
   es.addEventListener("backend-error", (e) => {
     toast(`后端错误: ${JSON.parse(e.data).message}`, "error");
   });
+  es.addEventListener("update-available", (e) => {
+    const d = JSON.parse(e.data);
+    const pill = $("#st-update");
+    if (pill) {
+      pill.textContent = `⬇ ${d.version || ""}`.trim();
+      pill.href = d.url || "https://github.com/turinglambdaai/gptp-studio/releases/latest";
+      if (d.notes) pill.title = d.notes;
+      pill.hidden = false;
+      pill.classList.add("on");
+    }
+    toast(S.lang === "zh"
+      ? `新版本可用：${d.version || ""}（点击顶栏胶囊查看）`
+      : `Update available: ${d.version || ""} (see the header pill)`, "info", 9000);
+  });
 }
 
 async function refreshPackets() {

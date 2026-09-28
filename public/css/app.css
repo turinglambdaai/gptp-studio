@@ -311,3 +311,13 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgb
 /* ======== boundary clock port row ======== */
 .bc-only { display: none; }
 .bc-only.on { display: contents; }
+
+/* update-available pill (hidden until the backend broadcasts one) */
+.pill-update {
+  display: none;
+  background: var(--orange);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.pill-update.on { display: inline-block; }

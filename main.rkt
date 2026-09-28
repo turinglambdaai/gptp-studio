@@ -17,6 +17,7 @@
          racket/runtime-path
          racket/string
          glaze
+         glaze/update
          "app/api.rkt"
          "app/state.rkt"
          "app/gate.rkt"
@@ -25,7 +26,8 @@
          "engine/supervisor.rkt"
          "engine/detect.rkt"
          "capture/manager.rkt"
-         "support/doctor.rkt")
+         "support/doctor.rkt"
+         "support/updates.rkt")
 
 (define-runtime-path public-dir "public")
 
@@ -68,6 +70,7 @@
   (define selfcheck? #f)
   (define doctor-mode #f)
   (define token-arg #t)
+  (define update-check? #t)
 
   (command-line
    #:program "gptp-studio"
@@ -84,6 +87,8 @@
     (set! doctor-mode 'text)]
    [("--doctor-json") "headless JSON support report (MAC/IP redacted)"
     (set! doctor-mode 'json)]
+   [("--no-update-check") "disable the startup update check (no network contact)"
+    (set! update-check? #f)]
    [("--version") "print version"
     (displayln version)
     (exit 0)])
@@ -104,6 +109,26 @@
        (displayln "[gptp-studio] 另一个实例已在运行")
        (exit 1))
      (gate-init!)
+     (when update-check?
+       ;; Background, fire-and-forget: a slow/blocked network must never
+       ;; delay startup. On a newer release this broadcasts
+       ;; 'update-available on the app bus (the UI shows a header pill +
+       ;; toast) and logs one line. GPTP_UPDATE_MANIFEST_URL overrides the
+       ;; manifest location (air-gapped hosts point it at a file server or
+       ;; disable the check entirely with --no-update-check).
+       (thread
+        (lambda ()
+          (sleep 2.5)
+          (with-handlers ([exn:fail? (lambda (_) (void))])
+            (define info (check-update
+                          (or (getenv "GPTP_UPDATE_MANIFEST_URL")
+                              update-manifest-url)
+                          #:current-version version))
+            (when info
+              (define v (hash-ref info 'version))
+              (log-add! app-logs 'app 'info
+                        (format "新版本可用：~a（当前 ~a）" v version))
+              (bus-broadcast! app-bus 'update-available info))))))
      (when sim?
        ;; seed the simulator through the same API path the UI uses
        (thread (lambda ()
