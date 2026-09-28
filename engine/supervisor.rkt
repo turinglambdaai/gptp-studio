@@ -313,6 +313,17 @@
     (log! sup 'app 'info "引擎已停止"))
   (emit! sup 'state-changed (sup-status sup)))
 
+;; JSON-safe status. port-states and faults are keyed by port number
+;; (integers, see the simulator/BC paths) — jsexpr rejects integer keys (and
+;; string keys too: only symbols are legal), so an engine session used to
+;; make every bootstrap fail with "expected legal JSON key value" and the UI
+;; lost all state on reload. Keys become symbols; JSON transport renders
+;; them as strings. The result is an equal-based hash so the symbol keys
+;; stay lookable.
+(define (json-safe-keyed h)
+  (for/hash ([(k v) (in-hash h)])
+    (values (if (symbol? k) k (string->symbol (format "~a" k))) v)))
+
 (define (sup-status sup)
   (define s (unbox (supervisor-state sup)))
   (hasheq 'mode (let ([m (hash-ref s 'mode)]) (and m (symbol->string m)))
@@ -325,14 +336,14 @@
                          (and m (symbol->string m)))
           'last_failure (hash-ref s 'last-failure #f)
           'port_state (hash-ref s 'port-state)
-          'port_states (hash-ref s 'port-states (hasheq))
+          'port_states (json-safe-keyed (hash-ref s 'port-states (hasheq)))
           'gm_id (hash-ref s 'gm-id)
           'offset_ns (hash-ref s 'offset-ns)
           'delay_ns (hash-ref s 'delay-ns)
           'freq_ppb (hash-ref s 'freq-ppb)
           'uptime_ms (let ([t0 (hash-ref s 'started-at)])
                        (and t0 (inexact->exact (floor (- (now-ms) t0)))))
-          'faults (hash-ref s 'faults empty-faults)
+          'faults (json-safe-keyed (hash-ref s 'faults empty-faults))
           'processes
           (for/list ([entry (in-list (hash-ref s 'processes '()))])
             (hasheq 'name (symbol->string (process-entry-name entry))

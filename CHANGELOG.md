@@ -1,5 +1,34 @@
 # 更新日志 / Changelog
 
+## 未发布 / Unreleased
+
+### 修复
+
+- **Ubuntu/Debian 上安装 deb 后无法启动**：`capture/live` 的 libpcap FFI 只尝试
+  `libpcap.so.1`（Fedora/Arch 的 soname），而 Debian/Ubuntu 出于 ABI 历史原因提供
+  `libpcap.so.0.8`——deb 声明的 `libpcap0.8` 依赖装了，加载仍然失败，且该 FFI 调用
+  在模块顶层，连 `--version`/`--doctor` 都会崩溃。现在按候选序尝试多家族 soname
+  （`1`/`0.8`/无版本），并把 libpcap 缺失降级为可诊断的能力缺口
+  （`capture-supported?` = #f + `capture-unsupported-reason`），启动路径不再受影响。
+- **原生窗口无法打开（deb 第二个缺陷）**：WebView 后端模块 `glaze/webview/webview-linux`
+  只被 glaze 调度层在运行时 `dynamic-require`，`raco exe` 的静态分析看不到，打包时
+  未被嵌入——应用能启动、headless 冒烟全过，但原生窗口报
+  "collection not found"。构建脚本现在显式嵌入三个按平台调度的后端
+  （webview/sys/tray），`--selfcheck` 新增 webview 后端模块加载检查作为回归门。
+  （同样的机制性问题已在 glaze 上游修复：`build-app` 自动 `++lib`，
+  见 glaze 仓库 CHANGELOG。）
+- **首次改动配置即损坏 ptp4l.conf**：`api/params/merge` 用 `-999`/`""` 表示"字段未
+  提供"，但这些哨兵值被直接写进参数模型——页面上第一次表单变更后 conf 预览即出现
+  `transportSpecific 0x-3e7`、空 MAC 等，所有引擎启动被校验拒绝。哨兵值不再下发。
+  `--selfcheck` 新增对应回归检查。
+- **启动过引擎后 bootstrap 500、UI 丢失全部状态**：引擎状态的 `port_states`/`faults`
+  以端口号（整数）为键，而 jsexpr 只接受符号键——一次引擎会话之后每个
+  `/api/bootstrap` 都报 "expected legal JSON key value"。状态投影现在把键规范化为
+  符号（JSON 传输层呈现为字符串），并以 equal 哈希返回（eq 哈希上的字符串键无法再
+  查找）。supervisor 测试新增 jsexpr 合法性断言。
+- **`--simulator` 引导路径静默失效**：boundary clock 支持加入后 `engine-start` 变为
+  4 参数，引导代码仍按 3 参数调用——arity 错误只进了日志。已修复。
+
 ## 1.0.0 — 2026-09-27
 
 gPTP Studio 首个正式版：**Linux 原生 gPTP / IEEE 802.1AS 调试工作站**（Automotive Ethernet）。

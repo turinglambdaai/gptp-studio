@@ -13,14 +13,22 @@
 ;; The timestamp-selection APIs are optional bindings. Older/system libpcap
 ;; builds must keep working and simply fall back to their default timestamp
 ;; source/precision.
+;;
+;; libpcap itself is discovered defensively: the soname differs by family
+;; (Fedora/Arch ship libpcap.so.1, Debian/Ubuntu keep libpcap.so.0.8 for
+;; ABI history — the v1.0.0 deb crashed at startup exactly because the
+;; candidate list missed it), and a missing/mismatched library is a
+;; reportable capability gap, never a startup crash: --version/--doctor/
+;; --selfcheck and the GUI must all come up without it.
 
-(require ffi/unsafe
-         ffi/unsafe/define
+(require (for-syntax racket/base)
+         ffi/unsafe
          racket/format
          racket/list
          racket/string)
 
 (provide capture-supported?
+         capture-unsupported-reason
          capture-open
          capture-close
          capture-poll!
@@ -30,8 +38,35 @@
          capture-timestamp-source
          capture-timestamp-precision)
 
-(define pcap-lib (ffi-lib "libpcap" '("1" ".1" "")))
-(define-ffi-definer define-pcap pcap-lib)
+;; Soname candidates, tried in order. "1" covers Fedora/Arch; "0.8" covers
+;; Debian/Ubuntu (libpcap0.8 / libpcap0.8t64); "" also tries the unversioned
+;; name that only exists with libpcap-dev installed or on other platforms.
+(define pcap-sonames '("1" ".1" "0.8" ".0.8" ""))
+
+(define pcap-load-error-box (box #f))
+
+(define pcap-lib
+  (with-handlers ([exn:fail? (λ (e)
+                              (set-box! pcap-load-error-box (exn-message e))
+                              #f)])
+    (ffi-lib "libpcap" pcap-sonames)))
+
+;; A required libpcap symbol. When the library itself is unavailable the
+;; binding becomes a stub that reports the recorded load error; callers
+;; gated by capture-supported? never reach it, and stray calls fail with the
+;; actionable reason instead of a foreign-library crash.
+(define-syntax (define-pcap-binding stx)
+  (syntax-case stx ()
+    [(_ id cname type)
+     #'(define id
+         (if pcap-lib
+             (get-ffi-obj cname pcap-lib type)
+             (λ _
+               (raise-user-error
+                'capture
+                (string-append "libpcap 不可用，无法调用 "
+                               cname
+                               "（" (or (unbox pcap-load-error-box) "库未加载") "）")))))]))
 
 (define _pcap_t (_cpointer/null 'pcap_t))
 
@@ -50,60 +85,83 @@
 (define PCAP-HDR-LEN-OFF (+ PCAP-HDR-CAPLEN-OFF 4))
 
 ;; Core APIs required for capture.
-(define-pcap pcap-create-raw (_fun _string _bytes -> _pcap_t)
-  #:c-id pcap_create)
-(define-pcap pcap_set_snaplen (_fun _pcap_t _int -> _int))
-(define-pcap pcap_set_promisc (_fun _pcap_t _int -> _int))
-(define-pcap pcap_set_timeout (_fun _pcap_t _int -> _int))
-(define-pcap pcap_set_immediate_mode (_fun _pcap_t _int -> _int))
+(define-pcap-binding pcap-create-raw "pcap_create" (_fun _string _bytes -> _pcap_t))
+(define-pcap-binding pcap_set_snaplen "pcap_set_snaplen" (_fun _pcap_t _int -> _int))
+(define-pcap-binding pcap_set_promisc "pcap_set_promisc" (_fun _pcap_t _int -> _int))
+(define-pcap-binding pcap_set_timeout "pcap_set_timeout" (_fun _pcap_t _int -> _int))
+(define-pcap-binding pcap_set_immediate_mode "pcap_set_immediate_mode"
+  (_fun _pcap_t _int -> _int))
 
 ;; Optional timestamp APIs. Missing symbols degrade gracefully.
 (define pcap-set-tstamp-precision
-  (get-ffi-obj "pcap_set_tstamp_precision" pcap-lib
-               (_fun _pcap_t _int -> _int)
-               (lambda () #f)))
+  (and pcap-lib
+       (get-ffi-obj "pcap_set_tstamp_precision" pcap-lib
+                    (_fun _pcap_t _int -> _int)
+                    (lambda () #f))))
 (define pcap-get-tstamp-precision
-  (get-ffi-obj "pcap_get_tstamp_precision" pcap-lib
-               (_fun _pcap_t -> _int)
-               (lambda () #f)))
+  (and pcap-lib
+       (get-ffi-obj "pcap_get_tstamp_precision" pcap-lib
+                    (_fun _pcap_t -> _int)
+                    (lambda () #f))))
 (define pcap-set-tstamp-type
-  (get-ffi-obj "pcap_set_tstamp_type" pcap-lib
-               (_fun _pcap_t _int -> _int)
-               (lambda () #f)))
+  (and pcap-lib
+       (get-ffi-obj "pcap_set_tstamp_type" pcap-lib
+                    (_fun _pcap_t _int -> _int)
+                    (lambda () #f))))
 (define pcap-list-tstamp-types
-  (get-ffi-obj "pcap_list_tstamp_types" pcap-lib
-               (_fun _pcap_t
-                     (types : (_ptr o _pointer))
-                     -> (count : _int)
-                     -> (values count types))
-               (lambda () #f)))
+  (and pcap-lib
+       (get-ffi-obj "pcap_list_tstamp_types" pcap-lib
+                    (_fun _pcap_t
+                          (types : (_ptr o _pointer))
+                          -> (count : _int)
+                          -> (values count types))
+                    (lambda () #f))))
 (define pcap-free-tstamp-types
-  (get-ffi-obj "pcap_free_tstamp_types" pcap-lib
-               (_fun _pointer -> _void)
-               (lambda () #f)))
+  (and pcap-lib
+       (get-ffi-obj "pcap_free_tstamp_types" pcap-lib
+                    (_fun _pointer -> _void)
+                    (lambda () #f))))
 
 ;; macOS ships the historical pcap_setnonblock spelling; Linux exports it too.
-(define-pcap pcap-setnonblock-raw (_fun _pcap_t _int _bytes -> _int)
-  #:c-id pcap_setnonblock)
-(define-pcap pcap_activate (_fun _pcap_t -> _int))
-(define-pcap pcap_close (_fun _pcap_t -> _void))
-(define-pcap pcap_datalink (_fun _pcap_t -> _int))
-(define-pcap pcap-geterr (_fun _pcap_t -> _string)
-  #:c-id pcap_geterr)
-(define-pcap pcap_compile (_fun _pcap_t _pointer _string _int _uint32 -> _int))
-(define-pcap pcap_setfilter (_fun _pcap_t _pointer -> _int))
-(define-pcap pcap_freecode (_fun _pointer -> _void))
-(define-pcap pcap_next_ex (_fun _pcap_t
-                                (hdr : (_ptr o _pointer))
-                                (data : (_ptr o _pointer))
-                                -> (r : _int)
-                                -> (values r hdr data)))
+(define-pcap-binding pcap-setnonblock-raw "pcap_setnonblock"
+  (_fun _pcap_t _int _bytes -> _int))
+(define-pcap-binding pcap_activate "pcap_activate" (_fun _pcap_t -> _int))
+(define-pcap-binding pcap_close "pcap_close" (_fun _pcap_t -> _void))
+(define-pcap-binding pcap_datalink "pcap_datalink" (_fun _pcap_t -> _int))
+(define-pcap-binding pcap-geterr "pcap_geterr" (_fun _pcap_t -> _string))
+(define-pcap-binding pcap_compile "pcap_compile"
+  (_fun _pcap_t _pointer _string _int _uint32 -> _int))
+(define-pcap-binding pcap_setfilter "pcap_setfilter" (_fun _pcap_t _pointer -> _int))
+(define-pcap-binding pcap_freecode "pcap_freecode" (_fun _pointer -> _void))
+(define-pcap-binding pcap_next_ex "pcap_next_ex"
+  (_fun _pcap_t
+        (hdr : (_ptr o _pointer))
+        (data : (_ptr o _pointer))
+        -> (r : _int)
+        -> (values r hdr data)))
 
 (struct capture (handle iface filter-text bpf timestamp-source timestamp-precision))
 
-(define (capture-supported?)
-  (with-handlers ([exn:fail? (lambda (_) #f)])
-    (and pcap-lib #t)))
+(define (capture-supported?) (and pcap-lib #t))
+
+;; Human-readable single-line reason when capture-supported? is #f; #f when
+;; libpcap loaded fine. Used by the capture manager and Doctor so a missing
+;; or mismatched libpcap is diagnosable instead of fatal.
+(define (capture-unsupported-reason)
+  (and (not pcap-lib)
+       (let ([raw (unbox pcap-load-error-box)])
+         (and raw
+              (one-line (first (string-split raw "\n  context")))))))
+
+;; ffi-lib failure messages are multi-line ("could not load...\n path:...\n
+;; system error:...\n context..."); the header lines carry the actionable
+;; part (tried path + OS error), the context block is Racket machinery.
+(define (one-line s)
+  (string-join
+   (for/list ([line (in-list (string-split s "\n"))]
+              #:unless (string=? (string-trim line) ""))
+     (string-trim line))
+   "; "))
 
 (define (pcap-create iface)
   (define buf (make-bytes PCAP_ERRBUF_SIZE 0))

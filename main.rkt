@@ -111,7 +111,10 @@
                  (with-handlers ([exn:fail? (lambda (e)
                                               (log-add! app-logs 'app 'error
                                                         (exn-message e)))])
-                   (engine-start "grandmaster" "sim" "")))))
+                   ;; engine-start gained the boundary-clock ifaces argument
+                   ;; (4 arity); the seed still called the 3-arity shape and
+                   ;; --simulator silently failed.
+                   (engine-start "grandmaster" "sim" "" '())))))
      (log-add! app-logs 'app 'info
                (format "gPTP Studio ~a 启动（Linux / ~a 许可）"
                        version (gate-tier)))
@@ -172,12 +175,73 @@
   (check "static page" "/" "gPTP Studio")
   (check "bootstrap api" "/api/bootstrap" "\"version\"")
   (check "conf api" "/api/conf" "ptp4l.conf")
+  (unless (check-merge-sentinel! actual-port) (set! ok #f))
+  (unless (check-webview-backend!)
+    (set! ok #f))
   (shutdown)
   (exit (if ok 0 1)))
+
+;; api/params/merge is called on every config-form change with only the
+;; visible fields; the endpoint's -999/"" sentinels for the rest must stay
+;; out of the params model. Regression for the v1.0.0 bug where the first
+;; merge corrupted the untouched advanced fields (transportSpecific 0x-3e7)
+;; and validation rejected every engine start. Returns #t when healthy.
+(define (check-merge-sentinel! port)
+  (define body
+    (with-handlers ([exn:fail? (lambda (_) #f)])
+      (http-post-as-string
+       (format "http://127.0.0.1:~a/api/params/merge" port)
+       "{\"domain\":5}")))
+  (cond
+    [(and body (string-contains? body "\"ok\":true")
+          (regexp-match #rx"transportSpecific\\\\?[ \t]+0x1" body))
+     (printf "[ok] params merge keeps sentinel values out of the conf\n")
+     #t]
+    [else
+     (printf "[FAIL] params merge corrupted the conf (~a)\n"
+             (and body (substring body 0 (min 120 (string-length body)))))
+     #f]))
+
+;; The distributed binary must carry the webview backend module: it is
+;; reached only via runtime dispatch, so it is invisible to raco exe's
+;; static walk and has to be embedded explicitly (see package-linux.sh).
+;; The v1.0.0 deb shipped without it — every headless smoke test passed
+;; while the native window failed with "collection not found". Loading the
+;; module is headless-safe: its top-level FFI discovery degrades to #f, and
+;; supported? only reports library presence (no window is opened here).
+;; Returns #t when the backend module loads and #f otherwise.
+(define (check-webview-backend!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (printf "[FAIL] webview backend module (~a)\n"
+                             (exn-message e))
+                     #f)])
+    (define supported?
+      (with-handlers ([exn:fail? (lambda (_) #f)])
+        ((dynamic-require 'glaze/webview/webview-linux 'supported?))))
+    (printf "[ok] webview backend module loads (GTK/WebKitGTK present: ~a)\n"
+            (if supported? "yes" "no"))
+    #t))
 
 (define (http-get-as-string url)
   (define-values (in _out) (tcp-connect* "127.0.0.1" url))
   (port->string in))
+
+(define (http-post-as-string url body)
+  (define m (regexp-match #px"^http://[^:]+:([0-9]+)(.*)$" url))
+  (define port (string->number (second m)))
+  (define path (if (string=? (third m) "") "/" (third m)))
+  (define-values (in out)
+    (tcp-connect "127.0.0.1" port))
+  (fprintf out "POST ~a HTTP/1.0\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: ~a\r\n\r\n~a"
+           path (bytes-length (string->bytes/utf-8 body)) body)
+  (flush-output out)
+  ;; skip the headers; the merge handler returns one JSON body
+  (define everything (port->string in))
+  (close-input-port in)
+  (or (let ([m2 (regexp-match #rx"\r\n\r\n(.*)" everything)])
+        (and m2 (second m2)))
+      everything))
 
 ;; minimal HTTP/1.0 GET over raw TCP (no net-lib dependency)
 (require racket/port

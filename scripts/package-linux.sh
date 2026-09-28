@@ -25,7 +25,17 @@ rm -rf dist
 mkdir -p dist
 
 echo "== raco exe =="
-raco exe -o dist/gptp-studio main.rkt
+# Modules reached only through runtime dispatch (dynamic-require in Glaze's
+# webview/sys/tray schedulers) are invisible to raco exe's static module walk
+# and must be embedded explicitly. The v1.0.0 build shipped without them:
+# every headless smoke test passed while the native window died with
+# "collection not found: glaze/webview/webview-linux" and alarm notifications
+# would have failed the same way.
+raco exe \
+  ++lib glaze/webview/webview-linux \
+  ++lib glaze/sys/sys-linux \
+  ++lib glaze/tray/tray-linux \
+  -o dist/gptp-studio main.rkt
 
 echo "== raco distribute =="
 raco distribute dist/gptp-studio-distributed dist/gptp-studio

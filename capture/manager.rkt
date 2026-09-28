@@ -44,7 +44,9 @@
   (cm-stop cm)
   (cond
     [(not (capture-supported?))
-     (values #f "本机 libpcap 不可用，无法抓包")]
+     (values #f (format "本机 libpcap 不可用，无法抓包~a"
+                        (let ([r (capture-unsupported-reason)])
+                          (if r (format "（~a）" r) ""))))]
     [else
      (define-values (cap err) (capture-open iface))
      (cond

@@ -2,6 +2,7 @@
 
 (require rackunit
          racket/file
+         json
          glaze/events
          "../engine/config.rkt"
          "../engine/supervisor.rkt"
@@ -30,6 +31,11 @@
     (check-true sim-ok?)
     (check-false sim-err)
     (check-equal? (hash-ref (sup-status sup) 'mode) "sim")
+    ;; The status rides into every /api/bootstrap response. Internal state
+    ;; keys port-states/faults by port number; integer keys are not legal
+    ;; jsexpr keys, and one engine start used to 500 the whole bootstrap
+    ;; (the UI then lost all state on reload).
+    (check-true (jsexpr? (sup-status sup)) "sup-status is a legal jsexpr")
 
     ;; A rejected replacement session must not tear down a healthy session.
     ;; Real Listener is deterministically invalid on every platform, so this

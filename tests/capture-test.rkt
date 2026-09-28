@@ -184,6 +184,10 @@
 ;; ---- libpcap FFI: graceful paths ---------------------------------------------
 
 (check-true (capture-supported?))
+;; A supported host has no load failure to report; the reason accessor is
+;; part of the startup-path contract (v1.0.0 crashed at module load when
+;; libpcap could not be found, taking --version/--doctor/GUI down with it).
+(check-false (capture-unsupported-reason))
 (define-values (cap err) (capture-open "gptp-studio-no-such-iface"))
 (check-false cap)
 (check-true (string? err))

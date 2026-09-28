@@ -46,6 +46,13 @@
 (define (current-params) (unbox current-params-box))
 (define (set-current-params! p) (set-box! current-params-box p))
 
+;; api/params/merge marks "field not provided" with -999 (ints) and ""
+;; (strings); those must never reach the params model.
+(define (sentinel-value? v)
+  (cond [(exact-integer? v) (= v -999)]
+        [(string? v) (string=? v "")]
+        [else #t]))
+
 (define-api-routes api-routes
   ;; ---- bootstrap -----------------------------------------------------------
   [(GET "api/bootstrap")
@@ -330,6 +337,12 @@
                  [clock_class exact-integer? -999]
                  [ifaces (lambda (v) (and (list? v) (andmap string? v))) '()])
    (define body
+     ;; -999 / "" are this endpoint's "field not provided" sentinels (every
+     ;; form change merges only the visible fields). They must NOT reach
+     ;; update-params-from-json: writing them into the params corrupted the
+     ;; untouched advanced fields (conf preview showed transportSpecific
+     ;; 0x-3e7, clockClass -999, empty MACs) and validation then rejected
+     ;; every engine start until the page was reloaded.
      (for/hasheq ([k (in-list '(domain priority1 priority2 log_announce_interval
                                 log_sync_interval network_transport delay_mechanism
                                 transport_specific ptp_dst_mac p2p_dst_mac
@@ -339,7 +352,8 @@
                                     log_sync_interval network_transport delay_mechanism
                                     transport_specific ptp_dst_mac p2p_dst_mac
                                     gm_capable slave_only assume_two_step
-                                    path_trace_enabled follow_up_info clock_class))])
+                                    path_trace_enabled follow_up_info clock_class))]
+                  #:unless (sentinel-value? v))
        (values k v)))
    (define p (update-params-from-json (current-params) body))
    (set-current-params! p)

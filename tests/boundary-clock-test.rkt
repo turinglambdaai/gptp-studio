@@ -137,8 +137,10 @@
     (check-equal? (hash-ref st 'ifaces) '("enp3s0" "enp4s0"))
     (define port-states (hash-ref st 'port_states))
     (check-true (hash? port-states))
-    (check-equal? (hash-ref port-states 1 #f) "SLAVE")
-    (check-equal? (hash-ref port-states 2 #f) "GRAND_MASTER")
+    ;; status keys are jsexpr-safe symbols (port numbers as text); JSON
+    ;; transport renders them as "1"/"2"
+    (check-equal? (hash-ref port-states (string->symbol "1") #f) "SLAVE")
+    (check-equal? (hash-ref port-states (string->symbol "2") #f) "GRAND_MASTER")
 
     ;; Rejected BC session (one port only) must not tear down the running one.
     (define-values (bad-ok? bad-err)
