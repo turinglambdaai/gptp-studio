@@ -6,6 +6,7 @@
 (() => {
   const q = (sel) => document.querySelector(sel);
   const qa = (sel) => Array.from(document.querySelectorAll(sel));
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
 
   let currentNics = [];
   let pendingPacketSnapshot = null;
@@ -43,8 +44,8 @@
       return {
         level: "bad",
         badge: "NO NIC",
-        title: "未检测到可用网卡",
-        detail: "请检查网卡、驱动和系统网络接口。",
+        title: zhEn("未检测到可用网卡", "No usable interface detected"),
+        detail: zhEn("请检查网卡、驱动和系统网络接口。", "Check the NICs, drivers and system network interfaces."),
         path: "—",
       };
     }
@@ -52,8 +53,9 @@
       return {
         level: "warn",
         badge: "SW",
-        title: `${n.name} · 软件时间戳`,
-        detail: "适合协议观察、离线分析和抓包；不作为 gPTP 时间精度验证依据。",
+        title: `${n.name} · ${zhEn("软件时间戳", "software timestamps")}`,
+        detail: zhEn("适合协议观察、离线分析和抓包；不作为 gPTP 时间精度验证依据。",
+          "Fine for protocol observation, offline analysis and capture; not a gPTP timing-accuracy verification."),
         path: "software timestamp",
       };
     }
@@ -185,7 +187,8 @@
     const realOption = mode.querySelector('option[value="real"]');
     if (realOption) {
       realOption.disabled = platform !== "linux";
-      realOption.title = platform === "linux" ? "" : "真实 linuxptp 引擎仅在 Linux 可用";
+      realOption.title = platform === "linux" ? "" : zhEn("真实 linuxptp 引擎仅在 Linux 可用",
+        "The real linuxptp engine is available on Linux only");
     }
     if (platform !== "linux" && mode.value === "real") mode.value = "sim";
 
@@ -299,7 +302,9 @@
     const configuredDomain = Number(q("#cfg-domain") && q("#cfg-domain").value);
     if (Number.isFinite(configuredDomain) && f.ptp.domain_number !== configuredDomain) {
       tr.classList.add("packet-attention");
-      tr.title = `Domain ${f.ptp.domain_number} 与当前配置 Domain ${configuredDomain} 不同（可能是多 Domain 流量）`;
+      tr.title = zhEn(
+        `Domain ${f.ptp.domain_number} 与当前配置 Domain ${configuredDomain} 不同（可能是多 Domain 流量）`,
+        `Frame domain ${f.ptp.domain_number} differs from the configured domain ${configuredDomain} (possibly multi-domain traffic)`);
     }
     if (f.error) {
       tr.classList.add("packet-error");

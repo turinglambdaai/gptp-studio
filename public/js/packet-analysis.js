@@ -7,6 +7,7 @@
 (() => {
   const q = (sel) => document.querySelector(sel);
   const qa = (sel) => Array.from(document.querySelectorAll(sel));
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
   const TRACKED_SEQ_TYPES = new Set(["Sync", "Follow_Up", "Announce"]);
 
   function ensureHealthStrip() {
@@ -59,10 +60,12 @@
         const d = seqDistance(prev, cur);
         if (d === 0) {
           duplicates++;
-          anomalyIndices.set(Number(frames[i].index), `重复 sequenceId ${cur} · ${key.split("|")[0]}`);
+          anomalyIndices.set(Number(frames[i].index), zhEn(`重复 sequenceId ${cur} · ${key.split("|")[0]}`,
+            `duplicate sequenceId ${cur} · ${key.split("|")[0]}`));
         } else if (d !== 1) {
           gaps++;
-          anomalyIndices.set(Number(frames[i].index), `sequenceId ${prev} → ${cur}（步进 ${d}）· ${key.split("|")[0]}`);
+          anomalyIndices.set(Number(frames[i].index), zhEn(`sequenceId ${prev} → ${cur}（步进 ${d}）· ${key.split("|")[0]}`,
+            `sequenceId ${prev} → ${cur} (step ${d}) · ${key.split("|")[0]}`));
         }
       }
     }
@@ -100,19 +103,29 @@
     ensureHealthStrip();
     const a = analyzePackets(S.packets || []);
     setMetric("#pk-health-rate", a.rate === null ? "—" : `${a.rate.toFixed(a.rate >= 10 ? 1 : 2)} pkt/s`, "neutral",
-              `当前载入窗口内 ${a.ptpCount} 个 PTP 报文；不是线速或丢包率测量`);
+              zhEn(`当前载入窗口内 ${a.ptpCount} 个 PTP 报文；不是线速或丢包率测量`,
+                `${a.ptpCount} PTP packets in the loaded window; not a line-rate or loss measurement`));
     setMetric("#pk-health-domains", a.domains.length ? a.domains.join(", ") : "—",
               a.domains.length > 1 ? "attention" : "neutral",
-              a.domains.length > 1 ? "观察到多个 PTP Domain；这可能是正常拓扑，也可能提示选错网络/Domain" : "当前载入窗口内观察到的 Domain");
+              a.domains.length > 1
+                ? zhEn("观察到多个 PTP Domain；这可能是正常拓扑，也可能提示选错网络/Domain",
+                    "Multiple PTP domains observed; this may be normal topology or a wrong network/domain selection")
+                : zhEn("当前载入窗口内观察到的 Domain", "Domains observed in the loaded window"));
     setMetric("#pk-health-sources", String(a.sources.length), a.sources.length > 1 ? "attention" : "neutral",
-              "按 source clock identity 统计当前载入窗口内的时钟源数量");
+              zhEn("按 source clock identity 统计当前载入窗口内的时钟源数量",
+                "Clock sources counted by source clock identity in the loaded window"));
     const anomalyCount = a.gaps + a.duplicates;
     setMetric("#pk-health-seq", anomalyCount ? `${anomalyCount} (${a.gaps} gap / ${a.duplicates} dup)` : "0",
               anomalyCount ? "attention" : "good",
-              "仅检查 Sync / Follow_Up / Announce 的同源 sequenceId 连续性；抓包起止、丢包或过滤都可能造成 gap");
+              zhEn("仅检查 Sync / Follow_Up / Announce 的同源 sequenceId 连续性；抓包起止、丢包或过滤都可能造成 gap",
+                "Checks same-source sequenceId continuity for Sync / Follow_Up / Announce only; capture bounds, loss or filtering can also cause gaps"));
     setMetric("#pk-health-pairs", a.twoStep ? `${a.twoStep - a.missingFollowUp}/${a.twoStep}` : "—",
               a.missingFollowUp ? "attention" : (a.twoStep ? "good" : "neutral"),
-              a.twoStep ? `当前窗口中 twoStep Sync 与同 Domain/Source/Seq Follow_Up 的配对；未配对 ${a.missingFollowUp} 个。窗口边界可能产生假阳性。` : "当前窗口未观察到设置 twoStep flag 的 Sync");
+              a.twoStep
+                ? zhEn(`当前窗口中 twoStep Sync 与同 Domain/Source/Seq Follow_Up 的配对；未配对 ${a.missingFollowUp} 个。窗口边界可能产生假阳性。`,
+                    `Pairing of twoStep Sync with same Domain/Source/Seq Follow_Up in the window; ${a.missingFollowUp} unpaired. Window bounds may cause false positives.`)
+                : zhEn("当前窗口未观察到设置 twoStep flag 的 Sync",
+                    "No Sync with the twoStep flag observed in the current window"));
 
     for (const tr of qa("#pk-tbody tr")) {
       const idx = Number(tr.dataset.index);

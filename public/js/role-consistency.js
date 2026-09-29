@@ -9,6 +9,7 @@
 
 (() => {
   const q = (sel) => document.querySelector(sel);
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
   const qa = (sel) => Array.from(document.querySelectorAll(sel));
 
   function roleFields(role = S.role) {
@@ -49,7 +50,8 @@
     const passive = S.role === "listener" && mode.value === "real";
     start.disabled = passive;
     start.title = passive
-      ? "真实 Listener 是纯抓包角色，请使用“开始会话”或报文页“开始抓包”，不会启动 ptp4l。"
+      ? zhEn("真实 Listener 是纯抓包角色，请使用“开始会话”或报文页“开始抓包”，不会启动 ptp4l。",
+          "A real Listener is capture-only; use Start Session or the Packets page to capture. ptp4l is not started.")
       : "";
   }
 
@@ -72,7 +74,8 @@
         return {
           ok: false,
           passive_listener: true,
-          error: "真实 Listener 是被动抓包角色，不启动 ptp4l。请使用“开始会话”或报文分析页开始抓包。",
+          error: zhEn("真实 Listener 是被动抓包角色，不启动 ptp4l。请使用“开始会话”或报文分析页开始抓包。",
+            "A real Listener is a passive capture role; ptp4l is not started. Use Start Session or the Packets page to capture."),
         };
       }
 
@@ -84,7 +87,7 @@
         "POST",
       );
       if (!merged.ok) {
-        return { ok: false, error: (merged.errors || ["参数校验失败"]).join("；") };
+        return { ok: false, error: (merged.errors || [zhEn("参数校验失败", "Parameter validation failed")]).join(zhEn("；", "; ")) };
       }
       const pre = q("#conf-preview");
       if (pre && merged.conf) pre.textContent = rewritePreviewRole(merged.conf, role);

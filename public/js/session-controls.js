@@ -5,6 +5,7 @@
 
 (() => {
   const q = (sel) => document.querySelector(sel);
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
   let busy = false;
 
   function ensureControls() {
@@ -53,7 +54,7 @@
 
   async function startCapture(iface) {
     const r = await api("/api/capture/start", { iface });
-    if (!r.ok) return { ok: false, error: r.error || "抓包启动失败" };
+    if (!r.ok) return { ok: false, error: r.error || zhEn("抓包启动失败", "Failed to start capture") };
     S.capture = { running: true, iface };
     renderStatus(S.engine, S.capture);
     return { ok: true };
@@ -66,11 +67,12 @@
     const cfg = currentConfig();
     try {
       if (cfg.mode === "real" && !cfg.iface) {
-        toast("真实调试会话需要先选择网卡", "warn", 7000);
+        toast(zhEn("真实调试会话需要先选择网卡", "A real debug session needs an interface first"), "warn", 7000);
         return;
       }
       if (cfg.mode === "real" && cfg.role === "boundary" && cfg.ifaces.length < 2) {
-        toast("Boundary clock 需要选择上游与下游两个不同网卡", "warn", 7000);
+        toast(zhEn("Boundary clock 需要选择上游与下游两个不同网卡",
+          "Boundary clock needs two different interfaces (upstream and downstream)"), "warn", 7000);
         return;
       }
 
@@ -80,7 +82,7 @@
         const cr = await startCapture(cfg.iface);
         if (!cr.ok) toast(cr.error, "error", 8000);
         else {
-          toast(`Listener 会话已启动 · ${cfg.iface}`);
+          toast(zhEn(`Listener 会话已启动 · ${cfg.iface}`, `Listener session started · ${cfg.iface}`));
           location.hash = "#/packets";
         }
         return;
@@ -90,23 +92,24 @@
       if (cfg.role === "boundary") startPayload.ifaces = cfg.ifaces;
       const er = await api("/api/engine/start", startPayload);
       if (!er.ok) {
-        toast(er.error || "引擎启动失败", er.need_pro ? "warn" : "error", 9000);
+        toast(er.error || zhEn("引擎启动失败", "Engine failed to start"), er.need_pro ? "warn" : "error", 9000);
         return;
       }
 
       if (cfg.mode === "real") {
         const cr = await startCapture(cfg.iface);
         if (!cr.ok) {
-          toast(`引擎已启动，但抓包失败：${cr.error}`, "warn", 9000);
+          toast(zhEn(`引擎已启动，但抓包失败：${cr.error}`, `Engine started, but capture failed: ${cr.error}`), "warn", 9000);
         } else {
-          toast(`${cfg.role} 调试会话已启动 · engine + capture`);
+          toast(zhEn(`${cfg.role} 调试会话已启动 · engine + capture`,
+            `${cfg.role} debug session started · engine + capture`));
         }
       } else {
-        toast(`${cfg.role} 模拟会话已启动`);
+        toast(zhEn(`${cfg.role} 模拟会话已启动`, `${cfg.role} simulated session started`));
       }
       location.hash = "#/overview";
     } catch (e) {
-      toast(`启动会话失败: ${e.message}`, "error", 9000);
+      toast(`${zhEn("启动会话失败", "Failed to start session")}: ${e.message}`, "error", 9000);
     } finally {
       busy = false;
       setTimeout(refreshButtons, 0);
@@ -128,8 +131,8 @@
         try { await api("/api/engine/stop"); }
         catch (e) { errors.push(`engine: ${e.message}`); }
       }
-      if (errors.length) toast(`会话停止时有错误：${errors.join("; ")}`, "warn", 9000);
-      else toast("调试会话已停止");
+      if (errors.length) toast(`${zhEn("会话停止时有错误", "Errors while stopping the session")}: ${errors.join("; ")}`, "warn", 9000);
+      else toast(zhEn("调试会话已停止", "Debug session stopped"));
       renderStatus(S.engine, S.capture);
     } finally {
       busy = false;

@@ -6,6 +6,7 @@
 
 (() => {
   const q = (sel) => document.querySelector(sel);
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
   let latestNics = [];
 
   function selectedNic() {
@@ -57,8 +58,9 @@
     toolsEl.textContent = tools.text;
     toolsEl.classList.toggle("metric-alarm", tools.missing.length > 0);
     toolsEl.title = tools.missingSupport.length
-      ? `辅助检测工具缺失: ${tools.missingSupport.join(", ")}；网卡能力检测可能不完整`
-      : "真实引擎使用的 linuxptp 命令";
+      ? zhEn(`辅助检测工具缺失: ${tools.missingSupport.join(", ")}；网卡能力检测可能不完整`,
+          `Support tools missing: ${tools.missingSupport.join(", ")}; NIC capability detection may be incomplete`)
+      : zhEn("真实引擎使用的 linuxptp 命令", "linuxptp commands used by the real engine");
 
     const privilegeText = tools.privilege === "root"
       ? "root"
@@ -67,8 +69,9 @@
         : tools.privilege === "n/a" ? "n/a" : "custom / verify on start";
     privEl.textContent = privilegeText;
     privEl.title = tools.privilege === "unknown"
-      ? "没有检测到 root 或免交互 sudo；setcap / polkit 等自定义授权仍可能可用，实际以启动结果为准"
-      : "当前检测到的权限路径";
+      ? zhEn("没有检测到 root 或免交互 sudo；setcap / polkit 等自定义授权仍可能可用，实际以启动结果为准",
+          "No root or passwordless sudo detected; custom authorization (setcap / polkit) may still work — the actual start result is authoritative")
+      : zhEn("当前检测到的权限路径", "Currently detected privilege path");
 
     const platform = S.bootstrap && S.bootstrap.platform;
     if (platform !== "linux" || !n) return;
@@ -79,7 +82,8 @@
     const top = q("#st-timing");
 
     if (tools.missing.length) {
-      const note = `缺少 ${tools.missing.join(", ")}；安装 linuxptp 后才能完整运行真实 GM/Slave 工作流。`;
+      const note = zhEn(`缺少 ${tools.missing.join(", ")}；安装 linuxptp 后才能完整运行真实 GM/Slave 工作流。`,
+        `Missing ${tools.missing.join(", ")}; install linuxptp to run the full real GM/Slave workflow.`);
       if (message && !message.textContent.includes(note)) {
         const extra = document.createElement("span");
         extra.className = "tooling-warning";
@@ -99,7 +103,8 @@
         top.title = note;
       }
     } else if (tools.missingSupport.length && message) {
-      const note = `辅助工具 ${tools.missingSupport.join(", ")} 缺失，硬件时间戳/接口信息检测可能不完整。`;
+      const note = zhEn(`辅助工具 ${tools.missingSupport.join(", ")} 缺失，硬件时间戳/接口信息检测可能不完整。`,
+        `Support tools ${tools.missingSupport.join(", ")} missing; hardware timestamp / interface detection may be incomplete.`);
       if (!message.textContent.includes(note)) {
         const extra = document.createElement("span");
         extra.className = "tooling-warning";

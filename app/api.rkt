@@ -34,6 +34,7 @@
          "../support/diagnostics.rkt"
          "../support/engineering-report.rkt"
          "../support/platform-fingerprint.rkt"
+         "../support/updates.rkt"
          "../support/wireshark.rkt")
 
 (provide api-routes engine-start bootstrap)
@@ -73,6 +74,7 @@
              'nics (detect-interfaces)
              'engine (sup-status app-supervisor)
              'capture (cm-status app-capture)
+             'update_available (unbox update-info-box)
              'params (params->jsexpr (current-params))
              'conf (params->conf (current-params) #:role (role-name (sup-status-app-role)))))]
 
@@ -103,19 +105,23 @@
                   [ifaces (lambda (v) (and (list? v) (andmap string? v))) '()])
    (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
      (define nics (detect-interfaces))
+     ;; summary sentences follow the UI language setting
+     (define qual-lang (settings-ref 'language))
      (define qualification
        (if (string=? role "boundary")
            (qualify-ports #:platform (platform-name)
                           #:nics nics
                           #:ifaces ifaces
                           #:reference reference
-                          #:capture-status (cm-status app-capture))
+                          #:capture-status (cm-status app-capture)
+                          #:lang qual-lang)
            (qualify-interface #:platform (platform-name)
                               #:nics nics
                               #:iface iface
                               #:role role
                               #:reference reference
-                              #:capture-status (cm-status app-capture))))
+                              #:capture-status (cm-status app-capture)
+                              #:lang qual-lang)))
      (hasheq 'ok #t
              'qualification qualification))]
 

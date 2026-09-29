@@ -6,11 +6,12 @@
 (() => {
   const q = (sel) => document.querySelector(sel);
   const qa = (sel) => Array.from(document.querySelectorAll(sel));
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
 
   async function copyText(text, success) {
     try {
       await navigator.clipboard.writeText(text);
-      toast(success || "已复制");
+      toast(success || zhEn("已复制", "Copied"));
       return true;
     } catch (_) {
       try {
@@ -22,11 +23,11 @@
         ta.select();
         const ok = document.execCommand("copy");
         ta.remove();
-        if (ok) toast(success || "已复制");
-        else toast("复制失败", "error");
+        if (ok) toast(success || zhEn("已复制", "Copied"));
+        else toast(zhEn("复制失败", "Copy failed"), "error");
         return ok;
       } catch (e) {
-        toast(`复制失败: ${e.message}`, "error");
+        toast(`${zhEn("复制失败", "Copy failed")}: ${e.message}`, "error");
         return false;
       }
     }
@@ -109,13 +110,13 @@
     head.insertBefore(actions, close);
     q("#copy-packet-summary").addEventListener("click", () => {
       const f = selectedPacket();
-      if (!f) return toast("请先选择报文", "warn");
-      copyText(packetSummaryText(f), "报文摘要已复制");
+      if (!f) return toast(zhEn("请先选择报文", "Select a packet first"), "warn");
+      copyText(packetSummaryText(f), zhEn("报文摘要已复制", "Packet summary copied"));
     });
     q("#copy-packet-hex").addEventListener("click", () => {
       const f = selectedPacket();
-      if (!f) return toast("请先选择报文", "warn");
-      copyText(f.raw_hex || "", "报文 Hex 已复制");
+      if (!f) return toast(zhEn("请先选择报文", "Select a packet first"), "warn");
+      copyText(f.raw_hex || "", zhEn("报文 Hex 已复制", "Packet hex copied"));
     });
   }
 
@@ -183,8 +184,9 @@
     btn.className = "btn btn-sm";
     btn.setAttribute("data-i18n", "snap-copy");
     btn.textContent = "复制调试快照";
-    btn.title = "复制平台、网卡、PHC、当前同步状态、最近引擎失败和 ptp4l.conf，方便贴到 issue/聊天中";
-    btn.addEventListener("click", () => copyText(supportSnapshot(), "调试快照已复制"));
+    btn.title = zhEn("复制平台、网卡、PHC、当前同步状态、最近引擎失败和 ptp4l.conf，方便贴到 issue/聊天中",
+      "Copy platform, NICs, PHC, current sync state, the last engine failure and ptp4l.conf for issues/chat");
+    btn.addEventListener("click", () => copyText(supportSnapshot(), zhEn("调试快照已复制", "Debug snapshot copied")));
     if (legend) wrap.appendChild(legend);
     wrap.appendChild(btn);
     head.appendChild(wrap);

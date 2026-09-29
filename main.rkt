@@ -126,6 +126,7 @@
                           #:current-version version))
             (when info
               (define v (hash-ref info 'version))
+              (set-box! update-info-box info)
               (log-add! app-logs 'app 'info
                         (format "新版本可用：~a（当前 ~a）" v version))
               (bus-broadcast! app-bus 'update-available info))))))

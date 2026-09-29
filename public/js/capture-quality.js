@@ -5,6 +5,7 @@
 
 (() => {
   const q = (sel) => document.querySelector(sel);
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
   let lastLiveQuality = null;
 
   function qualityFromPackets({ liveOnly = false } = {}) {
@@ -41,7 +42,8 @@
       if (offline && offline.source === "pcap-file") {
         el.textContent = `pcap-file / ${offline.precision}`;
         el.classList.remove("packet-health-good", "packet-health-attention");
-        el.title = "离线文件的时间戳分辨率；这不是当前网卡的实时抓包时间戳路径。";
+        el.title = zhEn("离线文件的时间戳分辨率；这不是当前网卡的实时抓包时间戳路径。",
+          "Timestamp resolution of the offline file; not the live capture timestamp path of this NIC.");
       } else {
         el.textContent = "idle";
         el.classList.remove("packet-health-good", "packet-health-attention");
@@ -80,7 +82,8 @@
     const ready = q("#timing-readiness");
     if (ready && ready.textContent === "HW + PHC") {
       ready.textContent = "NIC HW + PHC";
-      ready.title = "表示网卡/驱动能力，不代表当前 libpcap 已使用硬件时间戳";
+      ready.title = zhEn("表示网卡/驱动能力，不代表当前 libpcap 已使用硬件时间戳",
+        "NIC/driver capability; does not imply libpcap currently uses hardware timestamps");
     }
     const top = q("#st-timing");
     if (top && top.textContent === "HW + PHC") {

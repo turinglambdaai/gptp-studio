@@ -20,7 +20,13 @@
 
 (provide update-manifest-url
          read-repo-manifest-version
-         manifest-version-valid?)
+         manifest-version-valid?
+         update-info-box)
+
+;; Last successful check result (hasheq) or #f. The startup thread writes
+;; it; /api/bootstrap reads it so the header pill survives page reloads —
+;; the SSE broadcast is fire-and-forget and never replays.
+(define update-info-box (box #f))
 
 (define update-manifest-url
   "https://raw.githubusercontent.com/turinglambdaai/gptp-studio/main/latest.json")

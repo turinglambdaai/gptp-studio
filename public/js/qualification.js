@@ -6,6 +6,7 @@
 
 (() => {
   const q = (sel) => document.querySelector(sel);
+  const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
   let busy = false;
   let refreshTimer = null;
 
@@ -79,6 +80,7 @@
   function renderQualification(result) {
     const panel = q("#qualification-panel");
     if (!panel || !result) return;
+    S.lastQualification = result;
     panel.hidden = false;
     panel.dataset.status = result.status || "blocked";
 
@@ -102,7 +104,8 @@
     }
 
     q("#qualification-disclaimer").textContent = result.accuracy_note ||
-      "Preflight 只验证前置条件，不代表已校准的端到端时间精度。";
+      zhEn("Preflight 只验证前置条件，不代表已校准的端到端时间精度。",
+        "Preflight verifies prerequisites only; it does not establish calibrated end-to-end timing accuracy.");
   }
 
   function escapeHtml(value) {
@@ -120,12 +123,12 @@
     const btn = q("#qualification-run");
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "检查中…";
+      btn.textContent = zhEn("检查中…", "Checking…");
     }
     try {
       const r = await api("/api/qualification", currentPayload());
       if (!r.ok) {
-        if (!silent) toast(r.error || "Preflight 失败", "error", 8000);
+        if (!silent) toast(r.error || zhEn("Preflight 失败", "Preflight failed"), "error", 8000);
         return;
       }
       renderQualification(r.qualification);
@@ -134,7 +137,7 @@
         toast(`Preflight: ${statusLabel(s)}`, s === "blocked" ? "warn" : "info", 5000);
       }
     } catch (e) {
-      if (!silent) toast(`Preflight 失败: ${e.message}`, "error", 8000);
+      if (!silent) toast(`${zhEn("Preflight 失败", "Preflight failed")}: ${e.message}`, "error", 8000);
     } finally {
       busy = false;
       if (btn) {
@@ -182,4 +185,13 @@
       if (target) scheduleRefresh();
     });
   }, 50);
+
+  // summary sentences ship in both languages; flip the cached result's
+  // summary on a language switch without re-running the preflight
+  window.addEventListener("gptp:lang", () => {
+    const r = S.lastQualification;
+    if (!r) return;
+    const el = q("#qualification-summary-text");
+    if (el) el.textContent = (S.lang === "en" ? (r.summary_en || r.summary) : (r.summary_zh || r.summary)) || "—";
+  });
 })();

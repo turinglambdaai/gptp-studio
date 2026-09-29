@@ -53,16 +53,28 @@
          (if ok? "available" "not detected")
          (if ok? "" install-hint)))
 
-(define (qualification-summary status role iface)
+;; Summary sentences follow the UI language setting ("zh" default, "en" for
+;; the English UI); everything else in a qualification stays language-neutral
+;; structured data.
+(define (qualification-summary status role iface #:lang [lang "zh"])
+  (define en? (string=? lang "en"))
   (case (string->symbol status)
     [(ready)
-     (format "~a 已满足 ~a 真实引擎的已知前置条件；仍需用目标拓扑实测确认时间性能。" iface role)]
+     (if en?
+         (format "~a meets the known prerequisites for the ~a real engine; timing performance still needs on-target measurement with the actual topology." iface role)
+         (format "~a 已满足 ~a 真实引擎的已知前置条件；仍需用目标拓扑实测确认时间性能。" iface role))]
     [(candidate)
-     (format "~a 当前没有已确认的硬阻断，但仍有待确认项；可以继续验证，不应据此宣称测量精度。" iface)]
+     (if en?
+         (format "~a has no confirmed hard blocker but open items remain; verification can continue, but do not claim measurement accuracy from this." iface)
+         (format "~a 当前没有已确认的硬阻断，但仍有待确认项；可以继续验证，不应据此宣称测量精度。" iface))]
     [(passive-only)
-     (format "~a 适合被动抓包/协议分析，不满足当前 GM/Slave 真实引擎前置条件。" iface)]
+     (if en?
+         (format "~a suits passive capture/protocol analysis; it does not meet the prerequisites for a real GM/Slave engine." iface)
+         (format "~a 适合被动抓包/协议分析，不满足当前 GM/Slave 真实引擎前置条件。" iface))]
     [else
-     (format "~a 当前存在阻断项，先修复 Preflight 中的 FAIL 再启动真实引擎。" (or iface "当前主机"))]))
+     (if en?
+         (format "~a currently has blocking items; fix the FAIL entries in Preflight before starting the real engine." (or iface "This host"))
+         (format "~a 当前存在阻断项，先修复 Preflight 中的 FAIL 再启动真实引擎。" (or iface "当前主机")))]))
 
 (define (privilege-check nic role reference)
   (define privilege (nic-ref nic 'privilege_mode "direct-best-effort"))
@@ -111,7 +123,8 @@
                            #:iface [iface ""]
                            #:role [role "listener"]
                            #:reference [reference "system"]
-                           #:capture-status [capture-status #f])
+                           #:capture-status [capture-status #f]
+                           #:lang [lang "zh"])
   (define nic (find-nic nics iface))
   (define selected-iface (and nic (nic-ref nic 'name #f)))
   ;; A BC port set transmits AND receives as master/slave depending on BMCA,
@@ -228,7 +241,11 @@
           'role role
           'reference reference
           'iface selected-iface
-          'summary (qualification-summary status role selected-iface)
+          'summary (qualification-summary status role selected-iface #:lang lang)
+          ;; both languages, so the UI can flip the summary on a language
+          ;; switch without re-running the preflight
+          'summary_zh (qualification-summary status role selected-iface #:lang "zh")
+          'summary_en (qualification-summary status role selected-iface #:lang "en")
           'checks checks
           'fail_count fails
           'warn_count warns
@@ -250,7 +267,8 @@
                        #:nics nics
                        #:ifaces ifaces
                        #:reference [reference "system"]
-                       #:capture-status [capture-status #f])
+                       #:capture-status [capture-status #f]
+                       #:lang [lang "zh"])
   (define distinct? (and (pair? ifaces)
                          (= (length (remove-duplicates ifaces)) (length ifaces))))
   (define port-qualifications
@@ -289,19 +307,30 @@
       [(positive? fails) "blocked"]
       [(positive? warns) "candidate"]
       [else "ready"]))
+  (define bc-summary-zh
+    (cond
+      [(positive? fails)
+       "Boundary clock preflight 存在阻断项：每个端口都需要硬件时间戳与 PHC；先修复 FAIL 再启动。"]
+      [(positive? warns)
+       "Boundary clock 端口当前无硬阻断，但有待确认项；可以继续验证，不应据此宣称测量精度。"]
+      [else
+       "Boundary clock 各端口已满足已知前置条件；仍需用目标拓扑实测确认时间性能。"]))
+  (define bc-summary-en
+    (cond
+      [(positive? fails)
+       "Boundary clock preflight has blocking items: every port needs hardware timestamps and a PHC; fix the FAIL entries before starting."]
+      [(positive? warns)
+       "No hard blocker on the boundary-clock ports, but open items remain; verification can continue, but do not claim measurement accuracy from this."]
+      [else
+       "All boundary-clock ports meet the known prerequisites; timing performance still needs on-target measurement with the actual topology."]))
   (hasheq 'status status
           'role "boundary"
           'reference reference
           'iface (and (pair? ifaces) (first ifaces))
           'ifaces ifaces
-          'summary
-          (cond
-            [(positive? fails)
-             "Boundary clock preflight 存在阻断项：每个端口都需要硬件时间戳与 PHC；先修复 FAIL 再启动。"]
-            [(positive? warns)
-             "Boundary clock 端口当前无硬阻断，但有待确认项；可以继续验证，不应据此宣称测量精度。"]
-            [else
-             "Boundary clock 各端口已满足已知前置条件；仍需用目标拓扑实测确认时间性能。"])
+          'summary (if (string=? lang "en") bc-summary-en bc-summary-zh)
+          'summary_zh bc-summary-zh
+          'summary_en bc-summary-en
           'ports port-qualifications
           'checks all-checks
           'fail_count fails

@@ -59,6 +59,7 @@ const S = {
 };
 
 const t = (k) => S.i18n[k] || k;
+const zhEn = (z, e) => (!S.lang || S.lang === "zh") ? z : e;
 
 /* ---------- i18n ---------- */
 function applyI18n() {
@@ -260,7 +261,7 @@ function renderPacketList() {
   tb.appendChild(frag);
   $("#pk-empty").style.display = S.packets.length ? "none" : "block";
   $("#pk-summary").textContent =
-    `${S.i18n.pk_no || ""} ${S.packets.length} / ${S.packetTotal} PTP 帧${S.captureSrc ? ` · 来源: ${S.captureSrc}` : ""}`;
+    `${S.i18n.pk_no || ""} ${S.packets.length} / ${S.packetTotal} ${zhEn("PTP 帧", "PTP frames")}${S.captureSrc ? ` · ${zhEn("来源", "source")}: ${S.captureSrc}` : ""}`;
 }
 
 function renderPacketsListFromApi(list, total) {
@@ -357,8 +358,8 @@ function renderPresets(list) {
       <td><b>${p.name}</b></td>
       <td>${p.role || ""}</td>
       <td class="mono">${p.iface || "—"}</td>
-      <td><button class="btn btn-sm act-apply">应用</button></td>
-      <td><button class="btn btn-sm btn-danger act-del">删</button></td>`;
+      <td><button class="btn btn-sm act-apply">${zhEn("应用", "Apply")}</button></td>
+      <td><button class="btn btn-sm btn-danger act-del">${zhEn("删", "Del")}</button></td>`;
     tr.querySelector(".act-apply").addEventListener("click", async () => {
       try {
         const r = await api("/api/preset/apply", { name: p.name });
@@ -367,7 +368,7 @@ function renderPresets(list) {
           $("#conf-preview").textContent = r.conf;
           if (r.role) renderRole(r.role);
           if (r.iface) $("#cfg-iface").value = r.iface;
-          toast(`预设 ${p.name} 已应用`);
+          toast(zhEn(`预设 ${p.name} 已应用`, `Preset ${p.name} applied`));
         } else toast(r.error, "error");
       } catch (e) { toast(e.message, "error"); }
     });
@@ -386,9 +387,9 @@ function renderLicense(gate) {
   let detail = "";
   if (gate.tier === "pro") {
     detail = `<div class="lic-line"><span class="k">subject</span><span>${gate.detail.subject || "—"}</span></div>
-              <div class="lic-line"><span class="k">expiry</span><span>${gate.detail.expiry || "永久"}</span></div>`;
+              <div class="lic-line"><span class="k">expiry</span><span>${gate.detail.expiry || zhEn("永久", "perpetual")}</span></div>`;
   } else if (gate.tier === "trial") {
-    detail = `<div class="lic-line"><span class="k">剩余天数</span><span>${gate.detail.days_left ?? "?"} 天</span></div>`;
+    detail = `<div class="lic-line"><span class="k">${zhEn("剩余天数", "Days left")}</span><span>${gate.detail.days_left ?? "?"} ${zhEn("天", "d")}</span></div>`;
   }
   body.innerHTML = `
     <div class="lic-line"><span class="k">${t("lic-version")}</span><span>gPTP Studio v${S.version}</span></div>
@@ -447,22 +448,30 @@ function openEvents() {
     toast(d.message, "error", 8000);
   });
   es.addEventListener("backend-error", (e) => {
-    toast(`后端错误: ${JSON.parse(e.data).message}`, "error");
+    toast(`${zhEn("后端错误", "Backend error")}: ${JSON.parse(e.data).message}`, "error");
   });
   es.addEventListener("update-available", (e) => {
-    const d = JSON.parse(e.data);
-    const pill = $("#st-update");
-    if (pill) {
-      pill.textContent = `⬇ ${d.version || ""}`.trim();
-      pill.href = d.url || "https://github.com/turinglambdaai/gptp-studio/releases/latest";
-      if (d.notes) pill.title = d.notes;
-      pill.hidden = false;
-      pill.classList.add("on");
-    }
+    showUpdatePill(JSON.parse(e.data), true);
+  });
+}
+
+// Header pill for an available update. `announce` also toasts — used by the
+// live SSE event; boot-time restoration from bootstrap stays silent (the
+// pill persists via /api/bootstrap so a reload keeps it).
+function showUpdatePill(d, announce) {
+  const pill = $("#st-update");
+  if (pill) {
+    pill.textContent = `⬇ ${d.version || ""}`.trim();
+    pill.href = d.url || "https://github.com/turinglambdaai/gptp-studio/releases/latest";
+    if (d.notes) pill.title = d.notes;
+    pill.hidden = false;
+    pill.classList.add("on");
+  }
+  if (announce) {
     toast(S.lang === "zh"
       ? `新版本可用：${d.version || ""}（点击顶栏胶囊查看）`
       : `Update available: ${d.version || ""} (see the header pill)`, "info", 9000);
-  });
+  }
 }
 
 async function refreshPackets() {
@@ -491,6 +500,7 @@ async function boot() {
   S.engine = b.engine;
   S.capture = b.capture;
   S.thresholdNs = (b.settings["offset-warn-us"] || 100) * 1000;
+  if (b.update_available) showUpdatePill(b.update_available, false);
   $("#lang-switch").value = S.lang;
   $("#version-badge").textContent = "v" + b.version;
   applyI18n();
@@ -533,13 +543,14 @@ async function boot() {
     S.i18n = d; applyI18n(); renderLicense(S.bootstrap.gate);
     if (S.nics) renderNics(S.nics);
     renderStatus(S.engine, S.capture);
+    refreshPackets();
     window.dispatchEvent(new CustomEvent("gptp:lang", { detail: { lang: S.lang } }));
   });
 
   $("#nics-refresh").addEventListener("click", async () => {
     const r = await api("/api/nics");
     renderNics(r.list);
-    toast("已重新扫描网卡");
+    toast(zhEn("已重新扫描网卡", "Interfaces rescanned"));
   });
 
   $$("#role-seg button").forEach((btn) =>
@@ -576,8 +587,9 @@ async function boot() {
     btn.addEventListener("click", () => {
       $$("#source-seg button").forEach((b) => b.classList.toggle("active", b === btn));
       $("#source-note").textContent = btn.dataset.source === "system"
-        ? "已选择：系统时钟经 phc2sys 写入 PHC（Pro 功能，重启 GM 引擎后生效）"
-        : "不使用外部参考源";
+        ? zhEn("已选择：系统时钟经 phc2sys 写入 PHC（Pro 功能，重启 GM 引擎后生效）",
+            "Selected: the system clock feeds the PHC via phc2sys (Pro; effective after a GM engine restart)")
+        : zhEn("不使用外部参考源", "No external reference source");
     }));
 
   $("#pk-start").addEventListener("click", async () => {
@@ -585,7 +597,7 @@ async function boot() {
     try {
       const r = await api("/api/capture/start", { iface });
       if (!r.ok) toast(r.error, "error", 8000);
-      else toast(`抓包中: ${iface}`);
+      else toast(`${zhEn("抓包中", "Capturing")}: ${iface}`);
       S.capture = { running: r.ok, iface };
       renderStatus(S.engine, S.capture);
     } catch (e) { toast(e.message, "error"); }

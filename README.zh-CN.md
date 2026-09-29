@@ -83,6 +83,10 @@ racket main.rkt
 
 真机调试建议固定流程：先跑 `gptp-studio --doctor`，处理结构性 FAIL，再在 GUI 对目标接口执行 Preflight，最后才启动真实 GM/Slave。详见 [docs/support-doctor.md](docs/support-doctor.md) 与 [docs/hardware-qualification.md](docs/hardware-qualification.md)。
 
+### 更新检查
+
+启动约 2.5 秒后，应用会在后台取一次版本清单（`latest.json`，托管在本仓库主分支），发现新版本时在顶栏显示 `⬇ 版本号` 胶囊（点击打开发布页）。**不做自动安装**——装什么由操作者决定。气隙主机可用 `--no-update-check` 完全关闭这一网络接触，或用 `GPTP_UPDATE_MANIFEST_URL` 指向自建清单。
+
 ## 六页工作区
 
 | 页面 | 功能 |

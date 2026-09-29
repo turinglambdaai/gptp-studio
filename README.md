@@ -83,6 +83,10 @@ racket main.rkt
 
 For real hardware work, start with `gptp-studio --doctor`, fix structural FAIL items, then use GUI Preflight on the exact interface before starting GM/Slave. See [docs/support-doctor.md](docs/support-doctor.md) and [docs/hardware-qualification.md](docs/hardware-qualification.md).
 
+### Update check
+
+About 2.5s after startup the app fetches a version manifest once in the background (`latest.json`, hosted on this repository's main branch). On a newer release an `⬇ version` pill appears in the header and links to the releases page. **Nothing is installed automatically** — what gets installed stays with the operator. Air-gapped hosts can disable the network contact entirely with `--no-update-check`, or point `GPTP_UPDATE_MANIFEST_URL` at their own manifest.
+
 ## Pages
 
 | Page | What it does |
