@@ -78,7 +78,7 @@ jobs:
           bash -n scripts/package-deb.sh
           test "$(tr -d '[:space:]' < GLAZE_REVISION)" = \
             "$(git -C "$HOME/glaze-src" rev-parse HEAD)"
-          bash scripts/check-release-version.sh v1.0.1
+          bash scripts/check-release-version.sh "$(sed -nE 's/^\(define version "([^"]+)".*/\1/p' info.rkt | sed 's/^/v/')"
 
       - name: Compile
         run: raco make main.rkt
@@ -133,7 +133,7 @@ jobs:
         run: |
           GPTP_STUDIO_SELFCHECK_PORT=18741 \
           GPTP_STUDIO_DEB_SELFCHECK_PORT=18742 \
-            bash scripts/package-deb.sh 1.0.0 v1.0.0-ci
+            bash scripts/package-deb.sh "$(sed -nE 's/^\(define version "([^"]+)".*/\1/p' info.rkt)" v1.0.0-ci
 
       - name: Install, validate and remove Debian package
         shell: bash
