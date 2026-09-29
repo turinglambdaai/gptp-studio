@@ -38,3 +38,9 @@ dist-test/
 dist/
 dist-manual/
 dist-fixed/
+
+# release artifacts (attach to GitHub Releases, never commit)
+/gPTP-Studio-*.deb
+/gPTP-Studio-*.deb.sha256
+/gPTP-Studio-*.tar.gz
+/gPTP-Studio-*.tar.gz.sha256
