@@ -160,7 +160,7 @@ grep -q "Racket CS" "$DIST_ROOT/THIRD_PARTY_NOTICES.md"
 grep -q "不会撤销、限制或缩小" "$DIST_ROOT/EULA.md"
 
 echo "== archive =="
-ARCHIVE="gPTP-Studio-${TAG_LABEL}-linux-x64.tar.gz"
+ARCHIVE="gPTP-Studio-linux-x64.tar.gz"
 tar -czf "$ARCHIVE" -C dist gptp-studio-distributed
 sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 

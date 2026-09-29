@@ -8,6 +8,12 @@ cd "$(dirname "$0")/.."
 VERSION="${1:-${GPTP_STUDIO_VERSION:-1.0.0}}"
 TAG_LABEL="${2:-v$VERSION}"
 ARCH="${GPTP_STUDIO_DEB_ARCH:-amd64}"
+# asset filename follows the family convention (os-arch, no version in the name);
+# the Debian control Architecture keeps the distro-native token (amd64/arm64)
+case "$ARCH" in
+  amd64) FILE_ARCH="x64" ;;
+  *) FILE_ARCH="$ARCH" ;;
+esac
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "invalid package version: $VERSION (expected x.y.z)" >&2
@@ -22,7 +28,7 @@ bash scripts/package-linux.sh "$VERSION" "$TAG_LABEL"
 DIST_ROOT="dist/gptp-studio-distributed"
 PKG_ROOT="dist/deb-root"
 EXTRACT_ROOT="dist/deb-extracted"
-DEB="gPTP-Studio-${TAG_LABEL}-linux-${ARCH}.deb"
+DEB="gPTP-Studio-linux-${FILE_ARCH}.deb"
 
 rm -rf "$PKG_ROOT" "$EXTRACT_ROOT" "$DEB"
 mkdir -p \

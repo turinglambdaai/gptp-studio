@@ -57,10 +57,10 @@ jobs:
         with:
           name: linux-packages
           path: |
-            gPTP-Studio-*-linux-x64.tar.gz
-            gPTP-Studio-*-linux-x64.tar.gz.sha256
-            gPTP-Studio-*-linux-amd64.deb
-            gPTP-Studio-*-linux-amd64.deb.sha256
+            gPTP-Studio-linux-x64.tar.gz
+            gPTP-Studio-linux-x64.tar.gz.sha256
+            gPTP-Studio-linux-x64.deb
+            gPTP-Studio-linux-x64.deb.sha256
 
   publish:
     needs: [linux]

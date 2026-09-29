@@ -139,7 +139,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DEB="gPTP-Studio-v1.0.0-ci-linux-amd64.deb"
+          DEB="gPTP-Studio-linux-x64.deb"
           test -s "$DEB"
           sudo apt-get install -y "./$DEB"
           test "$(gptp-studio --version)" = "1.0.0"

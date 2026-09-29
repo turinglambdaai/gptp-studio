@@ -6,7 +6,7 @@ platform: Ubuntu 22.04 LTS or Ubuntu 24.04 LTS.
 ## 1. Prefer the official Debian package
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-linux-x64.deb
 gptp-studio --doctor
 ```
 
