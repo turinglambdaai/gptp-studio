@@ -78,7 +78,7 @@ jobs:
           bash -n scripts/package-deb.sh
           test "$(tr -d '[:space:]' < GLAZE_REVISION)" = \
             "$(git -C "$HOME/glaze-src" rev-parse HEAD)"
-          bash scripts/check-release-version.sh v1.0.0
+          bash scripts/check-release-version.sh v1.0.1
 
       - name: Compile
         run: raco make main.rkt
