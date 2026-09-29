@@ -1,5 +1,19 @@
 {
   "version": "1.0.1",
-  "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest",
-  "notes": "gPTP Studio release notes"
+  "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.0.1",
+  "notes": "Startup chain fixes, full i18n, online update check with signed artifacts.",
+  "artifacts": [
+    {
+      "kind": "deb",
+      "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.deb",
+      "sha256": "e9af6b5ce13cc147faac63fd23997605929ff088bff92279f183999d39080309",
+      "signature": "signed gPTP-Studio-linux-x64.deb -> gPTP-Studio-linux-x64.deb.sig\nIRpnD2CNcFRw9WGhTgbfR3fqg0F45QMGv57pLCGTWhoApQjrSt8t4vFcIPlSlm8VHn/kMeTyUx3ZwfSxn7dyDQ=="
+    },
+    {
+      "kind": "tarball",
+      "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.tar.gz",
+      "sha256": "249e484250c9278b2cd4fc19f7c2774791add9e0a9792012e5be922636f7de39",
+      "signature": "signed gPTP-Studio-linux-x64.tar.gz -> gPTP-Studio-linux-x64.tar.gz.sig\nmqMVzLKdxezsRVnnDENt9RKTNBVSsL4JsETT/8oeXQbquQz0qjLshpiDufbjzm0MnXXzvkv2a4NcpeGXx5sNBw=="
+    }
+  ]
 }

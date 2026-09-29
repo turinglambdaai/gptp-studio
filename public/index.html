@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>gPTP Studio</title>
-<link rel="stylesheet" href="css/app.css?v=4">
+<link rel="stylesheet" href="css/app.css?v=5">
 <link rel="stylesheet" href="css/ux.css?v=1">
 <link rel="stylesheet" href="css/packet-analysis.css?v=1">
 <link rel="stylesheet" href="css/readiness.css?v=1">
@@ -30,6 +30,17 @@
     <span class="pill pill-tier" id="st-tier">—</span>
   </div>
 </header>
+
+<div class="update-dialog card" id="update-dialog" hidden>
+  <div class="card-head"><h3 data-i18n="upd-title">应用内更新</h3><button class="btn btn-sm" id="update-close">✕</button></div>
+  <p class="muted" data-i18n="upd-sub">更新包已下载并通过 Ed25519 签名验证。安装需要系统授权（pkexec）。</p>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="update-apply" data-i18n="upd-apply">安装更新</button>
+    <button class="btn" id="update-copy-cmd">复制安装命令</button>
+    <a class="btn" id="update-release-link" target="_blank" rel="noopener" data-i18n="upd-release" href="https://github.com/turinglambdaai/gptp-studio/releases">发布页</a>
+  </div>
+  <pre class="mono" id="update-dialog-cmd" style="white-space:pre-wrap"></pre>
+</div>
 
 <div class="layout">
   <nav class="sidebar">
@@ -162,7 +173,7 @@
 
 <script src="/glaze/api.js"></script>
 <script src="js/chart.js?v=2"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/app.js?v=8"></script>
 <script src="js/role-consistency.js?v=1"></script>
 <script src="js/reference-controls.js?v=2"></script>
 <script src="js/ux.js?v=4"></script>

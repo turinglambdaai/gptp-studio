@@ -35,6 +35,7 @@
          "../support/engineering-report.rkt"
          "../support/platform-fingerprint.rkt"
          "../support/updates.rkt"
+         "../support/updater.rkt"
          "../support/wireshark.rkt")
 
 (provide api-routes engine-start bootstrap)
@@ -77,6 +78,27 @@
              'update_available (unbox update-info-box)
              'params (params->jsexpr (current-params))
              'conf (params->conf (current-params) #:role (role-name (sup-status-app-role)))))]
+
+  ;; ---- in-app self-update (signed artifact flow) ----------------------------
+  ;; The operator clicks the header pill: prepare downloads + verifies +
+  ;; stages (background thread, state polled via /api/update/status); apply
+  ;; goes through pkexec with the standard system authentication dialog —
+  ;; nothing installs without that explicit consent.
+  [(POST "api/update/prepare")
+   (update-prepare [kind string? "deb"])
+   (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+     (update-prepare! (string->symbol kind) (unbox update-manifest-box))
+     (hasheq 'ok #t 'state 'downloading))]
+
+  [(GET "api/update/status")
+   (update-status)
+   (update-flow-status)]
+
+  [(POST "api/update/apply")
+   (update-apply)
+   (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
+     (update-apply!)
+     (hasheq 'ok #t 'state 'applying))]
 
   ;; ---- settings -----------------------------------------------------------
   [(POST "api/settings")

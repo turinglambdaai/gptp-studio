@@ -455,6 +455,65 @@ function openEvents() {
   });
 }
 
+function bindUpdateUi() {
+  const pill = $("#st-update");
+  if (pill) pill.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    updatePrepareAndInstall();
+  });
+  const close = $("#update-close");
+  if (close) close.addEventListener("click", () => { $("#update-dialog").hidden = true; });
+  const copy = $("#update-copy-cmd");
+  if (copy) copy.addEventListener("click", () => {
+    const cmd = $("#update-dialog-cmd").textContent;
+    copyText(cmd, S.lang === "zh" ? "安装命令已复制" : "Install command copied");
+  });
+}
+
+/* ---------- in-app self-update (signed artifact flow) ---------- */
+async function updatePrepareAndInstall() {
+  const kind = "deb";
+  try {
+    let r = await api("/api/update/prepare", { kind });
+    if (!r.ok) { toast(r.error, "error", 9000); return; }
+    // poll the flow state machine until staged/failed
+    for (let i = 0; i < 120; i++) {
+      const st = await api("/api/update/status");
+      if (st.state === "staged") {
+        showUpdateDialog(st);
+        return;
+      }
+      if (st.state === "failed") { toast(st.error || "更新验证失败", "error", 9000); return; }
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+    toast("更新准备超时", "warn");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+function showUpdateDialog(st) {
+  const dlg = $("#update-dialog");
+  if (!dlg) return;
+  $("#update-dialog-cmd").textContent = st.install_command || "";
+  dlg.hidden = false;
+  $("#update-apply").onclick = async () => {
+    try {
+      const r = await api("/api/update/apply", {});
+      if (!r.ok) { toast(r.error || "安装失败", "error", 9000); return; }
+      // poll until applied, then instruct restart
+      for (let i = 0; i < 300; i++) {
+        const s2 = await api("/api/update/status");
+        if (s2.state === "applied") {
+          toast(S.lang === "zh" ? "已安装，重启应用生效" : "Installed — restart the app to take effect", "info", 12000);
+          dlg.hidden = true;
+          return;
+        }
+        if (s2.state === "failed") { toast(s2.error || "安装失败", "error", 9000); return; }
+        await new Promise((res) => setTimeout(res, 1000));
+      }
+    } catch (e) { toast(e.message, "error"); }
+  };
+}
+
 // Header pill for an available update. `announce` also toasts — used by the
 // live SSE event; boot-time restoration from bootstrap stays silent (the
 // pill persists via /api/bootstrap so a reload keeps it).
@@ -528,6 +587,7 @@ async function boot() {
   } catch (_) {}
 
   openEvents();
+  bindUpdateUi();
 
   /* ---- wire static handlers ---- */
   window.addEventListener("hashchange", navigate);

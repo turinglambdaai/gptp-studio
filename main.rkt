@@ -120,12 +120,20 @@
         (lambda ()
           (sleep 2.5)
           (with-handlers ([exn:fail? (lambda (_) (void))])
-            (define info (check-update
-                          (or (getenv "GPTP_UPDATE_MANIFEST_URL")
-                              update-manifest-url)
-                          #:current-version version))
+            (define manifest (fetch-latest-manifest
+                              (or (getenv "GPTP_UPDATE_MANIFEST_URL")
+                                  update-manifest-url)))
+            (define info
+              (and manifest
+                   (let ([v (hash-ref manifest 'version #f)])
+                     (and (string? v)
+                          (newer-version? v version)
+                          (hasheq 'version v
+                                  'url (hash-ref manifest 'url #f)
+                                  'notes (hash-ref manifest 'notes #f))))))
             (when info
               (define v (hash-ref info 'version))
+              (set-box! update-manifest-box manifest)
               (set-box! update-info-box info)
               (log-add! app-logs 'app 'info
                         (format "新版本可用：~a（当前 ~a）" v version))

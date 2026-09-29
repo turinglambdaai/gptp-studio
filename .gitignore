@@ -44,3 +44,8 @@ dist-fixed/
 /gPTP-Studio-*.deb.sha256
 /gPTP-Studio-*.tar.gz
 /gPTP-Studio-*.tar.gz.sha256
+
+# updater signing key (public ships, private stays local + vault)
+app/keys/updater/private.pem
+
+/gPTP-Studio-*.sig
