@@ -88,7 +88,7 @@
    (update-prepare [kind string? "deb"])
    (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
      (update-prepare! (string->symbol kind) (unbox update-manifest-box))
-     (hasheq 'ok #t 'state 'downloading))]
+     (hasheq 'ok #t 'state "downloading"))]
 
   [(GET "api/update/status")
    (update-status)
@@ -98,7 +98,7 @@
    (update-apply)
    (with-handlers ([exn:fail? (lambda (e) (hasheq 'ok #f 'error (exn-message e)))])
      (update-apply!)
-     (hasheq 'ok #t 'state 'applying))]
+     (hasheq 'ok #t 'state "applying"))]
 
   ;; ---- settings -----------------------------------------------------------
   [(POST "api/settings")

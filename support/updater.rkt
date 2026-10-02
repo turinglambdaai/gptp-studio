@@ -170,7 +170,10 @@
 
 (define (update-flow-status)
   (define f (unbox flow-box))
-  (hasheq 'state (hash-ref f 'state)
+  ;; jsexpr only allows symbol KEYS, never symbol VALUES — the state is
+  ;; transported as a string
+  (hasheq 'state (let ([st (hash-ref f 'state)])
+                   (if (symbol? st) (symbol->string st) st))
           'error (hash-ref f 'error #f)
           'staged (let ([p (hash-ref f 'staged #f)]) (and p (path->string p)))
           'install_command
