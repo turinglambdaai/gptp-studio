@@ -1,6 +1,6 @@
 {
-  "version": "1.0.1",
-  "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.0.1",
+  "version": "1.0.0",
+  "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.0.0",
   "notes": "Startup chain fixes, full i18n, online update check with signed artifacts.",
   "artifacts": [
     {

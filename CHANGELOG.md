@@ -1,6 +1,7 @@
 # 更新日志 / Changelog
 
-## 1.0.1 — 2026-09-29
+## 1.0.0 — 2026-09-29
+
 
 ### 新增
 
@@ -63,7 +64,6 @@
 - **`--simulator` 引导路径静默失效**：boundary clock 支持加入后 `engine-start` 变为
   4 参数，引导代码仍按 3 参数调用——arity 错误只进了日志。已修复。
 
-## 1.0.0 — 2026-09-27
 
 gPTP Studio 首个正式版：**Linux 原生 gPTP / IEEE 802.1AS 调试工作站**（Automotive Ethernet）。
 
