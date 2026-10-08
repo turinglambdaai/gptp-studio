@@ -100,7 +100,15 @@ body {
 }
 .sidebar-footer { flex: 0 0 auto; margin-top: 4px; padding: 8px 6px 12px; }
 .lang-switch {
-  width: 100%; padding: 6px; border: 1px solid var(--border);
+  width: 100%;
+  /* CJK fallback fonts carry taller line boxes than Latin ones; a
+     padding-only select clips the glyph tops/bottoms (the language name
+     rendered "half visible"). min-height + normal line-height keeps the
+     text vertically centered for any font metrics. */
+  min-height: 36px;
+  padding: 6px 10px;
+  line-height: normal;
+  border: 1px solid var(--border);
   border-radius: 6px; background: #fff; color: var(--text);
 }
 
@@ -212,7 +220,13 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgb
 .seg button:hover:not(.active) { background: var(--blue-bg); }
 
 .btn {
-  height: 32px; padding: 0 14px;
+  /* min-height + flex centering: fixed heights clip CJK glyphs when the
+     fallback font's line box runs taller than the box */
+  min-height: 32px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border); border-radius: 6px;
   background: #fff; color: var(--text);
   font-size: 13px; cursor: pointer;
