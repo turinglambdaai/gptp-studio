@@ -113,22 +113,39 @@ cd gptp-studio-distributed
   <footer><div class="container"><p data-en="gPTP Studio · Linux-native IEEE 802.1AS engineering workstation · Apache-2.0 source" data-zh="gPTP Studio · Linux 原生 IEEE 802.1AS 工程工作站 · Apache-2.0 源码">gPTP Studio · Linux-native IEEE 802.1AS engineering workstation · Apache-2.0 source</p></div></footer>
 
   <script>
+    // Unified language policy: explicit choice wins; otherwise follow system/browser locale.
     var LANGUAGE_OVERRIDE_KEY = 'gptp-studio-lang-override-v2';
+    var LANGUAGE_LEGACY_KEYS = ['site-lang'];
     var pageMetadata = {
       en: { title:'gPTP Studio — Linux-native IEEE 802.1AS debugging workstation', description:'Linux-native gPTP / IEEE 802.1AS workstation for Automotive Ethernet with PHC and hardware timestamp qualification.' },
       zh: { title:'gPTP Studio — Linux 原生 gPTP / IEEE 802.1AS 调试工作站', description:'面向 Automotive Ethernet 的 Linux 原生 gPTP / IEEE 802.1AS 工作站，支持 PHC、硬件时间戳资格检查与 linuxptp。' }
     };
-    function readLanguageOverride(){ try { var v=localStorage.getItem(LANGUAGE_OVERRIDE_KEY); return v==='zh'||v==='en'?v:null; } catch(e){ return null; } }
+    function readLanguageOverride(){
+      try {
+        var v=localStorage.getItem(LANGUAGE_OVERRIDE_KEY);
+        if(v!=='zh'&&v!=='en'){
+          for(var i=0;i<LANGUAGE_LEGACY_KEYS.length;i++){
+            var legacy=localStorage.getItem(LANGUAGE_LEGACY_KEYS[i]);
+            if(legacy==='zh'||legacy==='en'){ v=legacy; try{localStorage.setItem(LANGUAGE_OVERRIDE_KEY,v);}catch(e){} break; }
+          }
+        }
+        return v==='zh'||v==='en'?v:null;
+      } catch(e){ return null; }
+    }
     function detectBrowserLanguage(){ var locale=(navigator.languages&&navigator.languages[0])||navigator.language||''; return String(locale).toLowerCase().indexOf('zh')===0?'zh':'en'; }
     function applyLanguage(lang,persist){
       if(persist){ try { localStorage.setItem(LANGUAGE_OVERRIDE_KEY,lang); } catch(e){} }
       document.querySelectorAll('[data-en]').forEach(function(el){ var text=el.getAttribute('data-'+lang); if(text!==null) el.textContent=text; });
       document.documentElement.lang=lang==='zh'?'zh-CN':'en';
+      document.documentElement.setAttribute('data-language',lang);
+      var label=document.getElementById('current-lang-label');
+      if(label) label.textContent=lang==='zh'?'简体中文':'English';
       var metadata=pageMetadata[lang];
       if(metadata){ document.title=metadata.title; var d=document.querySelector('meta[name="description"]'); if(d)d.setAttribute('content',metadata.description); }
     }
     function setLanguage(lang){ if(lang==='zh'||lang==='en') applyLanguage(lang,true); }
     applyLanguage(readLanguageOverride()||detectBrowserLanguage(),false);
+    LANGUAGE_LEGACY_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
     window.addEventListener('languagechange',function(){ if(!readLanguageOverride()) applyLanguage(detectBrowserLanguage(),false); });
   </script>
 </body>
