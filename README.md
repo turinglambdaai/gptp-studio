@@ -2,11 +2,7 @@
 
 **A Linux-native gPTP / IEEE 802.1AS debugging workstation for Automotive Ethernet.**
 
-[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
-![Platform](https://img.shields.io/badge/platform-Linux-blue)
-![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420)
-![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white)
-![License](https://img.shields.io/badge/license-Apache--2.0-blue)
+[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **English** · [中文](README.zh-CN.md)
 
