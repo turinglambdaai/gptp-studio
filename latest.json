@@ -1,19 +1,19 @@
 {
-  "version": "1.0.0",
-  "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.0.0",
-  "notes": "Startup chain fixes, full i18n, online update check with signed artifacts.",
+  "version": "1.1.0",
+  "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.1.0",
+  "notes": "更新清单由 CI 自动签名发布：Release 工作流在发布资产构建完成后，用本次构建的",
   "artifacts": [
     {
       "kind": "deb",
       "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.deb",
-      "sha256": "c1dad8cae78afcc32c604f118dc149fa5c3dd1d9b74b98a05ab0c086c25123e2",
-      "signature": "qbkXf0OjzeV8H1K9ZMLoOdBdkb/1H1yXLDxO0bZwaPbjOQqlX4Zgh0hud3GG1PxPaiJg7vkmT+SpnjhRLOCIBA=="
+      "sha256": "35b5a6d60a86fa5cc03866aad0cf705d611b6df3d3dd6b45ff7d81184eaa6796",
+      "signature": "eQaFfdCj1FCk3FyWbp75QFl0ullW+FcntqIv0hQT8m3iTzzAnYave7LkKJCK5B9Vd8RZ0hLeUyrokh6kRvEmCg=="
     },
     {
       "kind": "tarball",
       "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.tar.gz",
-      "sha256": "5cb85d152263aad9df6205a6124715e538ee8b38e11ee72c2988a0caf0ffd9d0",
-      "signature": "zsxAHmWiR+LhhxlAwhxIZEkMF13C/nKQ17U6X+NIaOB/iTi0cT+KLArFBaqxS6EH+drF4KL+IFsSSclBlw5aAg=="
+      "sha256": "a87f04f4a33de6f32fccac8015c12ee3128be5164c00da80b4364838649b056d",
+      "signature": "efgc+F24F4RnCl0prkJal917WnbhVwr4zfkhTNP6FO4NxsClTmdUIx+kNVKMl4JokmXwdEBy0XgcklqygWmxBA=="
     }
   ]
 }
