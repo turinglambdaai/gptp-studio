@@ -65,15 +65,19 @@
   (define host (list-ref m 1))
   (define path (or (list-ref m 2) "/"))
   (define ssl? (string-ci=? (substring url 0 5) "https"))
-  (when ssl? (dynamic-require 'openssl 'ssl-connect #f))
+  ;; Preload the openssl/ssl module so https-sendrecv finds it. Racket 9.3's
+  ;; dynamic-require rejects anything but 'error in the fail position — passing #f
+  ;; here (the old form) raised exn:fail:contract before the connection was
+  ;; even attempted, which the startup handler then swallowed: the https
+  ;; update check silently never ran.
+  (when ssl? (dynamic-require 'openssl #f))
   (define-values (_st _hd in)
     (with-handlers ([exn:fail? (lambda (_) (values #f #f #f))])
       (http-sendrecv host path
                      #:port (or (let ([p (regexp-match #rx":([0-9]+)$" host)])
                                   (and p (string->number (second p))))
                                 (if ssl? 443 80))
-                     #:ssl? (if ssl? 'auto #f)
-                     #:connection-close? #t)))
+                     #:ssl? (if ssl? 'auto #f))))
   (unless in (raise (error 'updates "manifest fetch failed")))
   (define body (port->string in))
   (close-input-port in)

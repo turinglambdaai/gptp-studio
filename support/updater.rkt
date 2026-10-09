@@ -82,7 +82,11 @@
   ;; and getaddrinfo rejects "host:port" as a hostname
   (define host (car (string-split authority ":")))
   (define ssl? (string-ci=? (substring url 0 5) "https"))
-  (when ssl? (dynamic-require 'openssl 'ssl-connect #f))
+  ;; Same as support/updates.rkt: '#f' in dynamic-require's fail position is
+  ;; a contract violation on Racket 9.3 — the artifact download would fail
+  ;; before reaching the network. Load the module, let real failures surface
+  ;; at the connection itself.
+  (when ssl? (dynamic-require 'openssl #f))
   (define port-num
     (or (let ([p (regexp-match #rx":([0-9]+)$" authority)])
           (and p (string->number (second p))))

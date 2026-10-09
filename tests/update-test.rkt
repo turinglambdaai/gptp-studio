@@ -50,6 +50,35 @@
 (stop)
 (delete-directory/files tmp)
 
+;; ---- https must reach the connection attempt ----------------------------------
+;; Regression: the ssl preload used `(dynamic-require 'openssl 'ssl-connect
+;; #f)`, and Racket 9.3 rejects anything but 'error in that position — every
+;; https manifest fetch raised exn:fail:contract before opening a connection
+;; and the startup handler swallowed it, so the update check silently never
+;; ran against the live feed. (The same path also passed http-sendrecv a
+;; keyword it does not know.) fetch-latest-manifest degrades such errors to
+;; a generic failure, so assert on the primitives it relies on: a refused
+;; connection must surface as a network failure, never a contract violation.
+(require net/http-client)
+
+(define sendrecv-exn
+  (with-handlers ([exn:fail? (lambda (e) e)])
+    (http-sendrecv "127.0.0.1" "/latest.json" #:port 1 #:ssl? 'auto)
+    #f))
+(check-true (exn? sendrecv-exn) "refused connection raises")
+(check-false (exn:fail:contract? sendrecv-exn)
+             "http-sendrecv keyword/ssl usage must stay valid")
+
+(define https-exn
+  (with-handlers ([exn:fail? (lambda (e) e)])
+    (fetch-latest-manifest "https://127.0.0.1:1/latest.json")
+    #f))
+(check-true (exn? https-exn) "refused https fetch raises a network failure")
+(check-false (exn:fail:contract? https-exn)
+             "ssl preload must not raise a contract violation")
+(check-false (check-update "https://127.0.0.1:1/latest.json")
+             "check-update degrades to #f on unreachable https manifests")
+
 ;; ---- manifest v2 artifacts: download, verify, stage --------------------------
 (require glaze/signing
          racket/runtime-path
