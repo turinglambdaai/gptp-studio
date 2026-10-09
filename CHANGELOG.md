@@ -1,5 +1,15 @@
 # 更新日志 / Changelog
 
+## 1.1.2 — 2026-10-09
+
+### Security
+
+- **Updater key rotated** (incident: the previous private key was printed
+  to a session log while debugging its format). This build embeds and
+  pins the new public key; the feed and every artifact signature are
+  produced by the new key. Installs of 1.1.0 and older pin the retired
+  key and must update manually (download the .deb from Releases).
+
 ## 1.1.0 — 2026-10-09
 
 
