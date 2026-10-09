@@ -94,6 +94,10 @@ jobs:
         uses: Bogdanp/setup-racket@v1.15
         with:
           version: '9.3'
+      - name: Install Glaze doctor runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0
       - name: Install pinned Glaze
         shell: bash
         run: bash scripts/install-glaze.sh
