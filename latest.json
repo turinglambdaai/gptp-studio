@@ -6,14 +6,14 @@
     {
       "kind": "deb",
       "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.deb",
-      "sha256": "35b5a6d60a86fa5cc03866aad0cf705d611b6df3d3dd6b45ff7d81184eaa6796",
-      "signature": "eQaFfdCj1FCk3FyWbp75QFl0ullW+FcntqIv0hQT8m3iTzzAnYave7LkKJCK5B9Vd8RZ0hLeUyrokh6kRvEmCg=="
+      "sha256": "aa4d3c6b0b62c36256308d25491af7b6ac35b37f4a9bbe84e2b6853c099c0437",
+      "signature": "07n5cetWvnnM9QjpHdg/DMeaOPwUNxxcb1leSl7COGYa9bf7UBYdzg0fkVmkKrkFG+Tg6StwBDmniEGSE0yJBg=="
     },
     {
       "kind": "tarball",
       "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.tar.gz",
-      "sha256": "a87f04f4a33de6f32fccac8015c12ee3128be5164c00da80b4364838649b056d",
-      "signature": "efgc+F24F4RnCl0prkJal917WnbhVwr4zfkhTNP6FO4NxsClTmdUIx+kNVKMl4JokmXwdEBy0XgcklqygWmxBA=="
+      "sha256": "34ca44ac71978558a592c3098405b38a3730ce88f093da8bad6c250450ee70fa",
+      "signature": "NJB3SNTc7hTQ5HWuhYGg1HoRrGEg90CDFxoSGhQOGhdodEyUwQpPRrAhBMMoxBznVdK7P1Qjh/8g9Xf4Yl+HBw=="
     }
   ]
 }
