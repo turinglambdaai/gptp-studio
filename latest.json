@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
   "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.1.0",
-  "notes": "更新清单由 CI 自动签名发布：Release 工作流在发布资产构建完成后，用本次构建的",
+  "notes": "更新清单由 CI 自动签名发布：Release 工作流在发布资产构建完成后，用本次构建的 确切字节重新生成 latest.json（摘要 + Ed25519 签名），以 feed: <版本> 提交回主分支 ——清单版本号最后落位，旧安装的更新检查由这一提交触发。",
   "artifacts": [
     {
       "kind": "deb",
