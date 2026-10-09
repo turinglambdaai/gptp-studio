@@ -16,8 +16,8 @@
 ;; done behind their back; headless environments get the exact command to
 ;; run themselves). Air-gapped hosts: --no-update-check skips everything.
 
-(require glaze/signing
-         net/http-client
+(require "update-http.rkt"
+         glaze/signing
          racket/file
          racket/list
          racket/path
@@ -74,28 +74,12 @@
 
 ;; Download url to dest, streaming with a hard size cap (150 MB — the
 ;; release artifacts are well under; a runaway mirror cannot fill the disk).
+;; Redirects are followed by update-http's http-get: releases/latest/download
+;; aliases answer 302 with a CDN handoff, and staging the empty 302 body
+;; would fail digest verification (net/http-client does not follow redirects
+;; on its own).
 (define (download-to-file url dest #:max-bytes [max-bytes (* 150 1024 1024)])
-  (define m (regexp-match #rx"^https?://([^/]+)(/.*)?$" url))
-  (unless m (error 'updater "bad download url: ~a" url))
-  (define authority (list-ref m 1))
-  ;; strip any :port suffix — http-sendrecv takes host and port separately,
-  ;; and getaddrinfo rejects "host:port" as a hostname
-  (define host (car (string-split authority ":")))
-  (define ssl? (string-ci=? (substring url 0 5) "https"))
-  ;; Same as support/updates.rkt: '#f' in dynamic-require's fail position is
-  ;; a contract violation on Racket 9.3 — the artifact download would fail
-  ;; before reaching the network. Load the module, let real failures surface
-  ;; at the connection itself.
-  (when ssl? (dynamic-require 'openssl #f))
-  (define port-num
-    (or (let ([p (regexp-match #rx":([0-9]+)$" authority)])
-          (and p (string->number (second p))))
-        (if ssl? 443 80)))
-  (define path (or (list-ref m 2) "/"))
-  (define-values (_st _hd in)
-    (http-sendrecv host path
-                   #:port port-num
-                   #:ssl? (if ssl? 'auto #f)))
+  (define-values (_st _hd in) (http-get url))
   (call-with-output-file dest
     (lambda (out)
       (define total 0)

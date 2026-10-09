@@ -170,3 +170,63 @@
 ;; staged-artifact-path sanity
 (check-equal? (file-name-from-path (staged-artifact-path 'deb))
               (string->path "gPTP-Studio-linux-x64.deb"))
+
+;; ---- releases/latest/download aliases are 302s -------------------------------
+;; net/http-client does not follow redirects by default: a bare request
+;; returns the empty 302 body and digest verification would fail (the same
+;; trap rivet/distribution hit). The downloader must follow, and the staged
+;; bytes must still match the signed digest.
+(define redirect-port 18933)
+(define redirect-listener (tcp-listen redirect-port 16 #t "127.0.0.1"))
+(define redirect-dir (make-temporary-file "upd-redirect~a" 'directory))
+(define redirect-artifact (build-path redirect-dir "gPTP-Studio-linux-x64.deb"))
+(call-with-output-file redirect-artifact
+  (lambda (out) (write-bytes (make-bytes 2048 7) out))
+  #:exists 'replace)
+(define redirect-serve-thread
+  (thread
+   (lambda ()
+     (let accept-loop ()
+       (define-values (in out) (tcp-accept redirect-listener))
+       (thread
+        (lambda ()
+          (define path
+            ;; #px: #rx has no \S
+            (let ([m (regexp-match #px"^GET (\\S+)" (or (read-line in 'any) ""))])
+              (and m (cadr m))))
+          (let drain ()
+            (define l (read-line in 'any))
+            (unless (or (eof-object? l) (equal? l "")) (drain)))
+          (cond
+            [(equal? path "/gPTP-Studio-linux-x64.deb")
+             (define payload (file->bytes redirect-artifact))
+             (fprintf out "HTTP/1.0 200 OK\r\nContent-Length: ~a\r\nConnection: close\r\n\r\n"
+                      (bytes-length payload))
+             (write-bytes payload out)]
+            [else
+             ;; anything else (the /latest/ alias the manifest carries)
+             ;; answers 302 to the artifact path, like GitHub does
+             (fprintf out
+                      "HTTP/1.0 302 Found\r\nLocation: http://127.0.0.1:~a/gPTP-Studio-linux-x64.deb\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                      redirect-port)])
+          (close-output-port out)))
+       (accept-loop)))))
+(dynamic-wind
+  void
+  (lambda ()
+    (define staged-redirect
+      (download-and-verify-artifact
+       (hasheq 'kind "deb"
+               'url (format "http://127.0.0.1:~a/latest/gPTP-Studio-linux-x64.deb" redirect-port)
+               'sha256 (sha256-file redirect-artifact)
+               'signature (sign-file redirect-artifact #:private-key tpriv))
+       #:public-key tpub
+       #:dest-name "redirected.deb"))
+    (check-equal? (file-size staged-redirect) 2048
+                  "the 302 was actually followed (staged file is not the empty redirect body)")
+    (check-equal? (sha256-file staged-redirect) (sha256-file redirect-artifact)
+                  "302 is followed and the digest still matches"))
+  (lambda ()
+    (kill-thread redirect-serve-thread)
+    (tcp-close redirect-listener)
+    (delete-directory/files redirect-dir)))

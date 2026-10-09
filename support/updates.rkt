@@ -15,9 +15,9 @@
 ;; older installs. Artifact entries carry the release download url, the
 ;; artifact sha256 and its Ed25519 signature (glaze/signing).
 
-(require glaze/update
+(require "update-http.rkt"
+         glaze/update
          json
-         net/http-client
          racket/file
          racket/list
          racket/port
@@ -58,26 +58,16 @@
        (regexp-match? #px"^[0-9]+\\.[0-9]+\\.[0-9]+$" v)))
 
 ;; Fetch and parse the manifest; #f on any network/parse failure (callers
-;; treat that as "no update information").
+;; treat that as "no update information"). Redirects are followed by
+;; update-http's http-get (the ssl preload, port parsing and 302 chasing
+;; live there — see the module header for why plain http-sendrecv was not
+;; enough).
 (define (fetch-latest-manifest url)
-  (define m (regexp-match #rx"^https?://([^/]+)(/.*)?$" url))
-  (unless m (error 'updates "bad manifest url: ~a" url))
-  (define host (list-ref m 1))
-  (define path (or (list-ref m 2) "/"))
-  (define ssl? (string-ci=? (substring url 0 5) "https"))
-  ;; Preload the openssl/ssl module so https-sendrecv finds it. Racket 9.3's
-  ;; dynamic-require rejects anything but 'error in the fail position — passing #f
-  ;; here (the old form) raised exn:fail:contract before the connection was
-  ;; even attempted, which the startup handler then swallowed: the https
-  ;; update check silently never ran.
-  (when ssl? (dynamic-require 'openssl #f))
+  (unless (or (string-prefix? url "http://") (string-prefix? url "https://"))
+    (error 'updates "bad manifest url: ~a" url))
   (define-values (_st _hd in)
     (with-handlers ([exn:fail? (lambda (_) (values #f #f #f))])
-      (http-sendrecv host path
-                     #:port (or (let ([p (regexp-match #rx":([0-9]+)$" host)])
-                                  (and p (string->number (second p))))
-                                (if ssl? 443 80))
-                     #:ssl? (if ssl? 'auto #f))))
+      (http-get url)))
   (unless in (raise (error 'updates "manifest fetch failed")))
   (define body (port->string in))
   (close-input-port in)
