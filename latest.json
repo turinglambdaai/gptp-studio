@@ -1,19 +1,19 @@
 {
-  "version": "1.1.0",
-  "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.1.0",
-  "notes": "更新清单由 CI 自动签名发布：Release 工作流在发布资产构建完成后，用本次构建的 确切字节重新生成 latest.json（摘要 + Ed25519 签名），以 feed: <版本> 提交回主分支 ——清单版本号最后落位，旧安装的更新检查由这一提交触发。",
+  "version": "1.1.2",
+  "url": "https://github.com/turinglambdaai/gptp-studio/releases/tag/v1.1.2",
+  "notes": "Updater key rotated (incident: the previous private key was printed to a session log while debugging its format). This build embeds and pins the new public key; the feed and every artifact signature are produced by the new key. Installs of 1.1.0 and older pin the retired key and must update manually (download the .deb from Releases).",
   "artifacts": [
     {
       "kind": "deb",
       "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.deb",
-      "sha256": "5660d63d4955400c0169a46ec1c7b97ca8e3c8cafbdc8aae2b1cddf5c0dcb40c",
-      "signature": "y2hwHRdJ0bMRouhSqJGvtbWkZNqP13WjfN/6R1fyefvEha5MEDKmC+0ecKOgYSe/5Z1A8xELeQoH+PK6+btsAA=="
+      "sha256": "99d473bc3b496d9972737909f2642f17e635dad0d6177c04885616887f7f8924",
+      "signature": "C/fnzmhJJsoRhj7QsIr2dZwQFx1EzCfW6172nU9Lchck5vxgxjPWs7rEhrUCwl7HXR6Rx2ju3wRUE1Tp0Tp8BQ=="
     },
     {
       "kind": "tarball",
       "url": "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.tar.gz",
-      "sha256": "193a1a9743aa04d7588a527ef3266b324003e4ef91a901afc469fc10c24459df",
-      "signature": "Rp9lvHfQ9/gg24bJcy76BA4/gY4EV4RLuECMMhr9Tx64NenGkjFmCcu002TYK007HkPZxjevMuXJdLbjrJ5bBw=="
+      "sha256": "92565bbabfc5e0f06fc07025d696fd4a4f61887cca24dd940360500423eb5a40",
+      "signature": "uwfU02oW4qIYtnAH+ZXi9H3exI2R5Flvb+xVADo88beiTihcugRsRLR303hGWo13ffHVoByiNM4unZiGukK3AQ=="
     }
   ]
 }
