@@ -75,3 +75,70 @@ jobs:
           files: |
             artifacts/linux-packages/*
           generate_release_notes: true
+
+  # The update feed (latest.json on main) is the last thing a release
+  # touches: it must only point at v* URLs once the release carrying those
+  # assets exists, and its digests/signatures must describe the exact
+  # CI-built bytes (hand-signed local builds drifted once — see commit
+  # e2c8787). This job signs the just-published artifacts with the UPDATER
+  # key (Actions secret), re-verifies against the repo's pinned public key
+  # and commits the feed to main; that push is what fires update checks.
+  feed:
+    needs: [publish]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.15
+        with:
+          version: '9.3'
+      - name: Install pinned Glaze
+        shell: bash
+        run: bash scripts/install-glaze.sh
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Regenerate latest.json from the published assets
+        env:
+          UPDATER_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          KEY_FILE="$RUNNER_TEMP/updater-priv.pem"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$UPDATER_PRIVATE_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          # Guard: refuse to sign unless the private key is the exact
+          # counterpart of the public key this build pins.
+          openssl pkey -in "$KEY_FILE" -pubout -outform DER | sha256sum > "$RUNNER_TEMP/priv.fpr"
+          openssl pkey -pubin -in app/keys/updater/public.pem -outform DER | sha256sum > "$RUNNER_TEMP/pinned.fpr"
+          cmp "$RUNNER_TEMP/priv.fpr" "$RUNNER_TEMP/pinned.fpr"
+          # Feed notes: first bullet of the version's CHANGELOG section.
+          NOTES="$(awk -v h="## $VERSION" '
+            index($0, h) == 1 { f = 1; next }
+            f && substr($0, 1, 3) == "## " { exit }
+            f && substr($0, 1, 2) == "- " { sub(/^- /, ""); gsub(/[*`]/, ""); print; exit }
+          ' CHANGELOG.md)"
+          test -n "$NOTES" || NOTES="See the release page for details."
+          racket scripts/make-latest-json.rkt \
+            --version "$VERSION" \
+            --deb artifacts/linux-packages/gPTP-Studio-linux-x64.deb \
+            --tarball artifacts/linux-packages/gPTP-Studio-linux-x64.tar.gz \
+            --private-key "$KEY_FILE" \
+            --notes "$NOTES" \
+            --verify-public-key app/keys/updater/public.pem
+          rm -f "$KEY_FILE"
+      - name: Commit the feed to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "gptp-studio release bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add latest.json
+          git commit -m "feed: ${GITHUB_REF_NAME#v}"
+          git pull --rebase origin main
+          git push origin main
