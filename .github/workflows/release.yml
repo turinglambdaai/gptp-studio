@@ -122,11 +122,20 @@ jobs:
           openssl pkey -pubin -in app/keys/updater/public.pem -outform DER | sha256sum > "$RUNNER_TEMP/pinned.fpr"
           cmp "$RUNNER_TEMP/priv.fpr" "$RUNNER_TEMP/pinned.fpr"
           # Feed notes: first bullet of the version's CHANGELOG section.
+          # Hard-wrapped markdown lines are joined; the notes end at the
+          # first sentence (。), or span the whole bullet in other scripts.
           NOTES="$(awk -v h="## $VERSION" '
             index($0, h) == 1 { f = 1; next }
-            f && substr($0, 1, 3) == "## " { exit }
-            f && substr($0, 1, 2) == "- " { sub(/^- /, ""); gsub(/[*`]/, ""); print; exit }
+            !f { next }
+            started && (substr($0, 1, 2) == "- " || $0 == "" ||
+                        substr($0, 1, 3) == "## " || substr($0, 1, 3) == "### ") { exit }
+            substr($0, 1, 2) == "- " { started = 1; line = substr($0, 3); next }
+            started { line = line " " $0; next }
+            END { if (line != "") { gsub(/[*`]/, "", line); gsub(/ +/, " ", line); print line } }
           ' CHANGELOG.md)"
+          case "$NOTES" in
+            *"。"*) NOTES="${NOTES%%。*}。" ;;
+          esac
           test -n "$NOTES" || NOTES="See the release page for details."
           racket scripts/make-latest-json.rkt \
             --version "$VERSION" \
