@@ -170,7 +170,14 @@ grep -q "Racket CS" "$DIST_ROOT/THIRD_PARTY_NOTICES.md"
 grep -q "不会撤销、限制或缩小" "$DIST_ROOT/EULA.md"
 
 echo "== archive =="
-ARCHIVE="gPTP-Studio-linux-x64.tar.gz"
+# asset filename follows the family convention (os-arch); the arch token
+# follows GPTP_STUDIO_DEB_ARCH like package-deb.sh (amd64 -> x64)
+EXTRAS_ARCH="${GPTP_STUDIO_DEB_ARCH:-amd64}"
+case "$EXTRAS_ARCH" in
+  amd64) FILE_ARCH="x64" ;;
+  *) FILE_ARCH="$EXTRAS_ARCH" ;;
+esac
+ARCHIVE="gPTP-Studio-linux-${FILE_ARCH}.tar.gz"
 tar -czf "$ARCHIVE" -C dist gptp-studio-distributed
 sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 

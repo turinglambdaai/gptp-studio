@@ -1,5 +1,17 @@
 # 更新日志 / Changelog
 
+## 1.2.0 — 2026-10-11
+
+### Added
+
+- **完整 Linux 发行格式矩阵**：在 deb 与 relocatable tar.gz 之外，新增
+  rpm（rpmbuild，Fedora 命名 Requires）、AppImage（双架构 appimagetool，
+  digest 校验）与便携 zip——全部出自同一份经过 Doctor/selfcheck 冒烟的
+  payload；每个资产都带 `.sha256` sidecar，发布时汇总为 `SHA256SUMS`
+- **Linux arm64 构建**：release 的 Linux job 变为 amd64/arm64 双架构矩阵
+  （`ubuntu-24.04-arm` 原生 runner），deb/tar.gz/rpm/AppImage/zip 双架构
+  全套；自动更新 feed 暂保持 x64（更新器尚无架构路由），arm64 走手动安装
+
 ## 1.1.2 — 2026-10-09
 
 ### Security

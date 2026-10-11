@@ -22,7 +22,20 @@ jobs:
 
   linux:
     needs: verify
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+            racket-arch: x64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            racket-arch: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      # The one switch every packaging script reads (deb arch, asset naming).
+      GPTP_STUDIO_DEB_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v7
       - name: Install Racket
@@ -30,6 +43,7 @@ jobs:
         with:
           version: '9.3'
           distribution: full
+          architecture: ${{ matrix.racket-arch }}
       - name: Install build/runtime dependencies
         run: |
           sudo apt-get update
@@ -39,11 +53,13 @@ jobs:
             linuxptp \
             ethtool \
             iproute2 \
-            libcap2-bin
+            libcap2-bin \
+            rpm \
+            jq
       - name: Install pinned Glaze
         shell: bash
         run: bash scripts/install-glaze.sh
-      - name: Build and smoke-test Linux tarball + Debian package
+      - name: Build and smoke-test the payload, then package deb + rpm + AppImage + zip
         shell: bash
         run: |
           set -euo pipefail
@@ -52,15 +68,13 @@ jobs:
             "$(git -C "$HOME/glaze-src" rev-parse HEAD)"
           raco make main.rkt
           bash scripts/package-deb.sh "$VERSION" "$GITHUB_REF_NAME"
+          bash scripts/package-extras.sh "$VERSION"
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-packages
-          path: |
-            gPTP-Studio-linux-x64.tar.gz
-            gPTP-Studio-linux-x64.tar.gz.sha256
-            gPTP-Studio-linux-x64.deb
-            gPTP-Studio-linux-x64.deb.sha256
+          name: linux-packages-${{ matrix.arch }}
+          path: gPTP-Studio-linux-*
+          if-no-files-found: error
 
   publish:
     needs: [linux]
@@ -69,11 +83,26 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Collect assets and build SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rel
+          find artifacts -type f -exec mv {} rel/ \;
+          cd rel
+          # every per-asset sidecar must match its asset before publishing
+          for s in *.sha256; do
+            asset="${s%.sha256}"
+            test -f "$asset"
+            sha256sum -c "$s"
+          done
+          cat *.sha256 > SHA256SUMS
+          ls -la
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/linux-packages/*
+            rel/*
           generate_release_notes: true
 
   # The update feed (latest.json on main) is the last thing a release
@@ -139,8 +168,8 @@ jobs:
           test -n "$NOTES" || NOTES="See the release page for details."
           racket scripts/make-latest-json.rkt \
             --version "$VERSION" \
-            --deb artifacts/linux-packages/gPTP-Studio-linux-x64.deb \
-            --tarball artifacts/linux-packages/gPTP-Studio-linux-x64.tar.gz \
+            --deb artifacts/linux-packages-amd64/gPTP-Studio-linux-x64.deb \
+            --tarball artifacts/linux-packages-amd64/gPTP-Studio-linux-x64.tar.gz \
             --private-key "$KEY_FILE" \
             --notes "$NOTES" \
             --verify-public-key app/keys/updater/public.pem
