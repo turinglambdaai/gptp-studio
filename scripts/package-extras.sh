@@ -39,9 +39,9 @@ echo "== rpm =="
 # that keeps the Ubuntu-built Racket runtime installable on Fedora.
 # Requires names what the payload FFI/execs at runtime — the Fedora
 # spellings of the deb's Depends.
-STAGE="dist/rpm-root/STAGED"
+STAGE="$PWD/dist/rpm-top/STAGED"
 TOPDIR="$PWD/dist/rpm-top"
-rm -rf dist/rpm-root "$TOPDIR"
+rm -rf "$TOPDIR"
 mkdir -p "$STAGE/opt/gptp-studio" \
          "$STAGE/usr/bin" \
          "$STAGE/usr/share/applications" \
@@ -174,5 +174,5 @@ ln -s gptp-studio.png "$appdir/.DirIcon"
 ./"$tool" --no-appstream "$appdir" "$APPIMAGE"
 sha256sum "$APPIMAGE" > "$APPIMAGE.sha256"
 
-rm -rf dist/rpm-root "$TOPDIR" "$tool"
+rm -rf "$TOPDIR" "$tool"
 echo "packaged: $ZIP / $RPM / $APPIMAGE"
