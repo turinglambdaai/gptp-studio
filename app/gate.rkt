@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; Commercial tier gate built on glaze/license.
+;; Commercial tier gate built on the offline license module
 ;;
 ;;   free   — passive listening (capture+decode), offline pcap analysis,
 ;;            simulator, config editor/preview, presets (watch free)
@@ -9,13 +9,13 @@
 ;;   trial  — 14 days of Pro from the moment the user starts it
 ;;
 ;; The tier never blocks the six pages, only the actions listed above.
-;; Validation is offline RSA-2048 via the system openssl CLI (glaze/licence).
+;; Validation is offline RSA-2048 via the system openssl CLI.
 
 (require json
          racket/date
          racket/file
          racket/string
-         glaze/license
+         "../support/license.rkt"
          racket/runtime-path)
 
 (provide gate-init!

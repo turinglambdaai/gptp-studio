@@ -11,7 +11,7 @@
          racket/file
          racket/list
          racket/string
-         glaze/events
+         "../app/bus.rkt"
          "../engine/config.rkt"
          "../engine/qualification.rkt"
          "../engine/runtime-config.rkt"

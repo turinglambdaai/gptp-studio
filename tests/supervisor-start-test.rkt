@@ -3,7 +3,7 @@
 (require rackunit
          racket/file
          json
-         glaze/events
+         "../app/bus.rkt"
          "../engine/config.rkt"
          "../engine/supervisor.rkt"
          "../data/logstore.rkt"
