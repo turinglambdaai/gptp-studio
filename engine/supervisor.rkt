@@ -17,7 +17,7 @@
          racket/port
          racket/string
          racket/system
-         glaze/events
+         (prefix-in bus: "../app/bus.rkt")
          "config.rkt"
          "detect.rkt"
          "failure-diagnosis.rkt"
@@ -99,7 +99,7 @@
   (log-add! (supervisor-logs sup) source level message))
 
 (define (emit! sup name payload)
-  (bus-broadcast! (supervisor-bus sup) name payload))
+  (bus:bus-broadcast! (supervisor-bus sup) name payload))
 
 (define (linuxptp-available?)
   (and (find-executable-path "ptp4l") #t))

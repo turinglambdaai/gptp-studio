@@ -7,7 +7,7 @@
 (require racket/format
          racket/list
          racket/hash
-         glaze/events
+         (prefix-in bus: "../app/bus.rkt")
          "live.rkt"
          "../proto/decode.rkt"
          "../capture/store.rkt"
@@ -37,7 +37,7 @@
   (log-add! (capture-manager-logs cm) 'capture level msg))
 
 (define (emit! cm name payload)
-  (bus-broadcast! (capture-manager-bus cm) name payload))
+  (bus:bus-broadcast! (capture-manager-bus cm) name payload))
 
 ;; Start capturing. Returns (values ok? error-string).
 (define (cm-start cm iface)

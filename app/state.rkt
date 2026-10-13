@@ -6,7 +6,7 @@
 (require json
          racket/file
          racket/path
-         glaze/events
+         (prefix-in bus: "bus.rkt")
          "../data/series.rkt"
          "../data/logstore.rkt"
          "../data/preset.rkt"
@@ -38,7 +38,7 @@
 ;; ---- stores (created once) -----------------------------------------------------
 
 (define app-wv-box (box #f))  ; set by main on-ready; used by the dev screenshot API
-(define app-bus (make-event-bus))
+(define app-bus (bus:make-event-bus))
 (define app-logs (make-logstore 8000))
 (define app-offset-series (make-series 21600))
 (define app-delay-series (make-series 21600))

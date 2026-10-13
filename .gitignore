@@ -49,3 +49,8 @@ dist-fixed/
 app/keys/updater/private.pem
 
 /gPTP-Studio-*.sig
+
+# Rivet build artifacts (staged bundles, generated clients)
+.rivet/
+macos-host/
+windows/
