@@ -2,7 +2,7 @@
 
 **面向 Automotive Ethernet 的 Linux 原生 gPTP / IEEE 802.1AS 专业调试工作站。**
 
-[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 [English](README.md) · **中文**
 
@@ -33,7 +33,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 
 | 项目 | 支持范围 |
 |---|---|
-| 首要验证发行版 | Ubuntu 22.04 LTS、Ubuntu 24.04 LTS |
+| 首要验证发行版 | Ubuntu 24.04 LTS（GTK4 宿主要求 GTK 4.10+；22.04 的 4.6 低于下限） |
 | 桌面 UI | Rivet 宿主（GTK4 原生控件，无 WebView） |
 | 真实 GM / 从钟引擎 | linuxptp（`ptp4l`、`phc2sys`、`pmc`） |
 | 时间硬件 | 支持 hardware timestamp 的 NIC + PHC（`/dev/ptpN`） |

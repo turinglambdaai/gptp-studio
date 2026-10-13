@@ -2,7 +2,7 @@
 
 **A Linux-native gPTP / IEEE 802.1AS debugging workstation for Automotive Ethernet.**
 
-[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **English** · [中文](README.zh-CN.md)
 
@@ -33,7 +33,7 @@ The product contract is **Linux only**.
 
 | Area | Support |
 |---|---|
-| Primary validated distributions | Ubuntu 22.04 LTS, Ubuntu 24.04 LTS |
+| Primary validated distribution | Ubuntu 24.04 LTS (the GTK4 host requires GTK 4.10+; 22.04's 4.6 is below the floor) |
 | Desktop UI | Rivet host on GTK4 (first-party widgets, no WebView) |
 | Real GM / Slave engine | linuxptp (`ptp4l`, `phc2sys`, `pmc`) |
 | Timing hardware | NIC hardware timestamping + PHC (`/dev/ptpN`) |
