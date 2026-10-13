@@ -1,14 +1,19 @@
 #lang racket/base
 
-;; In-app self-update: download the new release artifact, verify its
-;; Ed25519 signature against the pinned updater public key, check the
-;; manifest sha256, and stage it for installation.
+;; In-app self-update: download the update artifact chosen by the signed
+;; manifest check (support/updates.rkt), verify it, and stage it for
+;; installation. The download leg is rivet's download-update — a
+;; redirect-following fetch under the SIGNED size cap, .partial cleanup on
+;; every failure, SHA-256 + size verification against the signed manifest,
+;; and the final atomic rename; this module only runs it on a watched
+;; worker thread and maps the outcome onto the flow state machine.
 ;;
-;; Trust chain: TLS gets the manifest; the Ed25519 signature (made with a
-;; private key that never lives on a server) authenticates the artifact;
-;; the pinned public key in this repo decides what the app accepts. A
-;; compromised release host can serve stale artifacts, never accepted
-;; malicious ones.
+;; Trust chain: TLS gets the bytes; the Ed25519-signed manifest (made with
+;; a private key that never lives on a server) authenticates the whole
+;; chain — the artifact digest and size ride the signature. This replaces
+;; the old per-artifact glaze/signing signatures over an unsigned
+;; latest.json: a compromised release host can now serve nothing accepted
+;; at all, not merely stale artifacts.
 ;;
 ;; Apply policy: this product installs as a system deb, so applying needs
 ;; the operator's explicit consent — pkexec raises the standard system
@@ -16,22 +21,15 @@
 ;; done behind their back; headless environments get the exact command to
 ;; run themselves). Air-gapped hosts: --no-update-check skips everything.
 
-(require "update-http.rkt"
-         glaze/signing
+(require rivet/distribution
          racket/file
-         racket/list
-         racket/path
-         racket/runtime-path
-         racket/string
-         racket/system)
+         racket/system
+         "updates.rkt")
 
 (provide update-stage-dir
          ensure-update-stage-dir
-         pinned-updater-public-key
-         artifact-entry
-         pick-artifact-entry
-         download-and-verify-artifact
          staged-artifact-path
+         download-candidate!
          apply-staged-deb-command
          pkexec-available?)
 
@@ -45,85 +43,35 @@
   (make-directory* dir)
   dir)
 
-;; The updater public key is committed next to the license one; it pins
-;; what this build accepts. (The private half lives off-repo, in the
-;; operator's key vault.)
-(define-runtime-path updater-public-key-path
-  "../app/keys/updater/public.pem")
+;; Staged file name per signed manifest installer symbol. Both feed
+;; artifacts for this product are linux x64; the names match the release
+;; assets so the printed install command reads like the manual one.
+(define (staged-artifact-path installer)
+  (define dir (update-stage-dir))
+  (case installer
+    [(deb) (build-path dir "gPTP-Studio-linux-x64.deb")]
+    [(targz) (build-path dir "gPTP-Studio-linux-x64.tar.gz")]
+    [else #f]))
 
-(define (pinned-updater-public-key)
-  updater-public-key-path)
-
-;; Manifest v2 artifact entry:
-;;   {"kind": "deb"|"tarball", "url": ..., "sha256": ..., "signature": ...}
-(define (artifact-entry manifest kind)
-  (and (hash? manifest)
-       (for/first ([a (in-list (hash-ref manifest 'artifacts '()))]
-                   #:when (equal? (hash-ref a 'kind #f) kind))
-         a)))
-
-;; Pick the artifact matching the running install: deb for system
-;; installs (/opt, /usr), tarball for relocatable ones.
-(define (pick-artifact-entry manifest)
-  (define system-install?
-    (let ([exe (find-system-path 'run-file)])
-      (and (path? exe)
-           (let ([s (path->string exe)])
-             (or (string-contains? s "/opt/") (string-contains? s "/usr/"))))))
-  (artifact-entry manifest (if system-install? "deb" "tarball")))
-
-;; Download url to dest, streaming with a hard size cap (150 MB — the
-;; release artifacts are well under; a runaway mirror cannot fill the disk).
-;; Redirects are followed by update-http's http-get: releases/latest/download
-;; aliases answer 302 with a CDN handoff, and staging the empty 302 body
-;; would fail digest verification (net/http-client does not follow redirects
-;; on its own).
-(define (download-to-file url dest #:max-bytes [max-bytes (* 150 1024 1024)])
-  (define-values (_st _hd in) (http-get url))
-  (call-with-output-file dest
-    (lambda (out)
-      (define total 0)
-      (let loop ()
-        (define chunk (read-bytes 65536 in))
-        (unless (eof-object? chunk)
-          (set! total (+ total (bytes-length chunk)))
-          (when (> total max-bytes)
-            (error 'updater "download exceeds ~a bytes; aborting" max-bytes))
-          (write-bytes chunk out)
-          (loop))))
-    #:exists 'replace)
-  (close-input-port in)
-  dest)
-
-;; Download url, verify signature (Ed25519, pinned key) + sha256 (manifest),
-;; stage under the update dir. Returns the staged path; raises on any
-;; verification failure (the caller surfaces the message verbatim).
-;; #:public-key overrides the pinned key — the test suite uses that to
-;; sign/verify with its own keypair (CI has no access to the release key).
-(define (download-and-verify-artifact entry
-                                      #:dest-name [dest-name #f]
-                                      #:public-key [public-key (pinned-updater-public-key)])
-  (unless (and (hash? entry)
-               (string? (hash-ref entry 'url #f))
-               (string? (hash-ref entry 'sha256 #f))
-               (string? (hash-ref entry 'signature #f)))
-    (error 'updater "manifest artifact entry is missing url/sha256/signature"))
-  (ensure-update-stage-dir)
-  (define dest
-    (build-path (update-stage-dir)
-                (or dest-name
-                    (path->string
-                     (file-name-from-path
-                      (string->path (hash-ref entry 'url)))))))
-  (download-to-file (hash-ref entry 'url) dest)
-  (unless (verify-signature dest
-                            #:public-key public-key
-                            #:signature (hash-ref entry 'signature)
-                            #:expected-sha256 (hash-ref entry 'sha256))
-    (delete-file dest)
-    (error 'updater
-           "update artifact failed signature verification; deleted. Report this."))
-  dest)
+;; Download the candidate's artifact into the stage dir. rivet owns the
+;; redirect-following fetch (releases/latest/download aliases answer 302
+;; with a CDN handoff), the signed-size cap, .partial cleanup on any
+;; failure, SHA-256 + size verification against the signed manifest, and
+;; the atomic rename. Synchronous; raises on failure — update-prepare!
+;; wraps it in the watched worker thread. Every progress report feeds the
+;; watchdog's stall clock.
+(define (download-candidate! candidate)
+  (define artifact (update-candidate-artifact candidate))
+  (define destination
+    (staged-artifact-path (update-artifact-installer artifact)))
+  (unless destination
+    (error 'updater "no staged name for installer ~a"
+           (update-artifact-installer artifact)))
+  (download-update (make-updater-config) candidate destination
+                   #:on-progress
+                   (lambda (_bytes)
+                     (set-box! last-progress-seconds (current-seconds))))
+  destination)
 
 ;; The exact command that applies a staged deb on a system install
 ;; (shown in the UI; apply itself goes through pkexec with the operator's
@@ -134,13 +82,6 @@
 (define (pkexec-available?)
   (file-exists? "/usr/bin/pkexec"))
 
-(define (staged-artifact-path kind)
-  (define dir (update-stage-dir))
-  (case kind
-    [(deb) (build-path dir "gPTP-Studio-linux-x64.deb")]
-    [(tarball) (build-path dir "gPTP-Studio-linux-x64.tar.gz")]
-    [else #f]))
-
 ;; ---- flow state machine (prepare -> staged -> apply -> applied) --------------
 
 (provide update-prepare!
@@ -149,6 +90,17 @@
 
 ;; One flow at a time; the UI polls this hash through /api/update/status.
 (define flow-box (box (hasheq 'state 'idle)))
+
+;; Download watchdog bounds. rivet's copy loop waits on read-bytes-avail!
+;; with no timeout, so a connection that stalls without RST/FIN parks the
+;; worker thread forever — visibly "stuck" with no terminal state. Two
+;; finite bounds keep the phase machine honest: no byte progress for the
+;; stall limit, or wall clock past the total limit, breaks the worker
+;; (rivet's partial-file cleanup still runs) so the flow always reaches a
+;; terminal state.
+(define download-stall-limit-seconds 120)
+(define download-total-limit-seconds (* 30 60))
+(define last-progress-seconds (box 0))
 
 (define (flow-set! state #:error [error #f] #:staged [staged #f])
   (set-box! flow-box
@@ -168,26 +120,53 @@
           (let ([p (hash-ref f 'staged #f)])
             (and p (apply-staged-deb-command p)))))
 
-;; Download + verify + stage the manifest artifact for `kind`. Runs in the
-;; caller's thread (the API spawns one) — a second prepare while running
-;; fails with "already running".
-(define (update-prepare! kind manifest)
+;; Download + verify + stage the checked candidate. Runs on a watched
+;; worker thread (the API spawns the flow and polls the status) — a second
+;; prepare while running fails with "already running". The kind argument is
+;; kept for the API shape; what gets staged is the artifact the signed
+;; manifest picked for this install at check time.
+(define (update-prepare! kind candidate)
   (define state (hash-ref (unbox flow-box) 'state))
   (when (member state '(downloading applying))
     (error 'updater "an update flow is already running"))
+  (unless (update-candidate? candidate)
+    (error 'updater "no verified update candidate; run an update check first"))
   (flow-set! 'downloading)
+  (set-box! last-progress-seconds (current-seconds))
+  (define worker
+    (thread
+     (lambda ()
+       ;; The watchdog breaks a stalled worker; exn:break is not an
+       ;; exn:fail, so it needs its own arm — either way rivet's partial
+       ;; cleanup removes the .partial and the flow lands on failed
+       ;; (never mid-flight).
+       (with-handlers
+           ([(lambda (e) (or (exn:fail? e) (exn:break? e)))
+             (lambda (e)
+               (define message
+                 (if (exn:break? e)
+                     "update download stalled or timed out"
+                     (exn-message e)))
+               (flow-set! 'failed #:error message)
+               (log-error "update prepare failed: ~a" message))])
+         (define staged (download-candidate! candidate))
+         (flow-set! 'staged #:staged staged)))))
+  ;; Watchdog: exits once the worker finishes on its own; otherwise a stall
+  ;; (no byte progress) or the total wall-clock limit breaks the worker so
+  ;; the flow never rests on "downloading" indefinitely.
+  (define started (current-seconds))
   (thread
    (lambda ()
-     (with-handlers
-         ([exn:fail?
-           (lambda (e)
-             (flow-set! 'failed #:error (exn-message e))
-             (log-error "update prepare failed: ~a" (exn-message e)))])
-       (define entry
-         (or (pick-artifact-entry manifest)
-             (error 'updater "manifest has no ~a artifact" kind)))
-       (define staged (download-and-verify-artifact entry))
-       (flow-set! 'staged #:staged staged)))))
+     (let loop ()
+       (cond
+         [(sync/timeout download-stall-limit-seconds (thread-dead-evt worker))
+          (void)]
+         [(or (> (- (current-seconds) (unbox last-progress-seconds))
+                 download-stall-limit-seconds)
+              (> (- (current-seconds) started) download-total-limit-seconds))
+          (break-thread worker)]
+         [else (loop)]))))
+  (void))
 
 ;; Apply a staged deb through pkexec — the operator sees the standard
 ;; system authentication dialog and consents explicitly. Nothing runs

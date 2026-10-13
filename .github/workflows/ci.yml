@@ -39,6 +39,9 @@ jobs:
         shell: bash
         run: bash scripts/install-glaze.sh
 
+      - name: Install Rivet (catalog) and crypto (updater dependency)
+        run: raco pkg install --auto --no-docs rivet crypto
+
       - name: Check browser JavaScript syntax
         shell: bash
         run: |

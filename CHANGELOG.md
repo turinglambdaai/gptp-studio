@@ -1,5 +1,23 @@
 # 更新日志 / Changelog
 
+## Unreleased
+
+### Changed
+
+- **更新链路全程认证（迁移到 rivet/distribution，家族标准）**：启动检查取回
+  Ed25519 签名的 `update-stable.json`（`fetch-update-manifest`：签名验证先于
+  一切解析，HTTPS-only，重定向预算与 1 MiB 上限内置），选择策略走
+  `select-update`（身份 / 渠道 / SemVer / 灰度），下载走 `download-update`
+  （签名内 size 上限、SHA-256 + size 校验、失败即清理 `.partial`、原子改名），
+  并加家族 watchdog（清单 60s；下载 120s 无进展 / 30min 总限，卡死的连接
+  不再把线程永远停住）。旧的未签名 `latest.json` 机制（清单明文 + 逐工件
+  签名）退役。**切换点之前的安装（≤ 1.2.0）拉不到旧 feed，更新检查会静默
+  失效——需要手动更新一次**（从 Releases 下载 deb 安装）。签名密钥不变
+  （`app/keys/updater/public.pem` 为轮换锚点，测试将内置公钥与锚点绑定），
+  feed 由 Release 流水线用 `UPDATER_PRIVATE_KEY` 经 rivet
+  `write-signed-manifest` 签名后提交到 main；私钥与固定公钥不同源时拒绝
+  出签名 feed。`GPTP_UPDATE_MANIFEST_URL` 覆写现在必须是 HTTPS。
+
 ## 1.2.0 — 2026-10-11
 
 ### Added

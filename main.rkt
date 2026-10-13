@@ -17,7 +17,6 @@
          racket/runtime-path
          racket/string
          glaze
-         glaze/update
          "app/api.rkt"
          "app/state.rkt"
          "app/gate.rkt"
@@ -109,31 +108,34 @@
        (displayln "[gptp-studio] 另一个实例已在运行")
        (exit 1))
      (gate-init!)
+     ;; the updater reads the running version through its parameter (it
+     ;; must not require app/state.rkt — tests drive it without the engine)
+     (update-current-version version)
      (when update-check?
        ;; Background, fire-and-forget: a slow/blocked network must never
-       ;; delay startup. On a newer release this broadcasts
-       ;; 'update-available on the app bus (the UI shows a header pill +
-       ;; toast) and logs one line. GPTP_UPDATE_MANIFEST_URL overrides the
-       ;; manifest location (air-gapped hosts point it at a file server or
-       ;; disable the check entirely with --no-update-check).
+       ;; delay startup. check-for-update fetches and verifies the
+       ;; Ed25519-signed feed (update-stable.json on main), applies rivet's
+       ;; selection policy and picks this install's artifact; on a newer
+       ;; release this broadcasts 'update-available on the app bus (the UI
+       ;; shows a header pill + toast) and logs one line. Failures fold to
+       ;; no-update — a broken network never blocks or crashes startup, and
+       ;; the fetch runs under a 60s watchdog so a stalled connection
+       ;; cannot park this thread forever. GPTP_UPDATE_MANIFEST_URL
+       ;; overrides the manifest location (must be HTTPS — the signed
+       ;; scheme refuses plain HTTP; air-gapped hosts disable the check
+       ;; entirely with --no-update-check).
        (thread
         (lambda ()
           (sleep 2.5)
           (with-handlers ([exn:fail? (lambda (_) (void))])
-            (define manifest (fetch-latest-manifest
-                              (or (getenv "GPTP_UPDATE_MANIFEST_URL")
-                                  update-manifest-url)))
-            (define info
-              (and manifest
-                   (let ([v (hash-ref manifest 'version #f)])
-                     (and (string? v)
-                          (newer-version? v version)
-                          (hasheq 'version v
-                                  'url (hash-ref manifest 'url #f)
-                                  'notes (hash-ref manifest 'notes #f))))))
-            (when info
+            (define candidate
+              (check-for-update
+               (or (getenv "GPTP_UPDATE_MANIFEST_URL")
+                   update-manifest-url)))
+            (when candidate
+              (define info (update-info candidate))
               (define v (hash-ref info 'version))
-              (set-box! update-manifest-box manifest)
+              (set-box! update-manifest-box candidate)
               (set-box! update-info-box info)
               (log-add! app-logs 'app 'info
                         (format "新版本可用：~a（当前 ~a）" v version))

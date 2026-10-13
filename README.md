@@ -81,7 +81,7 @@ For real hardware work, start with `gptp-studio --doctor`, fix structural FAIL i
 
 ### Update check
 
-About 2.5s after startup the app fetches a version manifest once in the background (`latest.json`, hosted on this repository's main branch). On a newer release an `⬇ version` pill appears in the header and links to the releases page. **Nothing is installed automatically** — what gets installed stays with the operator. Air-gapped hosts can disable the network contact entirely with `--no-update-check`, or point `GPTP_UPDATE_MANIFEST_URL` at their own manifest.
+About 2.5s after startup the app fetches the Ed25519-signed update feed once in the background (`update-stable.json`, hosted on this repository's main branch; the signature is verified against the key pinned in the binary before anything else looks at the feed). On a newer release an `⬇ version` pill appears in the header and links to the releases page. **Nothing is installed automatically** — staging the update downloads the artifact under the signed manifest's size/digest bounds, and applying runs `apt-get install` through `pkexec`, so what gets installed stays with the operator. Installs from before the signed-feed switch (≤ 1.2.0) fetched the retired unsigned `latest.json` and must update once manually (download the .deb from Releases). Air-gapped hosts can disable the network contact entirely with `--no-update-check`, or point `GPTP_UPDATE_MANIFEST_URL` at their own HTTPS mirror of the feed (plain HTTP is refused by design).
 
 ## Pages
 
