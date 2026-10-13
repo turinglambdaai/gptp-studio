@@ -10,7 +10,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 
 针对 AUTOSAR EthTSyn / IEEE 802.1AS 场景，一台 Linux 工作站可以在 **GrandMaster / 从钟 / 被动监听** 三种角色之间切换，实时显示同步收敛、解码线上每一条 gPTP 报文，并把 offset 突跳与对应报文和引擎状态关联起来。
 
-项目使用 [Racket](https://racket-lang.org/) + [Glaze](https://github.com/turinglambdaai/glaze)，桌面 UI 走 WebKitGTK，真实时间路径则交给 Linux 原生 PHC / hardware timestamp / linuxptp。
+项目使用 [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turinglambdaai/rivet)：原生 GTK4 桌面宿主经类型化 RPC/事件契约驱动内嵌 Racket 后端，真实时间路径交给 Linux 原生 PHC / hardware timestamp / linuxptp。同步收敛曲线由 Rivet 共享的实时图表数据面渲染。
 
 ## 核心能力
 
@@ -34,7 +34,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 | 项目 | 支持范围 |
 |---|---|
 | 首要验证发行版 | Ubuntu 22.04 LTS、Ubuntu 24.04 LTS |
-| 桌面 UI | GTK 3 + WebKitGTK 4.1 |
+| 桌面 UI | Rivet 宿主（GTK4 原生控件，无 WebView） |
 | 真实 GM / 从钟引擎 | linuxptp（`ptp4l`、`phc2sys`、`pmc`） |
 | 时间硬件 | 支持 hardware timestamp 的 NIC + PHC（`/dev/ptpN`） |
 | 抓包 | libpcap，并显示运行时实际时间戳来源 |
@@ -68,9 +68,9 @@ cd gptp-studio-distributed
 
 ```bash
 sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
-  libgtk-3-dev libwebkit2gtk-4.1-dev
+  libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev
 
-raco pkg install --auto --no-docs --link /path/to/glaze
+raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
 raco make main.rkt
 racket main.rkt --doctor
 racket main.rkt --simulator
@@ -113,7 +113,7 @@ racket main.rkt
 
 ## 架构原则
 
-一个 Racket 进程负责 Glaze/WebKitGTK UI 与产品逻辑；真正的时间路径交给 Linux 原生能力：linuxptp 子进程、PHC/hardware timestamp、libpcap。Racket/GUI 是控制面与分析面，不是纳秒时间戳产生源。详见 [docs/architecture.md](docs/architecture.md)。
+一个 Racket 后端进程向原生 GTK4 宿主提供类型化 RPC/事件契约；真正的时间路径交给 Linux 原生能力：linuxptp 子进程、PHC/hardware timestamp、libpcap。Racket/GUI 是控制面与分析面，不是纳秒时间戳产生源。详见 [docs/architecture.md](docs/architecture.md)。
 
 ## 许可证
 

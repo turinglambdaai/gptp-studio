@@ -10,7 +10,7 @@ gPTP Studio is deliberately focused on Linux because professional gPTP work depe
 
 For AUTOSAR EthTSyn / IEEE 802.1AS debugging, one Linux workstation can act as **GrandMaster, Slave or passive Listener**, show sync convergence live, decode every gPTP frame and correlate timing jumps with the packets and engine state that caused them.
 
-Built with [Racket](https://racket-lang.org/) + [Glaze](https://github.com/turinglambdaai/glaze), using WebKitGTK for the desktop UI and Linux-native timing/network facilities for the real engine path.
+Built with [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turinglambdaai/rivet): a first-party GTK4 desktop host over an embedded Racket backend through a typed RPC/event contract, with Linux-native timing/network facilities for the real engine path. Live sync convergence renders through Rivet's shared real-time chart data plane.
 
 ## Highlights
 
@@ -34,7 +34,7 @@ The product contract is **Linux only**.
 | Area | Support |
 |---|---|
 | Primary validated distributions | Ubuntu 22.04 LTS, Ubuntu 24.04 LTS |
-| Desktop UI | GTK 3 + WebKitGTK 4.1 |
+| Desktop UI | Rivet host on GTK4 (first-party widgets, no WebView) |
 | Real GM / Slave engine | linuxptp (`ptp4l`, `phc2sys`, `pmc`) |
 | Timing hardware | NIC hardware timestamping + PHC (`/dev/ptpN`) |
 | Capture | libpcap, with runtime timestamp-source reporting |
@@ -68,9 +68,9 @@ cd gptp-studio-distributed
 
 ```bash
 sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
-  libgtk-3-dev libwebkit2gtk-4.1-dev
+  libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev
 
-raco pkg install --auto --no-docs --link /path/to/glaze
+raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
 raco make main.rkt
 racket main.rkt --doctor
 racket main.rkt --simulator
@@ -113,7 +113,7 @@ Every official install starts with a 14-day Pro trial. See [PRICING.md](PRICING.
 
 ## Architecture
 
-One Racket process hosts the Glaze/WebKitGTK UI and application services. Real timing is delegated to Linux-native facilities: linuxptp child processes, PHC/hardware timestamps and libpcap. Timing-critical timestamps are produced below the Racket GUI/control layer; Studio focuses on orchestration, observability, analysis and safe qualification. Details: [docs/architecture.md](docs/architecture.md).
+One Racket backend process serves a typed RPC/event contract to the native GTK4 host; real timing is delegated to Linux-native facilities: linuxptp child processes, PHC/hardware timestamps and libpcap. Timing-critical timestamps are produced below the Racket GUI/control layer; Studio focuses on orchestration, observability, analysis and safe qualification. Details: [docs/architecture.md](docs/architecture.md).
 
 ## License
 
