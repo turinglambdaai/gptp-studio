@@ -49,9 +49,12 @@ A NIC reporting hardware timestamping and `/dev/ptpN` means the host has the req
 
 ```bash
 sudo apt install ./gPTP-Studio-linux-x64.deb
-gptp-studio --doctor
-gptp-studio
+/opt/gptp-studio/gptp-studio --doctor
+/opt/gptp-studio/gptp-studio
 ```
+
+The deb installs under `/opt/gptp-studio` with a desktop entry; the
+commands above are the headless and direct-launch forms.
 
 The Debian package declares the Linux runtime dependencies and installs the desktop entry, icon and license notices. It intentionally does **not** grant `CAP_NET_ADMIN`, `CAP_NET_RAW` or `CAP_SYS_TIME` during installation. Doctor / Preflight show the privilege path explicitly so an operator controls security changes.
 

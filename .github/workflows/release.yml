@@ -74,9 +74,12 @@ jobs:
           deb=$(find dist -name '*.deb' | head -1)
           test -n "$deb"
           sudo apt-get install -y "./$deb"
-          command -v gptp-studio
-          gptp-studio --doctor | head -5
-          test "${PIPESTATUS[0]}" = "0"
+          # Family deb contract: payload under /opt/<name>, desktop entry
+          # for GUI launch; the headless surface runs from the install root.
+          test -x /opt/gptp-studio/gptp-studio
+          /opt/gptp-studio/gptp-studio --doctor > doctor.out
+          test "$?" = "0"
+          head -5 doctor.out
 
       - name: Collect artifacts
         shell: bash

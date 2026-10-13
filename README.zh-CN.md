@@ -49,9 +49,12 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 
 ```bash
 sudo apt install ./gPTP-Studio-linux-x64.deb
-gptp-studio --doctor
-gptp-studio
+/opt/gptp-studio/gptp-studio --doctor
+/opt/gptp-studio/gptp-studio
 ```
+
+deb 安装到 `/opt/gptp-studio` 并带桌面入口；上面的命令分别是无头
+诊断与直接启动形态。
 
 `.deb` 会声明 Linux 运行依赖，并安装桌面入口、图标和许可证材料。安装过程**不会偷偷执行 `setcap`**，也不会自动授予 `CAP_NET_ADMIN`、`CAP_NET_RAW`、`CAP_SYS_TIME`。Doctor / Preflight 会明确告诉用户当前权限路径，由工程师自己决定系统安全配置。
 
