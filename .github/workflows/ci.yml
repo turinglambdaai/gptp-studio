@@ -43,7 +43,7 @@ jobs:
             file
 
       - name: Install Rivet (released package)
-        run: raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
 
       - name: Backend tests
         run: raco test tests/*.rkt

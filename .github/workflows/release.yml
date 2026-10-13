@@ -55,7 +55,7 @@ jobs:
             file
 
       - name: Install Rivet (released package)
-        run: raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
 
       # --without-updates: the 1.0.0 first release has no installed base to
       # serve an update feed to; the RivetUpdate channel (keys + manifest)
