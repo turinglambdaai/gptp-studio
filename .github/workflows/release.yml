@@ -67,6 +67,17 @@ jobs:
           raco rivet generate
           raco rivet release --development --without-updates
 
+      - name: Install and smoke the deb (doctor path)
+        if: matrix.arch == 'amd64'
+        run: |
+          set -euo pipefail
+          deb=$(find dist -name '*.deb' | head -1)
+          test -n "$deb"
+          sudo apt-get install -y "$deb"
+          command -v gptp-studio
+          gptp-studio --doctor | head -5
+          test "${PIPESTATUS[0]}" = "0"
+
       - name: Collect artifacts
         shell: bash
         run: |
