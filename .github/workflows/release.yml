@@ -12,12 +12,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Verify tag, app version, changelog and pinned dependencies
+      - name: Verify tag and app version alignment
         shell: bash
         run: |
           bash -n scripts/check-release-version.sh
-          bash -n scripts/install-glaze.sh
-          test "$(tr -d '[:space:]' < GLAZE_REVISION)" != ""
           bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
 
   linux:
@@ -28,145 +26,75 @@ jobs:
         include:
           - arch: amd64
             runner: ubuntu-22.04
-            racket-arch: x64
           - arch: arm64
             runner: ubuntu-24.04-arm
-            racket-arch: arm64
     runs-on: ${{ matrix.runner }}
-    env:
-      # The one switch every packaging script reads (deb arch, asset naming).
-      GPTP_STUDIO_DEB_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          version: '9.3'
-          distribution: full
-          architecture: ${{ matrix.racket-arch }}
-      - name: Install build/runtime dependencies
+
+      - name: Set up embeddable Racket CS
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@main
+
+      - name: Install engine and host build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libpcap-dev \
-            libwebkit2gtk-4.1-dev \
             linuxptp \
             ethtool \
             iproute2 \
             libcap2-bin \
-            rpm \
-            jq
-      - name: Install pinned Glaze
-        shell: bash
-        run: bash scripts/install-glaze.sh
-      - name: Install Rivet (catalog) and crypto (updater dependency)
-        run: raco pkg install --auto --no-docs rivet crypto
-      - name: Build and smoke-test the payload, then package deb + rpm + AppImage + zip
+            desktop-file-utils \
+            libgtk-4-dev \
+            libglib2.0-dev \
+            libsecret-1-dev \
+            at-spi2-core \
+            libncurses-dev \
+            zlib1g-dev \
+            liblz4-dev \
+            file
+
+      - name: Install Rivet (released package)
+        run: raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
+
+      # --without-updates: the 1.0.0 first release has no installed base to
+      # serve an update feed to; the RivetUpdate channel (keys + manifest)
+      # starts with 1.0.1. --development matches the family precedent of
+      # running the full package + smoke + installer flow without production
+      # platform signing.
+      - name: Build, package, and verify the release
+        run: |
+          raco rivet generate
+          raco rivet release --development --without-updates
+
+      - name: Collect artifacts
         shell: bash
         run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          test "$(tr -d '[:space:]' < GLAZE_REVISION)" = \
-            "$(git -C "$HOME/glaze-src" rev-parse HEAD)"
-          raco make main.rkt
-          bash scripts/package-deb.sh "$VERSION" "$GITHUB_REF_NAME"
-          bash scripts/package-extras.sh "$VERSION"
+          mkdir -p release-out
+          find dist -maxdepth 2 -type f \
+            \( -name '*.deb' -o -name '*.tar.gz' -o -name '*.zip' \
+               -o -name 'SHA256SUMS*' -o -name '*sbom*' -o -name '*notices*' \) \
+            -exec cp {} release-out/ \;
+          ls -la release-out/
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-packages-${{ matrix.arch }}
-          path: gPTP-Studio-linux-*
-          if-no-files-found: error
+          name: gptp-studio-linux-${{ matrix.arch }}
+          path: release-out/
 
   publish:
-    needs: [linux]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - name: Collect assets and build SHA256SUMS
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p rel
-          find artifacts -type f -exec mv {} rel/ \;
-          cd rel
-          # every per-asset sidecar must match its asset before publishing
-          for s in *.sha256; do
-            asset="${s%.sha256}"
-            test -f "$asset"
-            sha256sum -c "$s"
-          done
-          cat *.sha256 > SHA256SUMS
-          ls -la
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            rel/*
-          generate_release_notes: true
-
-  # The update feed (update-stable.json on main) is the last thing a
-  # release touches: it must only point at v* URLs once the release
-  # carrying those assets exists, and its digests/signature must describe
-  # the exact CI-built bytes (hand-signed local builds drifted once — see
-  # commit e2c8787). This job signs the just-published artifacts with the
-  # UPDATER key (Actions secret, rivet's write-signed-manifest), guards on
-  # the key being the exact counterpart of the repo's pinned public key,
-  # re-verifies the wrapper the way the shipped updater will, and commits
-  # the feed to main; that push is what fires update checks.
-  feed:
-    needs: [publish]
+    needs: linux
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: main
-      - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          version: '9.3'
-      - name: Install Rivet (catalog) and crypto (feed signer dependency)
-        run: raco pkg install --auto --no-docs rivet crypto
-      - name: Download release artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Sign update-stable.json over the published assets
-        env:
-          UPDATER_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          KEY_FILE="$RUNNER_TEMP/updater-priv.pem"
-          trap 'rm -f "$KEY_FILE"' EXIT
-          printf '%s\n' "$UPDATER_PRIVATE_KEY" > "$KEY_FILE"
-          chmod 600 "$KEY_FILE"
-          # Guard: refuse to sign unless the private key is the exact
-          # counterpart of the public key this build pins. The script's
-          # post-write verification against the same anchor is the second,
-          # end-to-end gate (it verifies the wrapper + key id + digests the
-          # way the shipped updater will).
-          openssl pkey -in "$KEY_FILE" -pubout -outform DER | sha256sum > "$RUNNER_TEMP/priv.fpr"
-          openssl pkey -pubin -in app/keys/updater/public.pem -outform DER | sha256sum > "$RUNNER_TEMP/pinned.fpr"
-          cmp "$RUNNER_TEMP/priv.fpr" "$RUNNER_TEMP/pinned.fpr"
-          racket scripts/make-update-manifest.rkt \
-            --version "$VERSION" \
-            --deb artifacts/linux-packages-amd64/gPTP-Studio-linux-x64.deb \
-            --tarball artifacts/linux-packages-amd64/gPTP-Studio-linux-x64.tar.gz \
-            --private-key "$KEY_FILE" \
-            --out update-stable.json \
-            --verify-public-key app/keys/updater/public.pem
-          rm -f "$KEY_FILE"
-      - name: Commit the feed to main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "gptp-studio release bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add update-stable.json
-          git commit -m "feed: ${GITHUB_REF_NAME#v}"
-          git pull --rebase origin main
-          git push origin main
+          merge-multiple: true
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
