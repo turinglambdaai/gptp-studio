@@ -13,18 +13,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
-        racket-version: ['9.3']
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          version: ${{ matrix.racket-version }}
-          distribution: full
-          variant: CS
-          architecture: x64
+      # The GTK4 host embeds Racket CS; no Linux distribution ships the
+      # static libracketcs plus boot layout the embedder needs, so the
+      # runner uses Rivet's checksum-pinned embeddable runtime build.
+      - name: Set up embeddable Racket CS
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@main
 
       - name: Install engine and host build dependencies
         run: |
@@ -37,6 +34,7 @@ jobs:
             libcap2-bin \
             desktop-file-utils \
             libgtk-4-dev \
+            libglib2.0-dev \
             libsecret-1-dev \
             at-spi2-core \
             libncurses-dev \
