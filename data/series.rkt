@@ -63,8 +63,7 @@
      (define stride (inexact->exact (ceiling (/ n max-points))))
      (for/list ([sample (in-list all)]
                 [index (in-naturals)]
-                #:when (or (zero? (modulo index stride))
-                           (= index (sub1 n))))
+                #:when (zero? (modulo index stride)))
        sample)]))
 
 (define (series-length s)
