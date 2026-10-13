@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <string_view>
 #include <vector>
 
 #include "GeneratedBackend.hpp"
@@ -1229,7 +1230,50 @@ void on_shutdown(GApplication*, gpointer) {
 
 }  // namespace
 
+// Headless doctor mode: start the backend, pull the support report, print
+// it, exit. The window never opens (the README's --doctor contract).
+int run_doctor(bool json) {
+  auto layout = discover_runtime_layout();
+  if (!layout) {
+    std::fprintf(stderr, "missing runtime/*.boot and res/core.zo next to the executable\n");
+    return 4;
+  }
+  rivet::linux_runtime::RacketRuntimeConfig config;
+  config.executable_path = executable_path().string();
+  config.petite_boot = layout->petite_boot.string();
+  config.scheme_boot = layout->scheme_boot.string();
+  config.racket_boot = layout->racket_boot.string();
+  config.backend_bundle = layout->core.string();
+  config.module_name = rivet_app::kModuleName;
+  config.entry_symbol = rivet_app::kEntryName;
+  try {
+    rivet::linux_runtime::Backend backend(std::move(config));
+    backend.start();
+    rivet_app::API api(backend);
+    auto report = api.doctor_report().get();
+    std::fputs(json ? report.json.c_str() : report.text.c_str(), stdout);
+    std::fputc('\n', stdout);
+    return 0;
+  } catch (std::exception const& error) {
+    std::fprintf(stderr, "doctor failed: %s\n", error.what());
+    return 2;
+  }
+}
+
 int main(int argc, char** argv) {
+  for (int i = 1; i < argc; ++i) {
+    std::string_view flag = argv[i];
+    if (flag == "--doctor") {
+      return run_doctor(false);
+    }
+    if (flag == "--doctor-json") {
+      return run_doctor(true);
+    }
+    if (flag == "--version") {
+      std::puts("gPTP Studio (Rivet host)");
+      return 0;
+    }
+  }
   auto app = gtk_application_new("site.jrtx.gptpstudio", G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
   g_signal_connect(app, "shutdown", G_CALLBACK(on_shutdown), nullptr);

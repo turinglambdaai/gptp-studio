@@ -2,184 +2,33 @@
 
 ## Unreleased
 
+## 1.0.0
+
+**Rivet 线首发。** 桌面壳从 Glaze/WebKitGTK（GTK3 + WebView + SSE + 手写 JS
+前端）整体迁移到 Rivet（GTK4 原生宿主 + 内嵌 Racket 后端 + 类型化 RPC/事件
+契约）。产品能力边界不变：仍是 Linux-only 的 gPTP/IEEE 802.1AS 专业调试工作
+站，真实时间路径（PHC / SO_TIMESTAMPING / linuxptp / libpcap）与许可证模型
+（离线签名、Free/Pro 分层）原样保留。按家族换栈政策清空全部旧版本，本版本
+为 Rivet 线 1.0.0 首发。
+
 ### Changed
 
-- **更新链路全程认证（迁移到 rivet/distribution，家族标准）**：启动检查取回
-  Ed25519 签名的 `update-stable.json`（`fetch-update-manifest`：签名验证先于
-  一切解析，HTTPS-only，重定向预算与 1 MiB 上限内置），选择策略走
-  `select-update`（身份 / 渠道 / SemVer / 灰度），下载走 `download-update`
-  （签名内 size 上限、SHA-256 + size 校验、失败即清理 `.partial`、原子改名），
-  并加家族 watchdog（清单 60s；下载 120s 无进展 / 30min 总限，卡死的连接
-  不再把线程永远停住）。旧的未签名 `latest.json` 机制（清单明文 + 逐工件
-  签名）退役。**切换点之前的安装（≤ 1.2.0）拉不到旧 feed，更新检查会静默
-  失效——需要手动更新一次**（从 Releases 下载 deb 安装）。签名密钥不变
-  （`app/keys/updater/public.pem` 为轮换锚点，测试将内置公钥与锚点绑定），
-  feed 由 Release 流水线用 `UPDATER_PRIVATE_KEY` 经 rivet
-  `write-signed-manifest` 签名后提交到 main；私钥与固定公钥不同源时拒绝
-  出签名 feed。`GPTP_UPDATE_MANIFEST_URL` 覆写现在必须是 HTTPS。
+- **桌面栈**：六页 GTK4 原生界面（Engine + 实时曲线、Qualification、
+  Packets + 报文详情/hex、Logs、GM Tuning、License & Reports）替换六页
+  WebKitGTK web 前端。同步收敛曲线由 Rivet 共享图表数据面渲染
+  （`rivet/chart` 环形缓冲 + 带间隙检测的二进制批次 + 窗口拉取恢复）。
+- **后端契约**：约 40 个类型化 RPC 与 7 个类型化事件替换 HTTP API +
+  SSE 总线；文件对话框收归宿主（导出/导入 RPC 只收路径）。协议细节树
+  （PTP 解码、参数、i18n）以 Any 叶子搭在 typed 脊柱上传输。
+- **序列存储**：offset/delay 环形缓冲底层换 `rivet/chart`（墙钟 ns 单调
+  时间戳 + 精确整数值），模拟与真实引擎两条采样路径统一经同一缓冲排放。
+- **许可证模块**：离线签名验证收编为产品内模块（原 glaze/license）。
+- **更新链路（为 1.0.1 准备）**：更新检查/下载全程走 `rivet/distribution`
+  家族标准（Ed25519 签名清单、验签先于解析、SHA-256 + size 校验、看门狗）。
+  1.0.0 首发无存量安装，不带更新 feed；签名频道自 1.0.1 起发布。
+- **无头支持面**：`--doctor` / `--doctor-json` 保留，经类型化 RPC 从内嵌
+  后端取报告，不开窗口。
 
-## 1.2.0 — 2026-10-11
+### Removed
 
-### Added
-
-- **完整 Linux 发行格式矩阵**：在 deb 与 relocatable tar.gz 之外，新增
-  rpm（rpmbuild，Fedora 命名 Requires）、AppImage（双架构 appimagetool，
-  digest 校验）与便携 zip——全部出自同一份经过 Doctor/selfcheck 冒烟的
-  payload；每个资产都带 `.sha256` sidecar，发布时汇总为 `SHA256SUMS`
-- **Linux arm64 构建**：release 的 Linux job 变为 amd64/arm64 双架构矩阵
-  （`ubuntu-24.04-arm` 原生 runner），deb/tar.gz/rpm/AppImage/zip 双架构
-  全套；自动更新 feed 暂保持 x64（更新器尚无架构路由），arm64 走手动安装
-
-## 1.1.2 — 2026-10-09
-
-### Security
-
-- **Updater key rotated** (incident: the previous private key was printed
-  to a session log while debugging its format). This build embeds and
-  pins the new public key; the feed and every artifact signature are
-  produced by the new key. Installs of 1.1.0 and older pin the retired
-  key and must update manually (download the .deb from Releases).
-
-## 1.1.0 — 2026-10-09
-
-
-### 新增
-
-- **更新清单由 CI 自动签名发布**：Release 工作流在发布资产构建完成后，用本次构建的
-  确切字节重新生成 `latest.json`（摘要 + Ed25519 签名），以 `feed: <版本>` 提交回主分支
-  ——清单版本号最后落位，旧安装的更新检查由这一提交触发。签名私钥经 GitHub Actions
-  加密密钥注入，作业内先校验其与仓库内置公钥同源，写入后再用固定公钥回验；
-  新增 `scripts/make-latest-json.rkt`，CI 与手动重建清单共用同一签名实现。
-- **控件文字随字型度量自适应**：语言选择器与按钮改用 `min-height` + 行内弹性居中，
-  CJK 回退字体行高更大时，字形下半不再被固定高度裁切（同一样式的潜在隐患一并消除）。
-
-### 修复
-
-- **HTTPS 更新检查静默失效**：清单拉取与工件下载在发起连接前用
-  `(dynamic-require 'openssl 'ssl-connect #f)` 预载 SSL——Racket 9.3 的
-  `dynamic-require` 失败位只接受 `'error`，同一处还向 `http-sendrecv` 传了其
-  不存在的 `#:connection-close?` 关键字；任何 https 清单/工件请求都先抛
-  `exn:fail:contract`，再被降级处理器吞掉——v1.0.0 的在线更新检查因此从未
-  真正发出过请求。现改为加载模块本身、去掉未知关键字，网络错误照常降级；
-  回归测试断言 https 失败是网络异常而非合同异常。
-- **release 别名 302 未被跟随，更新工件下载为空**：`releases/latest/download/<名>`
-  是 302 到 CDN 的别名（两跳），而 `net/http-client` 既不自动跟随重定向也没有
-  对应参数——下载落地的是空 302 响应体，摘要校验必然失败。清单拉取与工件下载
-  现共用 `support/update-http.rkt` 的重定向 chase（上限 10 跳，绝对/相对
-  Location 均支持）；本地 302 服务回归测试覆盖。
-- **矮窗口下侧栏底部语言切换被裁切**：首次修复只让侧栏整体可滚动，导航内容一长，
-  选择器仍悬在底边外只露一半。现在导航链接走独立滚动区域、footer 固定其下，
-  任何窗口高度下语言切换完整可见（460-720px 高度逐一验证）。
-- **更新清单摘要/签名与发布资产不一致**：清单一律由 CI 从发布的确切资产构建，
-  不再依赖本地手工签名——v1.0.0 曾因此返工一次（本地构建与 CI 构建字节不同，
-  摘要、签名对不上，更新器正确拒绝）。
-
-
-## 1.0.0 — 2026-09-29
-
-
-### 新增
-
-- **在线更新检查**：启动后在后台线程取一次版本清单（`latest.json`，仓库主分支托管；
-  `GPTP_UPDATE_MANIFEST_URL` 可指向自建清单），发现新版本时日志记录一条并在顶栏显示
-  橙色 `⬇ 版本号` 胶囊（点击打开发布页）。产品是系统 deb，**不做自动安装**——装什么
-  由操作者决定，与打包脚本"不在操作者背后动权限"的立场一致。`--no-update-check` 可
-  完全关闭这一网络接触；检查失败静默降级，绝不阻塞启动。检查结果随 `/api/bootstrap`
-  下发，页面刷新后胶囊不再丢失（SSE 广播是即发即忘的，不重放）。
-- **Preflight 摘要随界面语言输出**：后端按当前语言设置生成摘要句
-  （`qualify-interface`/`qualify-ports` 新增 `#:lang`），并同时返回双语文本
-  （`summary_zh`/`summary_en`），前端切换语言时用缓存结果即时翻转，无需重跑 Preflight。
-
-### 修复
-
-- **语言选择器被窗口边缘裁切一半**：侧栏底部放的是中/英文切换，但侧栏没有滚动兜底、
-  footer 又用 `margin-top:auto` 钉死在底边——内容一旦高过视口（原生 WebKitGTK 字体度量
-  或窗口偏矮时），选择器就被齐边切掉且无法滚到。侧栏现在可滚动（`overflow-y:auto` +
-  `min-height:0`），footer 增加 12px 底部留白。
-- **切换语言后约 70 处界面文字不跟随**：语言切换只刷新 `data-i18n` 静态元素并重取字典，
-  既不更新 `S.lang`（各功能模块的 `langZh()` 分支全部读旧值），也不通知 JS 生成的控件。
-  现在切换时更新 `S.lang` 并广播 `gptp:lang` 事件，全部功能模块（时间证据、BMCA 时间线、
-  会话按钮、参考源状态、报文工具）监听刷新；静态文案的 `data-i18n` 覆盖补齐到所有页面
-  （状态卡、快捷键、调试快照、Preflight、参考平台、报文分析、运行与日志、许可证卡），
-  JS 拼装的动态值（引擎模式、报文统计、NIC 评级、参考源状态机）同步走字典；
-  页面导航时补一次字典应用（懒创建的卡片不再错过翻译）。
-  常规操作路径的全部 toast（会话启动/停止、复制、错误提示）、悬停提示（NIC 评级、
-  工具缺失、权限路径）与报文健康指标说明同步双语化。
-  剩余 3 处为设计内/数据类：语言选择器自身的"中文"选项名，以及引擎日志原文
-  （证据数据保持原样）。
-- **`/api/debug/capture`（新增）**：走 glaze `webview-capture!` 输出原生窗口 PNG——
-  浏览器回退的字体度量与原生窗口不同，headless 视觉验收必须拍原生窗口；本次两个
-  UI 缺陷即由它定位。（注意：Wayland 会话下 gdk 抓屏返回全黑，需 `GDK_BACKEND=x11`
-  运行；已按 glaze 的 agent 验证工作流使用。）
-
-### 修复（上一批，随 v1.0.0 复审发现）
-
-- **Ubuntu/Debian 上安装 deb 后无法启动**：`capture/live` 的 libpcap FFI 只尝试
-  `libpcap.so.1`（Fedora/Arch 的 soname），而 Debian/Ubuntu 出于 ABI 历史原因提供
-  `libpcap.so.0.8`——deb 声明的 `libpcap0.8` 依赖装了，加载仍然失败，且该 FFI 调用
-  在模块顶层，连 `--version`/`--doctor` 都会崩溃。现在按候选序尝试多家族 soname
-  （`1`/`0.8`/无版本），并把 libpcap 缺失降级为可诊断的能力缺口
-  （`capture-supported?` = #f + `capture-unsupported-reason`），启动路径不再受影响。
-- **原生窗口无法打开（deb 第二个缺陷）**：WebView 后端模块 `glaze/webview/webview-linux`
-  只被 glaze 调度层在运行时 `dynamic-require`，`raco exe` 的静态分析看不到，打包时
-  未被嵌入——应用能启动、headless 冒烟全过，但原生窗口报
-  "collection not found"。构建脚本现在显式嵌入三个按平台调度的后端
-  （webview/sys/tray），`--selfcheck` 新增 webview 后端模块加载检查作为回归门。
-  （同样的机制性问题已在 glaze 上游修复：`build-app` 自动 `++lib`，
-  见 glaze 仓库 CHANGELOG。）
-- **首次改动配置即损坏 ptp4l.conf**：`api/params/merge` 用 `-999`/`""` 表示"字段未
-  提供"，但这些哨兵值被直接写进参数模型——页面上第一次表单变更后 conf 预览即出现
-  `transportSpecific 0x-3e7`、空 MAC 等，所有引擎启动被校验拒绝。哨兵值不再下发。
-  `--selfcheck` 新增对应回归检查。
-- **启动过引擎后 bootstrap 500、UI 丢失全部状态**：引擎状态的 `port_states`/`faults`
-  以端口号（整数）为键，而 jsexpr 只接受符号键——一次引擎会话之后每个
-  `/api/bootstrap` 都报 "expected legal JSON key value"。状态投影现在把键规范化为
-  符号（JSON 传输层呈现为字符串），并以 equal 哈希返回（eq 哈希上的字符串键无法再
-  查找）。supervisor 测试新增 jsexpr 合法性断言。
-- **`--simulator` 引导路径静默失效**：boundary clock 支持加入后 `engine-start` 变为
-  4 参数，引导代码仍按 3 参数调用——arity 错误只进了日志。已修复。
-
-
-gPTP Studio 首个正式版：**Linux 原生 gPTP / IEEE 802.1AS 调试工作站**（Automotive Ethernet）。
-
-产品契约为 Linux-only：专业 gPTP 工作依赖 PHC、硬件时间戳、`SO_TIMESTAMPING`、linuxptp、sysfs 网卡自省与显式权限控制，本产品不维护功能缩水的桌面移植。本版本即该方向下的第一个发布。
-
-### 引擎
-
-- 四角色：GrandMaster、从钟、双端口 Boundary Clock（`ptp4l -i <上游> -i <下游>` + `phc2sys -a -r -w` 共享 UDS、`boundary_clock_jbod 0`）、被动 Listener
-- linuxptp 子进程监督：自动重启（限次）、参考源生命周期（GM: `phc2sys` CLOCK_REALTIME → PHC）
-- 真实引擎强制 Preflight：硬件时间戳/PHC/权限路径逐口判定（BC 带端口号），不达标阻止启动；被拒会话不误伤运行中的健康会话
-- 启动失败分类：从 ptp4l/phc2sys stderr 证据给出结构化原因与恢复建议
-- GM 运行时调优：`pmc SET GRANDMASTER_SETTINGS_NP`（clockClass/clockAccuracy/offsetScaledLogVariance/currentUtcOffset/leap 标志/timeSource）+ PRIORITY1/PRIORITY2，不重启引擎；兼容 linuxptp 3.1.x 与 4.x 输出格式（Pro）
-
-### 分析与诊断
-
-- IEEE 1588-2008 / 802.1AS 全字段解码：Sync、Follow_Up（含 802.1AS follow-up info TLV）、Announce、PDelay_*、Signalling、Management；L2 与 UDPv4；VLAN；pcap/pcapng 导入
-- libpcap 实时抓包（非阻塞轮询）+ 报文环形存储 + 批量 SSE；抓包时间戳来源与 NIC 能力分开显示
-- 实时 offset / meanPathDelay 曲线、告警阈值、系统通知
-- offset jump ↔ 报文 ↔ 引擎状态根因关联；观测性 BMCA 演化时间轴
-- 工程报告导出：JSON / Markdown（同步统计、跳变观测、BMCA 候选、脱敏 NIC 清单、ptp4l.conf、日志；明确 not-calibrated / observational 声明）
-- 无头 Doctor：`--doctor` / `--doctor-json`；Linux timing host 质量提示；可复现参考平台指纹（GUI 卡片 + 快照复制）
-- Wireshark 一键联动：实时（gPTP 捕获过滤器并行抓包，Free）与回放（保留报文开临时 pcap，随 pcap 导出 Pro）；分离启动，关闭 Studio 不影响 Wireshark
-
-### 模拟器与负向测试
-
-- 内置 gPTP 模拟器（GM / 从钟 / 监听 / Boundary 四剧本）：真实编码帧走同一 encode/decode/store 管道
-- 故障注入：Sync/Announce 按比例丢弃（孤儿 Follow_Up、BMCA 断档）、Follow_Up 时间戳延迟、sequenceId 跳变、offset 尖峰——负向验证告警、BMCA 判读与报告（Free）
-
-### 商业化与打包
-
-- RSA-2048 离线许可证（机器绑定）、14 天 Pro 试用、Free/Pro 功能门控
-- 可复现构建：Debian 包 + relocatable tarball + sha256；Ubuntu 22.04 / 24.04 双 LTS CI（编译/测试/selfcheck/doctor 断言/包冒烟/安装卸载与用户数据保留）
-- i18n 中/英双语；产品站 gptp-studio.jrtx.site
-
-### 质量
-
-- 440 项测试（协议 golden、配置生成、pcap 往返、诊断、逐口资格、报告、调优、Wireshark、故障注入、许可证门控）
-- 源码 Apache-2.0；官方分发条款见 EULA
-
-### 已知限制
-
-- 角色切换仍需重启引擎（会话状态一致性优先）
-- Wireshark 联动需要本机安装 wireshark（Doctor 与按钮给出安装指引）
-- 真实引擎注入（delay/drop/corruption）与 TSN/Qbv 联动在 v2 专用硬件路线
+- WebKitGTK 窗口、web 前端（public/）、HTTP/SSE API 层与浏览器回退路径。

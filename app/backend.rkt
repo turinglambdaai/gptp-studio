@@ -17,7 +17,8 @@
 ;; - Live curves flow through rivet/chart batches (docs/chart-series.md in
 ;;   the Rivet repo); the window RPC serves initial paint and gap recovery.
 
-(require racket/file
+(require json
+         racket/file
          racket/format
          racket/list
          racket/path
@@ -41,6 +42,7 @@
          "../data/series.rkt"
          "../data/logstore.rkt"
          "../support/diagnostics.rkt"
+         "../support/doctor.rkt"
          "../support/engineering-report.rkt"
          "../support/platform-fingerprint.rkt"
          "../support/wireshark.rkt")
@@ -167,6 +169,12 @@
    [need_pro : Bool]
    [error : (Optional String)]
    [info : Any]))
+
+;; Headless support report (the --doctor / --doctor-json product surface):
+;; the host prints it to stdout without opening the window.
+(define-record DoctorReport
+  ([json : String]
+   [text : String]))
 
 ;; ---- conversion helpers ------------------------------------------------------
 
@@ -836,6 +844,12 @@
                        'params (params->jsexpr merged)
                        'conf (params->conf merged #:role (role-name app-role)
                                            #:ifaces preview-ifaces)))))
+
+(define-rpc (doctor-report : DoctorReport)
+  (define report (collect-doctor-report app-version))
+  (define json-out (open-output-string))
+  (write-json report json-out)
+  (DoctorReport (get-output-string json-out) (doctor->text report)))
 
 ;; ---- events -----------------------------------------------------------------
 
