@@ -20,6 +20,8 @@ set(RIVET_ROOT "$ENV{RIVET_ROOT}")
 add_subdirectory("${RIVET_ROOT}/platform/linux"
                  "${CMAKE_BINARY_DIR}/rivet-platform-build")
 
+# rivet.rktd's linux-binary-name pins this executable name; the build
+# tooling stages it by that name.
 add_executable(gptp-studio
   src/main.cpp
 )
