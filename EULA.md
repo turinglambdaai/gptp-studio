@@ -69,7 +69,7 @@ gPTP Studio 是调试、分析和工程验证工具，不自动构成经认可�
 
 - `LICENSE` — gPTP Studio Apache-2.0 许可证文本；
 - `NOTICE` — 项目与分发声明；
-- `THIRD_PARTY_NOTICES.md` — Glaze、Racket 及相关第三方归属/许可证信息；
+- `THIRD_PARTY_NOTICES.md` — Rivet、Permit、Racket 及相关第三方归属/许可证信息；
 - 本 `EULA.md`。
 
 第三方组件的权利与义务由其各自许可证控制；若本文与适用开源许可证冲突，以该开源许可证对相应组件授予的权利为准。
