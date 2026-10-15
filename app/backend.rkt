@@ -544,6 +544,10 @@
   (define ref (string->symbol source))
   (cond
     [(not (memq ref '(system none))) (fail-action "unknown reference source")]
+    ;; Always allow turning a managed reference source off. Enabling the paid
+    ;; reference-source workflow requires the corresponding Permit feature.
+    [(and (eq? ref 'system) (not (eq? (gate-check 'reference) #t)))
+     (deny-pro (gate-check 'reference))]
     [else
      (sup-set-reference app-supervisor ref)
      (ok-action (current-engine-status))]))
@@ -727,14 +731,17 @@
 
 (define-rpc (license-trial-start : GateInfo)
   (gate-trial-start!)
+  (apply-tier-capacity!)
   (gate-info->record (gate-info)))
 
 (define-rpc (license-activate [path : String] : ActionResult)
   (define-values (ok? msg) (gate-activate! path))
+  (when ok? (apply-tier-capacity!))
   (if ok? (ok-action msg) (fail-action msg)))
 
 (define-rpc (license-deactivate : GateInfo)
   (gate-deactivate!)
+  (apply-tier-capacity!)
   (gate-info->record (gate-info)))
 
 (define-rpc (set-settings [language : String] [offset_warn_us : Int64] : ActionResult)
