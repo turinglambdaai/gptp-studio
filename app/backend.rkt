@@ -787,47 +787,47 @@
   (cond
     [(not (eq? (gate-check 'export) #t))
      (deny-pro (gate-check 'export))]
-    [else       (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
-      (define nics (detect-interfaces))
-      (define chosen-iface
-        (if (string=? iface "")
-            (or (hash-ref (sup-status app-supervisor) 'iface #f)
-                (hash-ref (cm-status app-capture) 'iface #f)
-                (settings-ref 'capture-iface)
-                "eth0")
-            iface))
-      (define qualification
-        (qualify-interface #:platform (platform-name)
-                           #:nics nics
-                           #:iface chosen-iface
-                           #:role (if (string=? role "") "listener" role)
-                           #:reference reference
-                           #:capture-status (cm-status app-capture)))
-      (define threshold-ns (* (settings-ref 'offset-warn-us) 1000))
-      (define report
-        (make-engineering-report
-         #:version app-version
-         #:platform (platform-name)
-         #:nics nics
-         #:qualification qualification
-         #:engine (sup-status app-supervisor)
-         #:capture (cm-status app-capture)
-         #:params (params->jsexpr (current-engine-params))
-         #:conf (params->conf (current-engine-params) #:role role)
-         #:offset-points (series-snapshot app-offset-series 5000)
-         #:delay-points (series-snapshot app-delay-series 5000)
-         #:packets (packet-store-snapshot app-packets 5000)
-         #:logs (log-snapshot app-logs #:limit 300)
-         #:offset-jump-threshold-ns threshold-ns))
-      (define markdown-path
-        (if (regexp-match? #rx"[.]json$" path)
-            (path-replace-extension path #".md")
-            path))
-      (write-engineering-report-json! path report)
-      (write-engineering-report-markdown! markdown-path report)
-      (ok-action (hasheq 'json (path->string path)
-                         'markdown (path->string markdown-path)))))
-  ]))
+    [else
+     (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
+       (define nics (detect-interfaces))
+       (define chosen-iface
+         (if (string=? iface "")
+             (or (hash-ref (sup-status app-supervisor) 'iface #f)
+                 (hash-ref (cm-status app-capture) 'iface #f)
+                 (settings-ref 'capture-iface)
+                 "eth0")
+             iface))
+       (define qualification
+         (qualify-interface #:platform (platform-name)
+                            #:nics nics
+                            #:iface chosen-iface
+                            #:role (if (string=? role "") "listener" role)
+                            #:reference reference
+                            #:capture-status (cm-status app-capture)))
+       (define threshold-ns (* (settings-ref 'offset-warn-us) 1000))
+       (define report
+         (make-engineering-report
+          #:version app-version
+          #:platform (platform-name)
+          #:nics nics
+          #:qualification qualification
+          #:engine (sup-status app-supervisor)
+          #:capture (cm-status app-capture)
+          #:params (params->jsexpr (current-engine-params))
+          #:conf (params->conf (current-engine-params) #:role role)
+          #:offset-points (series-snapshot app-offset-series 5000)
+          #:delay-points (series-snapshot app-delay-series 5000)
+          #:packets (packet-store-snapshot app-packets 5000)
+          #:logs (log-snapshot app-logs #:limit 300)
+          #:offset-jump-threshold-ns threshold-ns))
+       (define markdown-path
+         (if (regexp-match? #rx"[.]json$" path)
+             (path-replace-extension path #".md")
+             path))
+       (write-engineering-report-json! path report)
+       (write-engineering-report-markdown! markdown-path report)
+       (ok-action (hasheq 'json (path->string path)
+                          'markdown (path->string markdown-path))))]))
 (define-rpc (params-merge
              [domain : (Optional Int64)]
              [priority1 : (Optional Int64)]
