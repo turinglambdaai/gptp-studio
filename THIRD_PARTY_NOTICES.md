@@ -4,13 +4,13 @@ This file documents third-party software that is incorporated into or used by
 official gPTP Studio Linux distributions. It is informational and does not
 replace the license terms that apply to each component.
 
-## Glaze
+## Rivet
 
-Project: `turinglambdaai/glaze`
+Project: `turinglambdaai/rivet`
 
 License: MIT
 
-Copyright (c) 2025 turinglambdaai
+Copyright (c) 2026 turinglambdaai
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
