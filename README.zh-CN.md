@@ -48,7 +48,8 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 ### Debian / Ubuntu 包
 
 ```bash
-sudo apt install ./gPTP-Studio-linux-x64.deb
+curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-amd64.deb
+sudo apt install ./gptp-studio-linux-amd64.deb
 /opt/gptp-studio/gptp-studio --doctor
 /opt/gptp-studio/gptp-studio
 ```
@@ -61,7 +62,8 @@ deb 安装到 `/opt/gptp-studio` 并带桌面入口；上面的命令分别是�
 ### 可移植 tarball
 
 ```bash
-tar -xzf gPTP-Studio-linux-x64.tar.gz
+curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.tar.gz
+tar -xzf gptp-studio-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
 ./bin/gptp-studio
