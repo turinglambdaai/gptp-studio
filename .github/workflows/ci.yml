@@ -83,7 +83,9 @@ jobs:
         run: raco test tests/*.rkt
 
       - name: Build the GTK4 host against the platform library
-        run: raco rivet build
+        run: |
+          raco rivet build
+          test -s .rivet/stage/app/app/keys/permit-trust-store.json
 
       - name: Generate and stage the typed clients
         run: |
