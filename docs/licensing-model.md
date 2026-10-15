@@ -13,6 +13,30 @@ covered work, subject to the Apache-2.0 conditions.
 
 Third-party components keep their own licenses. See `THIRD_PARTY_NOTICES.md`.
 
+## Permit entitlement boundary
+
+Official paid distributions use [Permit](https://github.com/turinglambdaai/permit)
+Protocol v1. The application ships only an Ed25519 public trust store and verifies
+the signed entitlement locally. Product-right signing keys are separate from the
+application update-signing key.
+
+The default commercial path does not derive identity from motherboard serials,
+MAC addresses, Linux machine-id, or similar hardware fingerprints. If a
+single-installation entitlement needs binding, gPTP Studio uses Permit's random
+`installation_id`; the value is an allocation identifier, not a secret or a
+hardware identity.
+
+Maintenance-window licenses are evaluated per feature publication timestamp.
+That means a permanent customer keeps the paid features published during the
+maintenance window, while manually copying a later binary does not silently
+grant future paid features. The right to run, right to receive updates, and
+right to newly published features remain separate Permit constraints.
+
+The 14-day first-use trial is local state, deliberately outside the signed
+wire protocol. It is customer-friendly nuisance resistance rather than
+tamper-proof DRM; a user controlling the machine can delete or roll back local
+state.
+
 ## What the official Pro entitlement actually sells
 
 The Pro license file in the official binary is a **commercial entitlement for
