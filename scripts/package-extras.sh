@@ -83,7 +83,6 @@ Requires:       linuxptp
 Requires:       ethtool
 Requires:       iproute
 Requires:       libcap
-Requires:       openssl
 
 %description
 gPTP Studio is a Linux-native engineering workstation for Automotive
