@@ -14,7 +14,7 @@
          racket/runtime-path
          racket/string
          permit
-         "state.rkt")
+         "version.rkt")
 
 (provide gate-init!
          gate-tier
