@@ -11,9 +11,9 @@
 
 (require racket/file
          racket/math
-         racket/runtime-path
          racket/string
          permit
+         rivet/resources
          "version.rkt")
 
 (provide gate-init!
@@ -27,8 +27,6 @@
          gate-state-path
          current-gate-data-dir
          current-gate-trust-store-path)
-
-(define-runtime-path bundled-trust-store "keys/permit-trust-store.json")
 
 (define product-id "gptp-studio")
 (define pro-edition "pro")
@@ -54,7 +52,13 @@
    (build-path (find-system-path 'home-dir) ".gptp-studio")))
 
 (define current-gate-trust-store-path
-  (make-parameter bundled-trust-store))
+  ;; Tests and specialized hosts may override this with an explicit file.
+  ;; Normal Rivet builds resolve the declared application resource lazily.
+  (make-parameter #f))
+
+(define (gate-trust-store-path)
+  (or (current-gate-trust-store-path)
+      (resource-path "app" "keys" "permit-trust-store.json")))
 
 (define gate-cache (box 'free))
 
@@ -113,7 +117,7 @@
   (with-handlers ([exn:fail?
                    (lambda (e)
                      (values #f (friendly-verification-error e)))])
-    (define store (read-trust-store (current-gate-trust-store-path)))
+    (define store (read-trust-store (gate-trust-store-path)))
     (define credential (verify-credential path store))
     (unless (member (verified-credential-type credential) '("entitlement" "trial"))
       (error 'gate-activate! "unsupported credential type"))
