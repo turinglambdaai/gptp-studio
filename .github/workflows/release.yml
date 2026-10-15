@@ -57,11 +57,12 @@ jobs:
       - name: Install Rivet (released package)
         run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
 
-      # --without-updates: the 1.0.0 first release has no installed base to
-      # serve an update feed to; the RivetUpdate channel (keys + manifest)
-      # starts with 1.0.1. --development matches the family precedent of
-      # running the full package + smoke + installer flow without production
-      # platform signing.
+      # --development matches the family precedent of running the full
+      # package + smoke + installer flow without production platform
+      # signing. The signed update feed is built centrally in the publish
+      # job (scripts/make-update-manifest.rkt under the
+      # UPDATER_PRIVATE_KEY secret), so the per-runner release keeps
+      # rivet's internal manifest off.
       - name: Build, package, and verify the release
         run: |
           raco rivet generate
@@ -102,13 +103,76 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Set up embeddable Racket CS
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@main
+      - name: Install Rivet (released package)
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
           generate_release_notes: true
+
+      # The signed feed (update-stable.json on main) is what makes older
+      # installs check: raw.githubusercontent serves it, the artifacts are
+      # reached through the releases/latest/download aliases, and the
+      # commit is the last release step ("feed: x.y.z"). The private key
+      # exists only as the UPDATER_PRIVATE_KEY secret + the operator's
+      # vault; --verify-public-key re-verifies the written feed against the
+      # shipped anchor before anything is committed.
+      - name: Sign the update feed and commit it to main
+        env:
+          UPDATER_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          test -n "${UPDATER_PRIVATE_KEY:-}" || {
+            echo "::error::UPDATER_PRIVATE_KEY is not set — refusing to release without a signed feed"; exit 1; }
+          for f in \
+            "gptp-studio-$VERSION-linux-amd64.deb" \
+            "gptp-studio-$VERSION-linux-x64.tar.gz" \
+            "gptp-studio-$VERSION-linux-arm64.deb" \
+            "gptp-studio-$VERSION-linux-arm64.tar.gz"; do
+            test -f "artifacts/$f" || {
+              echo "::error::missing feed artifact artifacts/$f"; exit 1; }
+          done
+          KEY_PEM="$RUNNER_TEMP/updater-signing-key.pem"
+          printf '%s\n' "$UPDATER_PRIVATE_KEY" > "$KEY_PEM"
+          racket scripts/make-update-manifest.rkt \
+            --version "$VERSION" \
+            --deb "artifacts/gptp-studio-$VERSION-linux-amd64.deb" \
+            --tarball "artifacts/gptp-studio-$VERSION-linux-x64.tar.gz" \
+            --deb-arm64 "artifacts/gptp-studio-$VERSION-linux-arm64.deb" \
+            --tarball-arm64 "artifacts/gptp-studio-$VERSION-linux-arm64.tar.gz" \
+            --private-key "$KEY_PEM" \
+            --verify-public-key app/keys/updater/public.pem \
+            --out update-stable.json
+          rm -f "$KEY_PEM"
+          git config user.name "gptp-studio feed bot"
+          git config user.email "actions@turinglambdaai.github.io"
+          git add update-stable.json
+          git commit -m "feed: $VERSION [skip ci]"
+          git push origin HEAD:main
+
+      # Family rule: download buttons point at
+      # releases/latest/download/<name>, so every release also ships
+      # versionless stable-alias copies of the installers (overwritten on
+      # each release; the versioned assets stay canonical).
+      - name: Stable alias copies (versionless direct-download links)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p stable-alias
+          cp "artifacts/gptp-studio-$VERSION-linux-amd64.deb" stable-alias/gptp-studio-linux-amd64.deb
+          cp "artifacts/gptp-studio-$VERSION-linux-arm64.deb" stable-alias/gptp-studio-linux-arm64.deb
+          cp "artifacts/gptp-studio-$VERSION-linux-x64.tar.gz" stable-alias/gptp-studio-linux-x64.tar.gz
+          cp "artifacts/gptp-studio-$VERSION-linux-arm64.tar.gz" stable-alias/gptp-studio-linux-arm64.tar.gz
+          gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R "$GITHUB_REPOSITORY"

@@ -1,15 +1,20 @@
 #lang racket/base
 
 ;; Update tests on the rivet/distribution scheme (family shape, ported from
-;; pdfgist): the embedded public key stays glued to the rotation anchor
-;; (app/keys/updater/public.pem), a signed manifest verifies and selects
-;; the way the live checker does (throwaway Ed25519 keypair), the artifact
-;; download runs against local TCP servers (happy path, 302 alias,
-;; truncated body -> .partial cleanup, digest mismatch), the feed-script
-;; contract holds end to end, and an unreachable https feed fails as a
-;; network error — never a contract violation. (fetch-update-manifest only
-;; accepts HTTPS, so the network half of the check is exercised in
-;; production; everything else runs offline here.)
+;; pdfgist/threadly): the embedded public key stays glued to the rotation
+;; anchor (app/keys/updater/public.pem), a signed manifest verifies and
+;; selects the way the live checker does (throwaway Ed25519 keypair), the
+;; artifact download runs against local TCP servers (happy path, 302 alias,
+;; truncated body -> .partial cleanup, digest mismatch), the swap chain —
+;; asset derivation from the feed entry, download, chmod with the integer
+;; mode #o755, and the in-place payload swap with a restorable .old backup —
+;; runs against a staged tarball and a fake install root, the deb shape's
+;; "download kept + package-manager guidance" contract holds, the
+;; feed-script contract holds end to end (x64 + arm64 entries), and an
+;; unreachable https feed fails as a network error — never a contract
+;; violation. (fetch-update-manifest only accepts HTTPS, so the network
+;; half of the check is exercised in production; everything else runs
+;; offline here.)
 
 (require crypto
          crypto/all
@@ -21,7 +26,7 @@
          racket/port
          racket/runtime-path
          racket/string
-         (only-in racket/system process*/ports)
+         (only-in racket/system process*/ports system*/exit-code)
          racket/tcp
          "../support/updates.rkt"
          "../support/updater.rkt")
@@ -83,12 +88,12 @@
    app-update-identifier "9.9.9" 1 'stable
    "2026-10-13T00:00:00Z" "0.0.0" #f #t 100
    (list (update-artifact (platform-symbol) (architecture-symbol)
-                          "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.deb"
+                          "https://github.com/turinglambdaai/gptp-studio/releases/download/v9.9.9/gptp-studio-9.9.9-linux-amd64.deb"
                           (sha256-file/hex artifact-file)
                           (file-size artifact-file)
                           'deb '())
          (update-artifact (platform-symbol) (architecture-symbol)
-                          "https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gPTP-Studio-linux-x64.tar.gz"
+                          "https://github.com/turinglambdaai/gptp-studio/releases/download/v9.9.9/gptp-studio-9.9.9-linux-x64.tar.gz"
                           (sha256-file/hex artifact-file)
                           (file-size artifact-file)
                           'targz '()))))
@@ -172,19 +177,43 @@
 (check-equal? (hash-ref info 'version) "9.9.9")
 (check-equal? (hash-ref info 'url) releases-page-url)
 
+;; ---- staged-name asset derivation -------------------------------------------------
+;; The staged name derives from the feed entry's URL basename — the release
+;; asset name itself (rivet names assets versioned per arch), so the printed
+;; install command reads like the manual download flow on both arches.
+
+(define (staged-path-for-url url)
+  (build-path (update-stage-dir) (file-name-from-path (string->path url))))
+
+(for ([pair (list (cons "https://github.com/turinglambdaai/gptp-studio/releases/download/v9.9.9/gptp-studio-9.9.9-linux-amd64.deb"
+                        "gptp-studio-9.9.9-linux-amd64.deb")
+                  (cons "https://github.com/turinglambdaai/gptp-studio/releases/download/v9.9.9/gptp-studio-9.9.9-linux-arm64.tar.gz"
+                        "gptp-studio-9.9.9-linux-arm64.tar.gz"))])
+  (define url (car pair))
+  (define artifact
+    (update-artifact (platform-symbol) (architecture-symbol)
+                     url (make-string 64 #\a) 4 'deb '()))
+  (check-equal?
+   (file-name-from-path (staged-artifact-path artifact))
+   (string->path (cdr pair))
+   "staged name is the release asset name"))
+
 ;; ---- download leg against a local TCP server ------------------------------------
 ;; A minimal one-shot HTTP artifact server: rivet fetches with get-pure-port,
 ;; which insists on a well-formed response head. The declared Content-Length
 ;; and the bytes actually sent are separate, so the truncated case can mimic
 ;; a dropped connection mid-download.
 
-(define staged-deb (staged-artifact-path 'deb))
-(define staged-targz (staged-artifact-path 'targz))
+(define deb-download-url
+  "http://127.0.0.1:0/gptp-studio-9.9.9-linux-amd64.deb")
+(define gz-download-url
+  "http://127.0.0.1:0/gptp-studio-9.9.9-linux-x64.tar.gz")
+
 (define (clean-stage!)
-  (for ([p (list staged-deb staged-targz)])
-    (when (file-exists? p) (delete-file p))
-    (define partial (path-add-extension p #".partial"))
-    (when (file-exists? partial) (delete-file partial))))
+  (define stage (update-stage-dir))
+  (when (directory-exists? stage)
+    (for ([p (in-list (directory-list stage))])
+      (delete-directory/files (build-path stage p) #:must-exist? #f))))
 (clean-stage!)
 
 (define (serve-artifact! payload declared-length)
@@ -229,25 +258,27 @@
 ;; happy path: download + verify + atomic rename into the stage dir
 (define payload (make-bytes 300000 42))
 (define-values (port-number stop-server!) (serve-artifact! payload (bytes-length payload)))
+(define deb-url (format "http://127.0.0.1:~a/gptp-studio-9.9.9-linux-amd64.deb"
+                        port-number))
 (define staged
-  (download-candidate!
-   (candidate-for 'deb (format "http://127.0.0.1:~a/gPTP-Studio-linux-x64.deb" port-number)
-                  payload)))
+  (download-candidate! (candidate-for 'deb deb-url payload)))
+(define staged-deb (staged-path-for-url deb-url))
 (check-true (file-exists? staged) "staged artifact exists")
 (check-equal? (file-size staged) (bytes-length payload))
-(check-equal? staged staged-deb "deb stages under the deb name")
+(check-equal? staged staged-deb "deb stages under the release asset name")
 (check-false (file-exists? (path-add-extension staged #".partial"))
              "no .partial survives a successful download")
 (delete-file staged)
 (stop-server!)
 
-;; tarball install shape stages under the tarball name
+;; tarball install shape stages under the tarball asset name
 (define-values (port-number* stop-server!*) (serve-artifact! payload (bytes-length payload)))
+(define gz-url (format "http://127.0.0.1:~a/gptp-studio-9.9.9-linux-x64.tar.gz"
+                       port-number*))
 (define staged-gz
-  (download-candidate!
-   (candidate-for 'targz (format "http://127.0.0.1:~a/gPTP-Studio-linux-x64.tar.gz" port-number*)
-                  payload)))
-(check-equal? staged-gz staged-targz "targz stages under the tarball name")
+  (download-candidate! (candidate-for 'targz gz-url payload)))
+(define staged-targz (staged-path-for-url gz-url))
+(check-equal? staged-gz staged-targz "targz stages under the release asset name")
 (check-true (file-exists? staged-gz))
 (delete-file staged-gz)
 (stop-server!*)
@@ -259,7 +290,7 @@
            (lambda ()
              (download-candidate!
               (candidate-for 'deb
-                             (format "http://127.0.0.1:~a/gPTP-Studio-linux-x64.deb" trunc-port)
+                             (format "http://127.0.0.1:~a/gptp-studio-9.9.9-linux-amd64.deb" trunc-port)
                              payload)))
            "short body fails the size gate")
 (check-false (file-exists? staged-deb) "nothing staged")
@@ -274,7 +305,7 @@
            (lambda ()
              (download-candidate!
               (candidate-for 'deb
-                             (format "http://127.0.0.1:~a/gPTP-Studio-linux-x64.deb" bad-port)
+                             (format "http://127.0.0.1:~a/gptp-studio-9.9.9-linux-amd64.deb" bad-port)
                              payload)))
            "digest mismatch is rejected")
 (check-false (file-exists? staged-deb))
@@ -300,14 +331,14 @@
             (define l (read-line in 'any))
             (unless (or (eof-object? l) (equal? l "")) (drain)))
           (cond
-            [(equal? path "/gPTP-Studio-linux-x64.deb")
+            [(equal? path "/gptp-studio-9.9.9-linux-amd64.deb")
              (fprintf out "HTTP/1.0 200 OK\r\nContent-Length: ~a\r\nConnection: close\r\n\r\n"
                       (bytes-length redirect-payload))
              (write-bytes redirect-payload out)]
             [else
              ;; the /latest/ alias the manifest carries answers 302, like GitHub
              (fprintf out
-                      "HTTP/1.0 302 Found\r\nLocation: http://127.0.0.1:~a/gPTP-Studio-linux-x64.deb\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                      "HTTP/1.0 302 Found\r\nLocation: http://127.0.0.1:~a/gptp-studio-9.9.9-linux-amd64.deb\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                       redirect-port)])
           (close-output-port out)))
        (accept-loop)))))
@@ -317,7 +348,7 @@
    (define staged-redirect
      (download-candidate!
       (candidate-for 'deb
-                     (format "http://127.0.0.1:~a/latest/gPTP-Studio-linux-x64.deb" redirect-port)
+                     (format "http://127.0.0.1:~a/latest/gptp-studio-9.9.9-linux-amd64.deb" redirect-port)
                      redirect-payload)))
    (check-equal? (file-size staged-redirect) 2048
                  "the 302 was actually followed (not the empty redirect body)")
@@ -330,6 +361,9 @@
    (tcp-close redirect-listener)))
 
 ;; ---- the flow: prepare downloads on a watched thread -----------------------------
+;; The deb shape's contract is "download kept + package-manager guidance":
+;; the flow stages the deb, keeps it on disk, and carries the exact apply
+;; command for the dialog.
 
 (define (flow-state)
   (string->symbol (hash-ref (update-flow-status) 'state)))
@@ -343,17 +377,38 @@
         (begin (sleep 0.1) (loop deadline)))))
 
 (define-values (flow-port flow-stop!) (serve-artifact! payload (bytes-length payload)))
+(reset-update-flow!)
 (update-prepare! 'deb
                  (candidate-for 'deb
-                                (format "http://127.0.0.1:~a/gPTP-Studio-linux-x64.deb" flow-port)
+                                (format "http://127.0.0.1:~a/gptp-studio-9.9.9-linux-amd64.deb" flow-port)
                                 payload))
 (check-equal? (wait-for-flow! 30) 'staged "prepare reaches staged")
-(check-true (file-exists? staged-deb) "flow staged the artifact")
+(check-true (file-exists? staged-deb) "the flow keeps the staged deb")
+(check-equal? (hash-ref (update-flow-status) 'state) "staged")
+(check-equal? (hash-ref (update-flow-status) 'percent) 100)
 (check-equal? (hash-ref (update-flow-status) 'install_command)
               (format "sudo apt-get install -y ~a" (path->string staged-deb))
               "status carries the apply command")
+(reset-update-flow!)
 (delete-file staged-deb)
 (flow-stop!)
+
+;; the tarball shape stages too — and never pretends to be an apt package
+(define-values (gz-flow-port gz-flow-stop!)
+  (serve-artifact! payload (bytes-length payload)))
+(reset-update-flow!)
+(update-prepare! 'targz
+                 (candidate-for 'targz
+                                (format "http://127.0.0.1:~a/gptp-studio-9.9.9-linux-x64.tar.gz"
+                                        gz-flow-port)
+                                payload))
+(check-equal? (wait-for-flow! 30) 'staged "tarball prepare reaches staged")
+(check-true (file-exists? staged-targz) "the flow keeps the staged tarball")
+(check-false (hash-ref (update-flow-status) 'install_command #f)
+             "a staged tarball carries no apt command")
+(reset-update-flow!)
+(delete-file staged-targz)
+(gz-flow-stop!)
 
 ;; prepare without a candidate fails fast and clean (the API folds it to
 ;; ok:false); the flow is idle again at this point, so the guard order is
@@ -362,9 +417,89 @@
            (lambda () (update-prepare! 'deb #f))
            "no candidate -> clean error")
 
+;; ---- the swap chain: extract -> chmod (#o755) -> in-place swap --------------------
+;; The tarball shape's apply replaces the running payload root by rename
+;; with a restorable .old backup. The chmod MUST use the integer bitmask
+;; #o755 (the symbol-list/vector form is the getter's shape and a contract
+;; violation the family has hit three times).
+
+(define (make-payload-tarball! tar-path payload-byte)
+  ;; a staged tar.gz shaped like rivet's: one top-level
+  ;; gptp-studio-distributed payload with the launch executables
+  (define build-dir (make-temporary-file "gptp-payload~a" 'directory))
+  (define top (build-path build-dir "gptp-studio-distributed"))
+  (make-directory* (build-path top "bin"))
+  (make-directory* (build-path top "runtime"))
+  (define (exe rel)
+    (call-with-output-file (build-path top rel)
+      (lambda (out) (write-bytes (make-bytes 64 payload-byte) out))
+      #:exists 'truncate))
+  (void (exe "gptp-studio"))
+  (void (exe (build-path "bin" "gptp-studio")))
+  (call-with-output-file (build-path top "runtime" "petite.boot")
+    (lambda (out) (display "boot" out))
+    #:exists 'truncate)
+  (define rc
+    (system*/exit-code
+     (or (find-executable-path "tar") (string->path "/usr/bin/tar"))
+     "-czf" (path->string tar-path)
+     "-C" (path->string build-dir)
+     "gptp-studio-distributed"))
+  (delete-directory/files build-dir)
+  (unless (zero? rc)
+    (error 'update-test "tar fixture build failed")))
+
+(define (fake-install-root!)
+  (define root-parent (make-temporary-file "gptp-install~a" 'directory))
+  (define root (build-path root-parent "gptp-studio-distributed"))
+  (make-directory* (build-path root "bin"))
+  (call-with-output-file (build-path root "gptp-studio")
+    (lambda (out) (display "OLD" out))
+    #:exists 'truncate)
+  (call-with-output-file (build-path root "bin" "gptp-studio")
+    (lambda (out) (display "OLD" out))
+    #:exists 'truncate)
+  root)
+
+(test-case "tarball apply swaps the payload in place, #o755 executables, .old kept"
+  (define tar-path (build-path keydir "gptp-studio-9.9.9-linux-x64.tar.gz"))
+  (make-payload-tarball! tar-path 55)
+  (define new-root (fake-install-root!))
+  (define exe-top (build-path new-root "gptp-studio"))
+  (define exe-bin (build-path new-root "bin" "gptp-studio"))
+  (define swapped
+    (tarball-apply! tar-path #:exe (build-path new-root "bin" "gptp-studio")))
+  (check-equal? swapped new-root "the payload root is replaced in place")
+  ;; the launch executables came from the new payload...
+  (check-false (equal? (file->string exe-top) "OLD") "top-level exe is the new payload")
+  (check-false (equal? (file->string exe-bin) "OLD") "bin launcher is the new payload")
+  ;; ...and carry exactly #o755 (integer 493) — the chmod contract
+  (check-equal? (file-or-directory-permissions exe-top 'bits) #o755
+                "top-level exe mode is the integer #o755")
+  (check-equal? (file-or-directory-permissions exe-bin 'bits) #o755
+                "bin launcher mode is the integer #o755")
+  ;; the previous install stays runnable as <root>.old until the next swap
+  (define old-root (path-add-extension new-root ".old"))
+  (check-true (directory-exists? old-root) "the .old backup exists")
+  (check-equal? (file->string (build-path old-root "gptp-studio")) "OLD"
+                "the .old backup holds the previous install")
+  (check-true (directory-exists? (build-path new-root "runtime"))
+              "the new payload layout landed whole")
+  (delete-directory/files old-root)
+  (delete-directory/files (path-only new-root))
+  (delete-file tar-path))
+
+(test-case "tarball apply refuses cleanly without a derivable payload root"
+  (check-exn exn:fail?
+             (lambda ()
+               (tarball-apply! (build-path keydir "no-such.tar.gz")
+                               #:exe (build-path keydir "nowhere" "bin" "gptp-studio")))
+             "no derivable payload root -> clean error"))
+
 ;; ---- feed-script contract --------------------------------------------------------
 ;; the release pipeline's signer must produce a wrapper the shipped verifier
-;; accepts, over both PEM (what the Actions secret stores) and DER keys
+;; accepts, over both PEM (what the Actions secret stores) and DER keys,
+;; covering the x64 AND arm64 feed entries
 
 (define-runtime-path feed-script "../scripts/make-update-manifest.rkt")
 (define racket-exe (find-executable-path "racket"))
@@ -408,17 +543,18 @@
   #:exists 'truncate))
 
 
-(define script-deb (build-path keydir "gPTP-Studio-linux-x64.deb"))
-(define script-gz (build-path keydir "gPTP-Studio-linux-x64.tar.gz"))
-(void
- (call-with-output-file script-deb
-  (lambda (out) (write-bytes (make-bytes 4096 1) out))
-  #:exists 'truncate))
-
-(void
- (call-with-output-file script-gz
-  (lambda (out) (write-bytes (make-bytes 2048 2) out))
-  #:exists 'truncate))
+(define script-deb (build-path keydir "gptp-studio-9.9.9-linux-amd64.deb"))
+(define script-gz (build-path keydir "gptp-studio-9.9.9-linux-x64.tar.gz"))
+(define script-deb-arm64 (build-path keydir "gptp-studio-9.9.9-linux-arm64.deb"))
+(define script-gz-arm64 (build-path keydir "gptp-studio-9.9.9-linux-arm64.tar.gz"))
+(for ([pair (list (cons script-deb 4096)
+                  (cons script-gz 2048)
+                  (cons script-deb-arm64 1024)
+                  (cons script-gz-arm64 512))])
+  (void
+   (call-with-output-file (car pair)
+    (lambda (out) (write-bytes (make-bytes (cdr pair) 1) out))
+    #:exists 'truncate)))
 
 
 (define (run-feed-script! key-file out-file verify-key #:quiet [quiet #f])
@@ -437,6 +573,8 @@
                     "--version" "9.9.9"
                     "--deb" (path->string script-deb)
                     "--tarball" (path->string script-gz)
+                    "--deb-arm64" (path->string script-deb-arm64)
+                    "--tarball-arm64" (path->string script-gz-arm64)
                     "--private-key" (path->string key-file)
                     "--out" (path->string out-file)
                     "--verify-public-key" (path->string verify-key)))
@@ -459,11 +597,22 @@
                           test-pub
                           #:key-id update-key-id))
 (check-equal? (update-manifest-version feed-manifest) "9.9.9")
-(check-equal? (length (update-manifest-artifacts feed-manifest)) 2)
+(check-equal? (length (update-manifest-artifacts feed-manifest)) 4
+              "the feed carries x64 + arm64 deb and tarball entries")
 (for ([a (in-list (update-manifest-artifacts feed-manifest))])
   (check-true (string-contains? (update-artifact-url a)
-                                "/releases/latest/download/")
-              "artifact urls are the stable release aliases"))
+                                (format "/releases/download/v9.9.9/~a"
+                                        (path->string
+                                         (file-name-from-path
+                                          (update-artifact-url a)))))
+              "artifact urls are pinned to the concrete release tag"))
+(for ([arch (list 'x64 'arm64)])
+  (for ([installer (list 'deb 'targz)])
+    (check-true
+     (for/or ([a (in-list (update-manifest-artifacts feed-manifest))])
+       (and (eq? (update-artifact-architecture a) arch)
+            (eq? (update-artifact-installer a) installer)))
+     (format "~a ~a entry present in the feed" arch installer))))
 
 ;; the DER key branch behaves identically
 (check-equal? (run-feed-script! script-priv-der-file feed-out script-pub-der) 0
@@ -491,9 +640,9 @@
 
 ;; ---- staged names ------------------------------------------------------------------
 (check-equal? (file-name-from-path staged-deb)
-              (string->path "gPTP-Studio-linux-x64.deb"))
+              (string->path "gptp-studio-9.9.9-linux-amd64.deb"))
 (check-equal? (file-name-from-path staged-targz)
-              (string->path "gPTP-Studio-linux-x64.tar.gz"))
+              (string->path "gptp-studio-9.9.9-linux-x64.tar.gz"))
 
 ;; ---- cleanup -----------------------------------------------------------------------
 (clean-stage!)

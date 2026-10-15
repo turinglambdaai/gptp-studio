@@ -10,6 +10,8 @@
 ;;     --version 1.3.0 \
 ;;     --deb gPTP-Studio-linux-x64.deb \
 ;;     --tarball gPTP-Studio-linux-x64.tar.gz \
+;;     --deb-arm64 gPTP-Studio-linux-arm64.deb \
+;;     --tarball-arm64 gPTP-Studio-linux-arm64.tar.gz \
 ;;     --private-key updater-priv.pem \
 ;;     --verify-public-key app/keys/updater/public.pem
 ;;
@@ -19,7 +21,7 @@
 ;; gptp-studio-2026-10. The payload carries the artifact urls (stable
 ;; releases/latest/download aliases), sizes and lowercase-hex SHA-256
 ;; digests; there is no free-form notes field (release notes live on the
-;; release page, which the header pill links to).
+;; release page).
 ;;
 ;; The private key never touches this repo: the caller materializes it as
 ;; a file (CI: the UPDATER_PRIVATE_KEY Actions secret; locally: the
@@ -32,8 +34,13 @@
          racket/format
          racket/path
          racket/port
+         racket/runtime-path
          racket/string
          rivet/distribution)
+
+;; rivet.rktd is read relative to this script's repo location, not the
+;; caller's cwd (the Release workflow and tests run from different roots).
+(define-runtime-path repo-root "..")
 
 (define default-base-url "https://github.com/turinglambdaai/gptp-studio")
 (define feed-key-id "gptp-studio-2026-10")
@@ -43,6 +50,8 @@
 (define version-param (make-parameter #f))
 (define deb-param (make-parameter #f))
 (define tarball-param (make-parameter #f))
+(define deb-arm64-param (make-parameter #f))
+(define tarball-arm64-param (make-parameter #f))
 (define key-param (make-parameter #f))
 (define out-param (make-parameter "update-stable.json"))
 (define base-url-param (make-parameter default-base-url))
@@ -52,8 +61,10 @@
  #:program "make-update-manifest"
  #:once-each
  [("--version") v "release version, x.y.z without the leading v" (version-param v)]
- [("--deb") p "path to the built deb asset" (deb-param p)]
- [("--tarball") p "path to the built tarball asset" (tarball-param p)]
+ [("--deb") p "path to the built x64 deb asset" (deb-param p)]
+ [("--tarball") p "path to the built x64 tarball asset" (tarball-param p)]
+ [("--deb-arm64") p "path to the built arm64 deb asset" (deb-arm64-param p)]
+ [("--tarball-arm64") p "path to the built arm64 tarball asset" (tarball-arm64-param p)]
  [("--private-key") p "Ed25519 private key file, PEM (PKCS#8) or DER" (key-param p)]
  [("--out") p "output path (default: update-stable.json)" (out-param p)]
  [("--base-url") u "repository base url" (base-url-param u)]
@@ -70,12 +81,17 @@
 (define deb-path (require-arg "--deb" (deb-param)))
 (define tarball-path (require-arg "--tarball" (tarball-param)))
 (define private-key (require-arg "--private-key" (key-param)))
+(define deb-arm64-path (deb-arm64-param))
+(define tarball-arm64-path (tarball-arm64-param))
 
 (unless (regexp-match? #px"^[0-9]+\\.[0-9]+\\.[0-9]+$" version)
   (raise-user-error 'make-update-manifest
                     "version must be x.y.z without the leading v, got: ~a" version))
 
 (for ([p (list deb-path tarball-path)])
+  (unless (file-exists? p)
+    (raise-user-error 'make-update-manifest "artifact not found: ~a" p)))
+(for ([p (list deb-arm64-path tarball-arm64-path)] #:when p)
   (unless (file-exists? p)
     (raise-user-error 'make-update-manifest "artifact not found: ~a" p)))
 (unless (file-exists? private-key)
@@ -127,12 +143,16 @@
 ;; before signing, so a malformed manifest fails the release instead of
 ;; shipping something every client would reject.
 
-(define (artifact installer file)
+(define (artifact architecture installer file)
   (unless (file-exists? file)
     (raise-user-error 'make-update-manifest "missing artifact: ~a" file))
-  (update-artifact 'linux 'x64
+  ;; Feed urls are pinned to the concrete tag (the family rule): release
+  ;; assets carry the version in their names (gptp-studio-<v>-linux-<arch>
+  ;; .deb/.tar.gz — rivet's release tooling), so the URL is the tag's
+  ;; download path over the artifact's own basename.
+  (update-artifact 'linux architecture
                    (string-append (base-url-param)
-                                  "/releases/latest/download/"
+                                  "/releases/download/v" version "/"
                                   (path->string (file-name-from-path
                                                  (simple-form-path file))))
                    (sha256-file/hex file)
@@ -140,11 +160,16 @@
                    installer
                    '()))
 
+;; The build number is single-sourced from rivet.rktd (the same value the
+;; generated clients embed), never hardcoded here.
+(define feed-build
+  (hash-ref (file->value (build-path repo-root "rivet.rktd")) 'build 1))
+
 (define manifest
   (update-manifest
    feed-application-id
    version
-   1
+   feed-build
    feed-channel
    ;; published-at: RFC 3339, second precision, UTC
    (let ([d (seconds->date (current-seconds) #f)])
@@ -159,8 +184,13 @@
    #f
    #t
    100
-   (list (artifact 'deb deb-path)
-         (artifact 'targz tarball-path))))
+   (append
+    (list (artifact 'x64 'deb deb-path)
+          (artifact 'x64 'targz tarball-path))
+    (if deb-arm64-path
+        (list (artifact 'arm64 'deb deb-arm64-path)
+              (artifact 'arm64 'targz tarball-arm64-path))
+        '()))))
 
 (define out-path (path->complete-path (out-param)))
 (call-with-output-file out-path
@@ -196,19 +226,28 @@
     (raise-user-error 'make-update-manifest
                       "feed self-verification version mismatch: ~a vs ~a"
                       (update-manifest-version verified) version))
-  (define pairs (list (cons 'deb deb-path) (cons 'targz tarball-path)))
+  (define pairs
+    (append (list (cons 'x64 (cons 'deb deb-path))
+                  (cons 'x64 (cons 'targz tarball-path)))
+            (if deb-arm64-path
+                (list (cons 'arm64 (cons 'deb deb-arm64-path))
+                      (cons 'arm64 (cons 'targz tarball-arm64-path)))
+                '())))
   (for ([pair pairs])
-    (define file (cdr pair))
+    (define arch (car pair))
+    (define installer (car (cdr pair)))
+    (define file (cdr (cdr pair)))
     (define entry
       (for/first ([a (in-list (update-manifest-artifacts verified))]
-                  #:when (eq? (update-artifact-installer a) (car pair)))
+                  #:when (and (eq? (update-artifact-architecture a) arch)
+                              (eq? (update-artifact-installer a) installer)))
         a))
     (unless (and entry
                  (equal? (update-artifact-sha256 entry) (sha256-file/hex file))
                  (= (update-artifact-size entry) (file-size file)))
       (raise-user-error
        'make-update-manifest
-       "feed self-verification failed for ~a against ~a; do not publish"
-       (car pair) (verify-pub-param)))
-    (printf "  verified ~a digest/size against ~a~%"
-            (car pair) (verify-pub-param))))
+       "feed self-verification failed for ~a/~a against ~a; do not publish"
+       arch installer (verify-pub-param)))
+    (printf "  verified ~a ~a digest/size against ~a~%"
+            arch installer (verify-pub-param))))

@@ -45,6 +45,8 @@
          "../support/doctor.rkt"
          "../support/engineering-report.rkt"
          "../support/platform-fingerprint.rkt"
+         "../support/updates.rkt"
+         "../support/updater.rkt"
          "../support/wireshark.rkt")
 
 (provide start)
@@ -175,6 +177,27 @@
 (define-record DoctorReport
   ([json : String]
    [text : String]))
+
+;; Online update surface (docs/update-contract.md; the rivet/distribution
+;; family pattern): check-updates verifies the signed feed and applies
+;; rivet's selection policy, start-download stages the chosen artifact on a
+;; watched worker thread, update-state reports the flow phase, apply-update
+;; hands a staged artifact to its install shape (deb: pkexec consent;
+;; tarball: in-place payload swap). The 4-hour silent-check throttle is
+;; host-owned (the host's stamp file), so the backend stays stateless.
+(define-record UpdateCheck
+  ([status : String]
+   [message : (Optional String)]
+   [current_version : String]
+   [available_version : (Optional String)]
+   [url : (Optional String)]))
+
+(define-record UpdateState
+  ([state : String]
+   [percent : Int64]
+   [error : (Optional String)]
+   [staged_path : (Optional String)]
+   [install_command : (Optional String)]))
 
 ;; ---- conversion helpers ------------------------------------------------------
 
@@ -851,6 +874,97 @@
   (write-json report json-out)
   (DoctorReport (get-output-string json-out) (doctor->text report)))
 
+;; ---- online updates (docs/update-contract.md) ----------------------------------
+
+;; Never raises: a network or verification failure is the "error" status
+;; with the message — a headless check must not take the host down.
+(define-rpc (check-updates : UpdateCheck)
+  (with-handlers
+      ([exn:fail?
+        (lambda (e)
+          (log-error "update check failed: ~a" (exn-message e))
+          (UpdateCheck "error" (optional-string (exn-message e))
+                       app-version (void) (void)))])
+    (define candidate (check-for-update update-manifest-url))
+    (cond
+      [candidate
+       (set-box! update-manifest-box candidate)
+       (set-box! update-info-box (update-info candidate))
+       (define info (update-info candidate))
+       (UpdateCheck "available" (void) app-version
+                    (optional-string (hash-ref info 'version))
+                    (optional-string (hash-ref info 'url)))]
+      [else
+       (set-box! update-manifest-box #f)
+       (set-box! update-info-box #f)
+       (UpdateCheck "up-to-date" (void) app-version (void) (void))])))
+
+;; Runs the download on the watched worker thread; the host follows progress
+;; through update-state. Never raises: failures land on the flow's failed
+;; phase and surface through the next update-state poll.
+(define-rpc (start-download : UpdateState)
+  (with-handlers
+      ([exn:fail?
+        (lambda (e) (flow-set! 'failed #:error (exn-message e)))])
+    (update-prepare! 'download (unbox update-manifest-box)))
+  (update-state-now))
+
+;; Applies what is staged, per install shape (deb: pkexec with the
+;; operator's consent; tarball: in-place payload swap). Never raises.
+(define-rpc (apply-update : UpdateState)
+  (with-handlers
+      ([exn:fail?
+        (lambda (e) (flow-set! 'failed #:error (exn-message e)))])
+    (update-apply!))
+  (update-state-now))
+
+(define-rpc (update-state : UpdateState)
+  (update-state-now))
+
+(define (update-state-now)
+  (define s (update-flow-status))
+  (UpdateState
+   (hash-ref s 'state "idle")
+   (optional-int (hash-ref s 'percent 0))
+   (optional-string (hash-ref s 'error #f))
+   (optional-string (hash-ref s 'staged #f))
+   (optional-string (hash-ref s 'install_command #f))))
+
+;; Diagnostics-for-the-clipboard (the issue-template opener): the doctor
+;; report's redacted text plus the two triage facts doctor->text does not
+;; carry — the exact Racket runtime and the license tier. Nothing here adds
+;; network or host identifiers (the doctor report omits them by contract).
+(define-rpc (diagnostics-text : String)
+  (define report (collect-doctor-report app-version))
+  (define host (hash-ref report 'host (hasheq)))
+  (define head
+    (list (format "gPTP Studio ~a" app-version)
+          (format "Distro: ~a"
+                  (hash-ref (hash-ref host 'distro (hasheq))
+                            'pretty_name "unknown"))
+          (format "Kernel: ~a ~a"
+                  (hash-ref (hash-ref host 'kernel (hasheq)) 'release "unknown")
+                  (hash-ref (hash-ref host 'kernel (hasheq)) 'architecture
+                            "unknown"))
+          (format "Racket runtime: ~a"
+                  (hash-ref (hash-ref host 'runtime (hasheq)) 'racket_version
+                            "unknown"))
+          (format "License tier: ~a~a"
+                  (hash-ref (gate-info) 'tier "free")
+                  (if (hash-ref (gate-info) 'pro #f) " (Pro)" ""))
+          ""))
+  (define log-lines
+    (for/list ([entry (in-list (log-snapshot app-logs #:limit 15))])
+      (format "[~a/~a] ~a"
+              (hash-ref entry 'source "app")
+              (hash-ref entry 'level "info")
+              (hash-ref entry 'message ""))))
+  (string-join (append head
+                       (list (doctor->text report))
+                       (list "" "Recent log (tail):")
+                       log-lines)
+               "\n"))
+
 ;; ---- events -----------------------------------------------------------------
 
 (define-event engine-state : EngineStatus)
@@ -866,6 +980,10 @@
 (define (start in-fd out-fd)
   (gate-init!)
   (apply-tier-capacity!)
+  ;; the updater's selection policy keys off the running version — bind it
+  ;; once from the single source (app/state.rkt, checked by
+  ;; scripts/check-release-version.sh)
+  (update-current-version app-version)
   (forward-engine-events!)
   (start-batch-ticker!)
   (serve-fds in-fd out-fd))

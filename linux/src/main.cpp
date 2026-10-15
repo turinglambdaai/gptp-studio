@@ -13,7 +13,10 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <functional>
@@ -32,6 +35,86 @@
 #endif
 
 namespace {
+
+// ---- host strings -----------------------------------------------------------
+// Compiled-in mirror of the shared table (app/i18n.rkt is the single
+// source; taskly's linux host keeps the same compiled-in fallback). The
+// language follows the backend's settings via bootstrap.
+
+char const* g_language = "en";
+
+struct TrEntry {
+  char const* key;
+  char const* zh;
+  char const* en;
+};
+
+TrEntry const kStrings[] = {
+    {"menu-check-updates", "检查更新…", "Check for Updates…"},
+    {"menu-about", "关于", "About"},
+    {"update-checking", "正在检查更新…", "Checking for updates…"},
+    {"update-up-to-date", "当前已是最新版本", "You're up to date"},
+    {"update-available-title", "发现新版本", "Update available"},
+    {"update-available-body", "新版本 {0} 可用，是否立即下载？",
+     "Version {0} is available. Download it now?"},
+    {"update-download", "下载更新", "Download"},
+    {"update-open-releases", "查看发布页", "Open Releases Page"},
+    {"update-check-failed", "检查更新失败：{0}", "Update check failed: {0}"},
+    {"update-downloading", "正在下载新版本…", "Downloading the new version…"},
+    {"update-downloading-percent", "正在下载新版本… {0}%",
+     "Downloading the new version… {0}%"},
+    {"update-applying", "正在安装更新…", "Installing the update…"},
+    {"update-downloaded-deb",
+     "更新已下载。本副本由系统包管理器管理，可用以下命令升级（需要授权）：",
+     "Update downloaded. This copy is managed by the system package "
+     "manager — upgrade with (authorization required):"},
+    {"update-downloaded-tarball",
+     "更新已就绪，将原地替换当前安装目录；完成后重启 gPTP Studio 即可切换到新版本。",
+     "The update is ready and will replace this install in place; restart "
+     "gPTP Studio afterwards to switch to the new version."},
+    {"update-install", "安装更新", "Install"},
+    {"update-open-folder", "打开所在文件夹", "Open Folder"},
+    {"update-install-failed", "安装失败：{0}", "Install failed: {0}"},
+    {"update-applied", "更新已安装。重启 gPTP Studio 以使用新版本。",
+     "Update installed. Restart gPTP Studio to switch to the new version."},
+    {"update-restart", "重启应用", "Quit to Restart"},
+    {"update-later", "稍后", "Later"},
+    {"updates-disabled", "自动更新已被 --no-update-check 关闭。",
+     "Updates are disabled (--no-update-check)."},
+    {"about-title", "关于 gPTP Studio", "About gPTP Studio"},
+    {"about-comments",
+     "面向 Automotive Ethernet 的 gPTP / IEEE 802.1AS 专业调试工作台（Linux）。",
+     "Professional gPTP / IEEE 802.1AS debugging workstation for Automotive "
+     "Ethernet (Linux)."},
+    {"about-license",
+     "许可证：源码 Apache-2.0；官方分发版本适用商业条款（EULA）",
+     "Dual-licensed: Apache-2.0 (source) / commercial terms (official "
+     "distribution)"},
+    {"about-copy-diagnostics", "复制诊断信息", "Copy Diagnostics"},
+    {"about-copied", "诊断信息已复制到剪贴板，可粘贴到 issue。",
+     "Diagnostics copied to the clipboard — paste them into your issue."},
+    {"dialog-close", "关闭", "Close"},
+};
+
+std::string tr(char const* key) {
+  for (auto const& entry : kStrings) {
+    if (std::strcmp(entry.key, key) == 0) {
+      return std::string(std::string_view(g_language) == "zh" ? entry.zh
+                                                              : entry.en);
+    }
+  }
+  return std::string(key);
+}
+
+std::string format_positional(std::string const& pattern,
+                              std::string const& argument) {
+  auto const position = pattern.find("{0}");
+  if (position == std::string::npos) {
+    return pattern;
+  }
+  return pattern.substr(0, position) + argument +
+         pattern.substr(position + 3);
+}
 
 // ---- app state -----------------------------------------------------------
 
@@ -97,6 +180,8 @@ struct AppState {
   std::unique_ptr<rivet::linux_runtime::Backend> startup_backend;
   std::string startup_error;
   std::atomic<bool> shutting_down{false};
+  std::string version;  // the backend's app-version (bootstrap)
+  bool updates_disabled{false};  // --no-update-check
 
   void set_status(std::string const& text) {
     gtk_label_set_text(GTK_LABEL(status), text.c_str());
@@ -104,6 +189,25 @@ struct AppState {
 };
 
 AppState g_state;
+
+// Online-update UI state (the flow lives further below; the bootstrap
+// handler and shutdown path reference these, so they are declared early).
+struct UpdateFlowState {
+  guint auto_check_source{0};  // one-shot 3 s launch-check timer
+  guint poll_source{0};        // 400 ms update_state poll
+  GtkWindow* progress_dialog{nullptr};
+  GtkProgressBar* progress_bar{nullptr};
+  GtkLabel* progress_label{nullptr};
+  bool check_in_flight{false};
+  bool download_in_flight{false};
+};
+
+UpdateFlowState g_update;
+
+// The two menu items' labels follow the backend language (bootstrap), so
+// the host keeps the items and rewrites the labels once the language lands.
+GMenuItem* g_menu_item_updates{nullptr};
+GMenuItem* g_menu_item_about{nullptr};
 
 // ---- utilities ------------------------------------------------------------
 
@@ -232,6 +336,7 @@ void repull_packets();
 void repull_logs();
 
 void on_start_clicked(GtkButton*, gpointer);
+gboolean on_update_auto_check(gpointer);
 
 int on_backend_finished(gpointer) {
   std::lock_guard lock(g_state.startup_mutex);
@@ -248,6 +353,17 @@ int on_backend_finished(gpointer) {
     }
     auto const value = result.get();
     idle_deliver([value] {
+      g_state.version = value.version;
+      if (value.language == "zh" || value.language == "en") {
+        g_language = value.language == "zh" ? "zh" : "en";
+      }
+      if (g_menu_item_updates != nullptr) {
+        g_menu_item_set_label(g_menu_item_updates,
+                              tr("menu-check-updates").c_str());
+      }
+      if (g_menu_item_about != nullptr) {
+        g_menu_item_set_label(g_menu_item_about, tr("menu-about").c_str());
+      }
       g_state.set_status("gPTP Studio " + value.version + " — " + value.platform);
       refresh_engine_labels(value.engine);
       refresh_capture_buttons(value.capture);
@@ -271,6 +387,12 @@ int on_backend_finished(gpointer) {
   repull_series("delay");
   repull_packets();
   repull_logs();
+  // Silent launch check: 3 s after the backend is up, gated by the
+  // host-owned 4-hour stamp (docs/update-contract.md).
+  if (!g_state.updates_disabled) {
+    g_update.auto_check_source =
+        g_timeout_add(3000, on_update_auto_check, nullptr);
+  }
   // Dev-build verification hook: auto-start the simulator so headless
   // captures can assert the chart pipeline without synthetic input events.
   // Never active in packaged builds (the variable is not set there).
@@ -867,6 +989,619 @@ void on_packet_row_selected(GtkListBox*, GtkListBoxRow* row, gpointer) {
   gtk_text_buffer_set_text(buffer, text.c_str(), static_cast<int>(text.size()));
 }
 
+// ---------------------------------------------------------------------------
+// Online update flow (docs/update-contract.md; ported from the family
+// pattern, taskly's update_flow). The backend verifies the signed feed and
+// downloads the artifact; this host owns only the UI: one silent throttled
+// launch check (stamp file, at most once per 4 hours), a menu entry that
+// bypasses the throttle, a consent dialog, 400 ms update-state polling, and
+// the install hand-off per shape (deb: package-manager command + optional
+// pkexec apply; tarball: in-place swap + restart). Every dialog parents to
+// the main window, and every body label is selectable — error text must
+// leave the screen with the user.
+// ---------------------------------------------------------------------------
+
+// UPDATE.md contract: at most one silent attempt per 4 hours, unix epoch
+// seconds in a host-owned stamp file (the backend has no settings RPC and
+// stays stateless about the throttle).
+constexpr long long kUpdateThrottleSeconds = 4 * 60 * 60;
+
+char const* kReleasesUrl =
+    "https://github.com/turinglambdaai/gptp-studio/releases/latest";
+char const* kIssuesUrl = "https://github.com/turinglambdaai/gptp-studio/issues";
+char const* kWebsiteUrl = "https://gptp-studio.jrtx.site";
+
+std::string update_stamp_path() {
+  return std::string(g_get_user_data_dir()) + "/gptp-studio/last-update-check";
+}
+
+long long read_update_stamp() {
+  std::ifstream in(update_stamp_path());
+  long long value = 0;
+  if (in >> value) {
+    return value;
+  }
+  return 0;  // missing or malformed counts as "never checked"
+}
+
+void write_update_stamp() {
+  auto const path = update_stamp_path();
+  auto const slash = path.find_last_of('/');
+  if (slash != std::string::npos) {
+    g_mkdir_with_parents(path.substr(0, slash).c_str(), 0755);
+  }
+  std::ofstream out(path, std::ios::trunc);
+  out << static_cast<long long>(std::time(nullptr)) << "\n";
+}
+
+void stop_update_poll() {
+  if (g_update.poll_source != 0) {
+    g_source_remove(g_update.poll_source);
+    g_update.poll_source = 0;
+  }
+}
+
+void close_update_progress() {
+  if (g_update.progress_dialog != nullptr) {
+    gtk_window_destroy(g_update.progress_dialog);
+    g_update.progress_dialog = nullptr;
+    g_update.progress_bar = nullptr;
+    g_update.progress_label = nullptr;
+  }
+}
+
+int on_update_poll_tick(gpointer);
+
+// Applying (pkexec or in-place swap) reuses the progress surface with the
+// percent bar pulsing; the poll drives the terminal states.
+void start_apply_progress() {
+  if (g_state.api == nullptr) {
+    return;
+  }
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("update-applying").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("update-later").c_str(), GTK_RESPONSE_CANCEL, nullptr);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(content, 12);
+  gtk_widget_set_margin_bottom(content, 6);
+  gtk_widget_set_margin_start(content, 12);
+  gtk_widget_set_margin_end(content, 12);
+  gtk_box_append(GTK_BOX(area), content);
+  auto* bar = gtk_progress_bar_new();
+  gtk_widget_set_size_request(bar, 300, -1);
+  gtk_progress_bar_set_pulse_step(GTK_PROGRESS_BAR(bar), 0.08);
+  gtk_box_append(GTK_BOX(content), bar);
+  auto* label = gtk_label_new(tr("update-applying").c_str());
+  gtk_box_append(GTK_BOX(content), label);
+
+  // Detaching only closes the progress UI — the backend keeps applying;
+  // the next poll cycle (or a manual check) shows the outcome.
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog, gint, gpointer) {
+        stop_update_poll();
+        g_update.progress_dialog = nullptr;
+        g_update.progress_bar = nullptr;
+        g_update.progress_label = nullptr;
+        g_update.download_in_flight = false;
+        gtk_window_destroy(GTK_WINDOW(dialog));
+      }),
+      nullptr);
+  g_signal_connect(
+      dialog, "destroy",
+      G_CALLBACK(+[](GtkWidget*, gpointer) {
+        g_update.progress_dialog = nullptr;
+        g_update.progress_bar = nullptr;
+        g_update.progress_label = nullptr;
+        stop_update_poll();
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+  g_update.progress_dialog = GTK_WINDOW(dialog);
+  g_update.progress_bar = GTK_PROGRESS_BAR(bar);
+  g_update.progress_label = GTK_LABEL(label);
+  g_update.poll_source = g_timeout_add(400, on_update_poll_tick, nullptr);
+}
+
+// A plain message dialog whose body text is selectable (UPDATE.md: the
+// error is copyable — a bug report starts from this string).
+void show_update_message(std::string const& title, std::string const& body) {
+  auto* dialog = gtk_dialog_new_with_buttons(
+      title.c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("dialog-close").c_str(), GTK_RESPONSE_CLOSE, nullptr);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* text = gtk_label_new(body.c_str());
+  gtk_label_set_wrap(GTK_LABEL(text), TRUE);
+  gtk_label_set_selectable(GTK_LABEL(text), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(text), 60);
+  gtk_widget_set_margin_top(text, 12);
+  gtk_widget_set_margin_bottom(text, 6);
+  gtk_widget_set_margin_start(text, 12);
+  gtk_widget_set_margin_end(text, 12);
+  gtk_box_append(GTK_BOX(area), text);
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog, gint, gpointer) {
+        gtk_window_destroy(GTK_WINDOW(dialog));
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+}
+
+void show_update_error(std::string const& message) {
+  show_update_message("gPTP Studio",
+                      format_positional(tr("update-check-failed"), message));
+}
+
+void open_parent_folder(std::string const& file_path) {
+  auto const slash = file_path.find_last_of('/');
+  if (slash == std::string::npos) {
+    return;
+  }
+  std::string const dir = file_path.substr(0, slash);
+  if (dir.empty()) {
+    return;
+  }
+  GFile* folder = g_file_new_for_path(dir.c_str());
+  gchar* uri = g_file_get_uri(folder);
+  gtk_show_uri(g_state.window, uri, GDK_CURRENT_TIME);
+  g_free(uri);
+  g_object_unref(folder);
+}
+
+void start_update_download();
+
+// Download finished and verified: hand the staged artifact to its install
+// shape. deb keeps the file and shows the package-manager command (apply
+// through pkexec with the operator's consent); tarball swaps in place.
+void show_staged_handoff(std::string const& staged_path) {
+  bool const deb = staged_path.size() >= 4 &&
+                   staged_path.compare(staged_path.size() - 4, 4, ".deb") == 0;
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("update-downloading").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("dialog-close").c_str(), GTK_RESPONSE_CLOSE, nullptr);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(content, 12);
+  gtk_widget_set_margin_bottom(content, 6);
+  gtk_widget_set_margin_start(content, 12);
+  gtk_widget_set_margin_end(content, 12);
+  gtk_box_append(GTK_BOX(area), content);
+
+  auto* hint = gtk_label_new(
+      tr(deb ? "update-downloaded-deb" : "update-downloaded-tarball").c_str());
+  gtk_label_set_wrap(GTK_LABEL(hint), TRUE);
+  gtk_label_set_selectable(GTK_LABEL(hint), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(hint), 60);
+  gtk_box_append(GTK_BOX(content), hint);
+
+  auto* path_label = gtk_label_new(staged_path.c_str());
+  gtk_label_set_selectable(GTK_LABEL(path_label), TRUE);
+  gtk_label_set_wrap(GTK_LABEL(path_label), TRUE);
+  gtk_widget_add_css_class(path_label, "monospace");
+  gtk_box_append(GTK_BOX(content), path_label);
+
+  auto* buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  gtk_widget_set_halign(buttons, GTK_ALIGN_END);
+  gtk_box_append(GTK_BOX(content), buttons);
+
+  if (deb && g_file_test("/usr/bin/pkexec", G_FILE_TEST_EXISTS)) {
+    auto* install = gtk_button_new_with_label(tr("update-install").c_str());
+    gtk_widget_add_css_class(install, "suggested-action");
+    g_signal_connect(
+        install, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer user_data) {
+          auto* parent = GTK_WINDOW(user_data);
+          gtk_window_destroy(parent);
+          if (g_state.api == nullptr || g_update.download_in_flight) {
+            return;
+          }
+          start_apply_progress();
+          g_state.api->apply_update_async(
+              [](rivet_app::Result<rivet_app::UpdateState> result) {
+                if (result.error) {
+                  return;  // the poll owns the outcome
+                }
+              });
+        }),
+        dialog);
+    gtk_box_append(GTK_BOX(buttons), install);
+  }
+
+  auto* open = gtk_button_new_with_label(tr("update-open-folder").c_str());
+  g_object_set_data_full(
+      G_OBJECT(open), "update-open-path",
+      new std::string(staged_path),
+      +[](gpointer data) { delete static_cast<std::string*>(data); });
+  g_signal_connect(
+      open, "clicked",
+      G_CALLBACK(+[](GtkButton* button, gpointer) {
+        auto const* p = static_cast<std::string const*>(
+            g_object_get_data(G_OBJECT(button), "update-open-path"));
+        if (p != nullptr) {
+          open_parent_folder(*p);
+        }
+      }),
+      nullptr);
+  gtk_box_append(GTK_BOX(buttons), open);
+
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog, gint, gpointer) {
+        gtk_window_destroy(GTK_WINDOW(dialog));
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+}
+
+void show_applied_dialog() {
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("update-available-title").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("update-later").c_str(), GTK_RESPONSE_CANCEL,
+      tr("update-restart").c_str(), GTK_RESPONSE_ACCEPT, nullptr);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* text = gtk_label_new(tr("update-applied").c_str());
+  gtk_label_set_wrap(GTK_LABEL(text), TRUE);
+  gtk_label_set_selectable(GTK_LABEL(text), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(text), 60);
+  gtk_widget_set_margin_top(text, 12);
+  gtk_widget_set_margin_bottom(text, 6);
+  gtk_widget_set_margin_start(text, 12);
+  gtk_widget_set_margin_end(text, 12);
+  gtk_box_append(GTK_BOX(area), text);
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog, gint response, gpointer) {
+        gtk_window_destroy(GTK_WINDOW(dialog));
+        if (response == GTK_RESPONSE_ACCEPT && g_state.window != nullptr) {
+          // Closing the main window ends the default application and runs
+          // the clean shutdown (backend stop + thread join).
+          gtk_window_destroy(g_state.window);
+        }
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+}
+
+int on_update_poll_tick(gpointer) {
+  if (g_state.api == nullptr || g_update.progress_dialog == nullptr) {
+    g_update.poll_source = 0;
+    return G_SOURCE_REMOVE;
+  }
+  g_state.api->update_state_async(
+      [](rivet_app::Result<rivet_app::UpdateState> result) {
+        if (result.error) {
+          return;  // keep polling through hiccups
+        }
+        auto const state = result.get();
+        idle_deliver([state]() mutable {
+          if (g_update.progress_dialog == nullptr) {
+            return;  // detached UI
+          }
+          if (g_update.progress_bar != nullptr) {
+            if (state.state == "downloading") {
+              auto const percent =
+                  std::clamp<std::int64_t>(state.percent, 0, 100);
+              gtk_progress_bar_set_fraction(g_update.progress_bar,
+                                            static_cast<double>(percent) /
+                                                100.0);
+              if (g_update.progress_label != nullptr) {
+                gtk_label_set_text(
+                    g_update.progress_label,
+                    format_positional(tr("update-downloading-percent"),
+                                      std::to_string(percent))
+                        .c_str());
+              }
+            } else if (state.state == "applying") {
+              gtk_progress_bar_pulse(g_update.progress_bar);
+            }
+          }
+          if (state.state != "staged" && state.state != "applied" &&
+              state.state != "failed") {
+            return;
+          }
+          stop_update_poll();
+          close_update_progress();
+          g_update.download_in_flight = false;
+          if (state.state == "failed") {
+            show_update_message(
+                "gPTP Studio",
+                format_positional(tr("update-install-failed"),
+                                  state.error.value_or("unknown failure")));
+            return;
+          }
+          if (state.state == "applied") {
+            show_applied_dialog();
+            return;
+          }
+          show_staged_handoff(state.staged_path.value_or(""));
+        });
+      });
+  return G_SOURCE_CONTINUE;
+}
+
+void start_update_download() {
+  if (g_state.api == nullptr || g_update.download_in_flight) {
+    return;
+  }
+  g_update.download_in_flight = true;
+
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("update-downloading").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("update-later").c_str(), GTK_RESPONSE_CANCEL, nullptr);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(content, 12);
+  gtk_widget_set_margin_bottom(content, 6);
+  gtk_widget_set_margin_start(content, 12);
+  gtk_widget_set_margin_end(content, 12);
+  gtk_box_append(GTK_BOX(area), content);
+  auto* bar = gtk_progress_bar_new();
+  gtk_widget_set_size_request(bar, 300, -1);
+  gtk_box_append(GTK_BOX(content), bar);
+  auto* label = gtk_label_new(tr("update-downloading").c_str());
+  gtk_box_append(GTK_BOX(content), label);
+
+  // Canceling only detaches the progress UI — the backend keeps
+  // downloading (family parity: there is no cancel RPC).
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog, gint, gpointer) {
+        stop_update_poll();
+        g_update.progress_dialog = nullptr;
+        g_update.progress_bar = nullptr;
+        g_update.progress_label = nullptr;
+        g_update.download_in_flight = false;
+        gtk_window_destroy(GTK_WINDOW(dialog));
+      }),
+      nullptr);
+  // DESTROY_WITH_PARENT: if the main window goes away the dialog dies with
+  // it — clear the raw pointers and the poll so no tick touches dead
+  // widgets.
+  g_signal_connect(
+      dialog, "destroy",
+      G_CALLBACK(+[](GtkWidget*, gpointer) {
+        g_update.progress_dialog = nullptr;
+        g_update.progress_bar = nullptr;
+        g_update.progress_label = nullptr;
+        stop_update_poll();
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+  g_update.progress_dialog = GTK_WINDOW(dialog);
+  g_update.progress_bar = GTK_PROGRESS_BAR(bar);
+  g_update.progress_label = GTK_LABEL(label);
+  g_update.poll_source = g_timeout_add(400, on_update_poll_tick, nullptr);
+
+  g_state.api->start_download_async(
+      [](rivet_app::Result<rivet_app::UpdateState> result) {
+        if (!result.error) {
+          return;  // the poll owns the rest
+        }
+        idle_deliver([] {
+          if (g_update.progress_dialog == nullptr) {
+            return;
+          }
+          // The download never started; stop staring at a 0% bar.
+          stop_update_poll();
+          close_update_progress();
+          g_update.download_in_flight = false;
+          show_update_error("the download could not be started");
+        });
+      });
+}
+
+void show_update_consent(rivet_app::UpdateCheck const& check) {
+  std::string const version = check.available_version.value_or("?");
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("update-available-title").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("update-later").c_str(), GTK_RESPONSE_CANCEL,
+      tr("update-download").c_str(), GTK_RESPONSE_ACCEPT, nullptr);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(content, 12);
+  gtk_widget_set_margin_bottom(content, 6);
+  gtk_widget_set_margin_start(content, 12);
+  gtk_widget_set_margin_end(content, 12);
+  gtk_box_append(GTK_BOX(area), content);
+  auto* text = gtk_label_new(
+      format_positional(tr("update-available-body"), version).c_str());
+  gtk_label_set_wrap(GTK_LABEL(text), TRUE);
+  gtk_label_set_selectable(GTK_LABEL(text), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(text), 60);
+  gtk_box_append(GTK_BOX(content), text);
+  auto* releases = gtk_link_button_new_with_label(kReleasesUrl,
+                                                  tr("update-open-releases").c_str());
+  gtk_widget_set_halign(releases, GTK_ALIGN_START);
+  gtk_box_append(GTK_BOX(content), releases);
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog, gint response, gpointer) {
+        bool const go = response == GTK_RESPONSE_ACCEPT;
+        gtk_window_destroy(GTK_WINDOW(dialog));
+        if (go) {
+          start_update_download();
+        }
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+}
+
+// Check for updates. `silent` keeps every outcome except an available
+// update invisible (the launch auto-check — never nag); a manual check
+// reports everything. Any settled check records the stamp, so the next
+// launch's silent attempt stays inside the 4-hour throttle.
+void check_for_updates(bool silent) {
+  if (g_state.api == nullptr || g_update.check_in_flight) {
+    return;
+  }
+  if (g_state.updates_disabled) {
+    if (!silent) {
+      show_update_message("gPTP Studio", tr("updates-disabled"));
+    }
+    return;
+  }
+  g_update.check_in_flight = true;
+  if (!silent) {
+    g_state.set_status(tr("update-checking"));
+  }
+  g_state.api->check_updates_async(
+      [silent](rivet_app::Result<rivet_app::UpdateCheck> result) {
+        idle_deliver([result = std::move(result), silent]() mutable {
+          g_update.check_in_flight = false;
+          if (result.error) {
+            // Transport-level failure: the backend is going away, so do
+            // not pretend a check happened.
+            if (silent) {
+              return;
+            }
+            show_update_error("backend unreachable");
+            return;
+          }
+          // The check settled (any status): record the stamp so the next
+          // launch's silent attempt stays inside the 4-hour throttle.
+          write_update_stamp();
+          auto const check = result.get();
+          if (check.status == "available") {
+            show_update_consent(check);
+            return;
+          }
+          if (silent) {
+            return;  // auto-check only speaks when there is news
+          }
+          if (check.status == "error") {
+            show_update_error(check.message.value_or("unknown failure"));
+            return;
+          }
+          g_state.set_status("gPTP Studio " + check.current_version);
+          show_update_message("gPTP Studio", tr("update-up-to-date"));
+        });
+      });
+}
+
+// Silent launch check: once per process, 3 s after the backend is up,
+// gated by the 4-hour throttle stamp. A failed stamp read counts as
+// "never checked" — silent mode ignores errors by contract.
+gboolean on_update_auto_check(gpointer) {
+  g_update.auto_check_source = 0;
+  if (g_state.api == nullptr ||
+      g_state.shutting_down.load(std::memory_order_acquire)) {
+    return G_SOURCE_REMOVE;
+  }
+  auto const now = static_cast<long long>(std::time(nullptr));
+  if (now - read_update_stamp() < kUpdateThrottleSeconds) {
+    return G_SOURCE_REMOVE;  // throttled
+  }
+  check_for_updates(/*silent=*/true);
+  return G_SOURCE_REMOVE;
+}
+
+// ---------------------------------------------------------------------------
+// About + diagnostics (the brainfuel pattern: one click puts a redacted
+// support text on the clipboard, aligned with the issue template fields —
+// version, distro, kernel, Racket runtime, license tier, NIC/PHC verdicts,
+// recent log tail).
+// ---------------------------------------------------------------------------
+
+void copy_text_to_clipboard(std::string const& text) {
+  GdkClipboard* clipboard =
+      gdk_display_get_clipboard(gdk_display_get_default());
+  if (clipboard != nullptr) {
+    gdk_clipboard_set_text(clipboard, text.c_str());
+  }
+}
+
+void on_copy_diagnostics_clicked(GtkButton*, gpointer) {
+  if (g_state.api == nullptr) {
+    return;
+  }
+  g_state.api->diagnostics_text_async(
+      [](rivet_app::Result<std::string> result) {
+        if (result.error) {
+          return;
+        }
+        auto const text = result.get();
+        idle_deliver([text] {
+          copy_text_to_clipboard(text);
+          g_state.set_status(tr("about-copied"));
+        });
+      });
+}
+
+void show_about_dialog() {
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("about-title").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("dialog-close").c_str(), GTK_RESPONSE_CLOSE, nullptr);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  gtk_widget_set_margin_top(content, 16);
+  gtk_widget_set_margin_bottom(content, 6);
+  gtk_widget_set_margin_start(content, 16);
+  gtk_widget_set_margin_end(content, 16);
+  gtk_box_append(GTK_BOX(area), content);
+
+  std::string const version =
+      !g_state.version.empty() ? g_state.version : rivet_app::kVersion;
+  auto* name = gtk_label_new(nullptr);
+  gtk_label_set_markup(
+      GTK_LABEL(name),
+      g_markup_printf_escaped("<span size=\"x-large\" weight=\"bold\">"
+                              "gPTP Studio %s</span>",
+                              version.c_str()));
+  gtk_label_set_selectable(GTK_LABEL(name), FALSE);
+  gtk_box_append(GTK_BOX(content), name);
+
+  auto* comments = gtk_label_new(tr("about-comments").c_str());
+  gtk_label_set_wrap(GTK_LABEL(comments), TRUE);
+  gtk_label_set_selectable(GTK_LABEL(comments), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(comments), 52);
+  gtk_label_set_justify(GTK_LABEL(comments), GTK_JUSTIFY_CENTER);
+  gtk_box_append(GTK_BOX(content), comments);
+
+  auto* links = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+  gtk_widget_set_halign(links, GTK_ALIGN_CENTER);
+  gtk_box_append(GTK_BOX(content), links);
+  gtk_box_append(GTK_BOX(links),
+                 gtk_link_button_new(kWebsiteUrl));
+  gtk_box_append(GTK_BOX(links),
+                 gtk_link_button_new_with_label(kIssuesUrl, "GitHub Issues"));
+
+  auto* license = gtk_label_new(tr("about-license").c_str());
+  gtk_label_set_wrap(GTK_LABEL(license), TRUE);
+  gtk_label_set_selectable(GTK_LABEL(license), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(license), 52);
+  gtk_widget_add_css_class(license, "dim-label");
+  gtk_box_append(GTK_BOX(content), license);
+
+  auto* copy = gtk_button_new_with_label(tr("about-copy-diagnostics").c_str());
+  g_signal_connect(copy, "clicked",
+                   G_CALLBACK(on_copy_diagnostics_clicked), nullptr);
+  gtk_box_append(GTK_BOX(content), copy);
+
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog, gint, gpointer) {
+        gtk_window_destroy(GTK_WINDOW(dialog));
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+}
+
 // ---- page construction ----------------------------------------------------
 
 GtkWidget* info_row(char const* caption, GtkLabel** out) {
@@ -1190,8 +1925,26 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_label_set_xalign(GTK_LABEL(status), 0.0F);
   gtk_widget_add_css_class(status, "dim-label");
   gtk_widget_set_hexpand(status, TRUE);
+  // The status line is the error surface (backend errors, RPC failures);
+  // the text must be selectable so a bug report can start from it.
+  gtk_label_set_selectable(GTK_LABEL(status), TRUE);
   gtk_box_append(GTK_BOX(header), title);
   gtk_box_append(GTK_BOX(header), status);
+
+  // App menu (the host's single menu surface): update check + about.
+  auto* menu = g_menu_new();
+  g_menu_item_updates =
+      g_menu_item_new(tr("menu-check-updates").c_str(), "app.check-updates");
+  g_menu_item_about = g_menu_item_new(tr("menu-about").c_str(), "app.about");
+  g_menu_append_item(menu, g_menu_item_updates);
+  g_menu_append_item(menu, g_menu_item_about);
+  auto* menu_button = gtk_menu_button_new();
+  gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(menu_button),
+                                "open-menu-symbolic");
+  gtk_widget_set_tooltip_text(menu_button, "Menu");
+  gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(menu_button),
+                                 G_MENU_MODEL(menu));
+  gtk_box_append(GTK_BOX(header), menu_button);
 
   auto* stack = gtk_stack_new();
   gtk_stack_set_transition_type(GTK_STACK(stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
@@ -1273,8 +2026,32 @@ int main(int argc, char** argv) {
       std::puts("gPTP Studio (Rivet host)");
       return 0;
     }
+    if (flag == "--no-update-check") {
+      // Air-gapped hosts: skip the silent check entirely; the menu entry
+      // still answers, with the disabled notice.
+      g_state.updates_disabled = true;
+    }
   }
   auto app = gtk_application_new("site.jrtx.gptpstudio", G_APPLICATION_DEFAULT_FLAGS);
+  auto* check_updates_action = g_simple_action_new("check-updates", nullptr);
+  g_signal_connect(
+      check_updates_action, "activate",
+      G_CALLBACK(+[](GSimpleAction*, GVariant*, gpointer) {
+        check_for_updates(/*silent=*/false);
+      }),
+      nullptr);
+  g_action_map_add_action(G_ACTION_MAP(app),
+                          G_ACTION(check_updates_action));
+  g_object_unref(check_updates_action);
+  auto* about_action = g_simple_action_new("about", nullptr);
+  g_signal_connect(
+      about_action, "activate",
+      G_CALLBACK(+[](GSimpleAction*, GVariant*, gpointer) {
+        show_about_dialog();
+      }),
+      nullptr);
+  g_action_map_add_action(G_ACTION_MAP(app), G_ACTION(about_action));
+  g_object_unref(about_action);
   g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
   g_signal_connect(app, "shutdown", G_CALLBACK(on_shutdown), nullptr);
   int status = g_application_run(G_APPLICATION(app), argc, argv);

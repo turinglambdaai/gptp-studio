@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation & guides
+    url: https://gptp-studio.jrtx.site
+    about: Product docs — architecture, hardware qualification, licensing model, Linux real-engine setup. 文档站，多数环境问题先看这里。
+  - name: Update contract
+    url: https://github.com/turinglambdaai/gptp-studio/blob/main/docs/update-contract.md
+    about: How online updates work (signed feed, install shapes, throttle). 更新机制的契约文档。
+  - name: Commercial / Pro support
+    url: https://github.com/turinglambdaai/gptp-studio/blob/main/PRICING.md
+    about: Pro entitlements include official support (1 business day response target) — see PRICING.md / EULA.md for the channel. Pro 用户的支持渠道说明。
