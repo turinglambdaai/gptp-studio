@@ -92,7 +92,6 @@ or installed as package dependencies:
 - linuxptp (`ptp4l`, `phc2sys`, `pmc`)
 - libpcap
 - GTK 3 and WebKitGTK 4.1
-- OpenSSL command-line tools
 - `ethtool`, `iproute2`, and Linux capability tools
 
 The Debian package declares these runtime dependencies instead of vendoring
