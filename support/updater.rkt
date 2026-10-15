@@ -31,7 +31,7 @@
 ;; Air-gapped hosts: --no-update-check skips everything (the host owns the
 ;; flag; the RPCs stay reachable for the About dialog only).
 
-(require rivet/distribution
+(require (except-in rivet/distribution platform-symbol architecture-symbol)
          racket/file
          racket/path
          racket/string
