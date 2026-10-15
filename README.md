@@ -25,7 +25,7 @@ Built with [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turin
 - **GM runtime tuning** — change clockClass, clockAccuracy, timeSource and BMCA priorities on a running engine via `pmc GRANDMASTER_SETTINGS_NP`, no restart (Pro)
 - **Wireshark one-click** — live capture with a gPTP filter, or replay retained packets; engineering reports export to JSON/Markdown
 - **Aggregated logs and presets** — engine, capture and application events in one place
-- **Offline licensing** — signed offline license files; no cloud dependency required for protected environments
+- **Offline licensing** — Permit Protocol v1 / Ed25519 signed entitlements verified locally; no license server or cloud round trip required
 
 ## Supported platform
 
@@ -76,6 +76,7 @@ sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
   libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev
 
 raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
+raco pkg install --auto --no-docs --name permit https://github.com/turinglambdaai/permit.git
 raco make main.rkt
 racket main.rkt --doctor
 racket main.rkt --simulator
@@ -114,7 +115,7 @@ About 2.5s after startup the app fetches the Ed25519-signed update feed once in 
 
 The source code is Apache-2.0. Free/Pro describe the product experience, update entitlement and support attached to **official distributions**; they do not revoke rights already granted by Apache-2.0. Self-built or modified Apache-2.0 versions are not automatically official Pro builds and do not carry official update/support/validation commitments.
 
-Every official install starts with a 14-day Pro trial. See [PRICING.md](PRICING.md) and [docs/licensing-model.md](docs/licensing-model.md).
+Every official install can start a 14-day local Pro trial without an account or network request. Paid entitlements are Permit-signed and can remain fully offline. See [PRICING.md](PRICING.md) and [docs/licensing-model.md](docs/licensing-model.md).
 
 ## Architecture
 
