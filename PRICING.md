@@ -47,6 +47,8 @@ gPTP Studio 源码依据 **Apache License 2.0** 提供。下面的 Free / Pro �
 - 默认不采集硬件指纹。需要单安装实例绑定的企业 entitlement 使用应用生成的随机 `installation_id`；换机时按购买方案申请迁移
 - 官方许可证文件、签发私钥和官方 Pro entitlement 不得未经授权复制、出售或冒充官方签发；这不影响 Apache-2.0 对源码本身授予的权利
 
+维护者的手工签发、密钥隔离与换机流程见 [docs/permit-operations.md](docs/permit-operations.md)。
+
 ## 购买
 
 - 联系：`turinglambdaai`（GitHub Issues / 私信）
