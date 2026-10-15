@@ -11,6 +11,7 @@
 
 ```bash
 raco permit keygen \
+  # 最小权限：gptp-studio 离线产品，钥用途收紧为 entitlement/trial/trial-extension（去 activation）
   --private ~/Sync/Keys/gptp-studio-permit/private-key.der \
   --public  ~/Sync/Keys/gptp-studio-permit/public-key.der \
   --trust-store app/keys/trust-store.json \
