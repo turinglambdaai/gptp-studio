@@ -115,7 +115,7 @@ racket main.rkt
 
 源码采用 Apache-2.0。Free / Pro 描述的是**官方分发版本**中的产品体验、更新 entitlement 与支持服务，不会撤销或缩小 Apache-2.0 已经授予的权利。自行构建或修改的 Apache-2.0 版本不自动成为官方 Pro 构建，也不附带官方更新、支持和参考平台验证承诺。
 
-每个官方安装都可以在本地启动 14 天 Pro 试用，不要求账号或联网。付费权益使用 Permit 签名，可继续完全离线验证。定价见 [PRICING.md](PRICING.md)，许可模型见 [docs/licensing-model.md](docs/licensing-model.md)。
+每个官方安装都可以在本地启动 14 天 Pro 试用，不要求账号或联网。付费权益使用 Permit 签名，可继续完全离线验证。定价见 [PRICING.md](PRICING.md)，许可模型见 [docs/licensing-model.md](docs/licensing-model.md)；维护者手工签发流程见 [Permit 运维手册](docs/permit-operations.md)。
 
 ## 架构原则
 
