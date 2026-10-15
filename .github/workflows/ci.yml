@@ -51,6 +51,30 @@ jobs:
       - name: Compile entitlement tooling
         run: raco make app/gate.rkt scripts/issue-license.rkt
 
+      - name: Smoke manual Permit issuance
+        shell: bash
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/permit-smoke"
+          mkdir -p "$d"
+          raco permit keygen \
+            --private "$d/private.der" \
+            --public "$d/public.der" \
+            --trust-store "$d/trust.json" \
+            --key-id ci-entitlement \
+            --issuer site.jrtx.gptpstudio
+          racket scripts/issue-license.rkt \
+            --key "$d/private.der" \
+            --trust-store "$d/trust.json" \
+            --key-id ci-entitlement \
+            --subject ci@example.com \
+            --subject-id cus_ci \
+            --updates-through 2027-10-15T23:59:59Z \
+            --out "$d/ci.license"
+          raco permit verify \
+            --trust-store "$d/trust.json" \
+            --credential "$d/ci.license"
+
       - name: Backend tests
         run: raco test tests/*.rkt
 
