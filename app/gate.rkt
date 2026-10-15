@@ -196,7 +196,13 @@
 
 (define (gate-trial-start!)
   (define path (gate-state-path))
-  (unless (file-exists? path)
+  (define existing
+    (and (file-exists? path)
+         (with-handlers ([exn:fail? (lambda (_) #f)])
+           (read-local-trial path))))
+  ;; A valid expired state is deliberately preserved; an old pre-Permit or
+  ;; malformed state is replaced only when the user explicitly starts Trial.
+  (unless existing
     (write-local-trial
      (make-local-trial #:duration-seconds trial-duration-seconds)
      path))
@@ -216,7 +222,10 @@
                                 #:installation-id (installation-id)))
         (values #f "许可证当前已过期、版本不匹配或绑定了其他安装实例")]
        [else
-        (copy-file path (license-path) #t)
+        (define destination (license-path))
+        (unless (equal? (path->complete-path path)
+                        (path->complete-path destination))
+          (copy-file path destination #t))
         (gate-init!)
         (values #t
                 (or (verified-credential-subject-display credential)
