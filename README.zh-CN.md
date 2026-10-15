@@ -25,7 +25,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 - **GM 运行时调优**：经 `pmc GRANDMASTER_SETTINGS_NP` 在线修改 clockClass、clockAccuracy、timeSource 与 BMCA 优先级，无需重启引擎（Pro）
 - **Wireshark 一键联动**：实时（gPTP 捕获过滤器）或回放保留报文；工程报告导出 JSON/Markdown
 - **聚合日志与预设**：引擎、抓包、应用事件统一观察
-- **离线授权**：适合内网和保密研发环境，不依赖云端许可服务
+- **离线授权**：Permit Protocol v1 / Ed25519 签名权益在本地验证，适合内网和保密研发环境，不依赖许可证服务器
 
 ## 正式支持平台
 
@@ -76,6 +76,7 @@ sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
   libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev
 
 raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
+raco pkg install --auto --no-docs --name permit https://github.com/turinglambdaai/permit.git
 raco make main.rkt
 racket main.rkt --doctor
 racket main.rkt --simulator
@@ -114,7 +115,7 @@ racket main.rkt
 
 源码采用 Apache-2.0。Free / Pro 描述的是**官方分发版本**中的产品体验、更新 entitlement 与支持服务，不会撤销或缩小 Apache-2.0 已经授予的权利。自行构建或修改的 Apache-2.0 版本不自动成为官方 Pro 构建，也不附带官方更新、支持和参考平台验证承诺。
 
-每个官方安装包自带 14 天 Pro 试用。定价见 [PRICING.md](PRICING.md)，许可模型见 [docs/licensing-model.md](docs/licensing-model.md)。
+每个官方安装都可以在本地启动 14 天 Pro 试用，不要求账号或联网。付费权益使用 Permit 签名，可继续完全离线验证。定价见 [PRICING.md](PRICING.md)，许可模型见 [docs/licensing-model.md](docs/licensing-model.md)。
 
 ## 架构原则
 
