@@ -48,6 +48,9 @@ jobs:
       - name: Install Permit (pinned)
         run: raco pkg install --auto --no-docs --ignore-checksums --name permit https://github.com/turinglambdaai/permit/archive/ccb7bb3fd69a271406ed3e5e79c52ee239d08486.zip
 
+      - name: Compile entitlement tooling
+        run: raco make app/gate.rkt scripts/issue-license.rkt
+
       - name: Backend tests
         run: raco test tests/*.rkt
 
