@@ -37,6 +37,9 @@ wire protocol. It is customer-friendly nuisance resistance rather than
 tamper-proof DRM; a user controlling the machine can delete or roll back local
 state.
 
+Maintainer key provisioning and manual issuance are documented in
+[permit-operations.md](permit-operations.md).
+
 ## What the official Pro entitlement actually sells
 
 The Pro license file in the official binary is a **commercial entitlement for
