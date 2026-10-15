@@ -289,7 +289,8 @@
 (define (current-engine-status) (sup-status->record (sup-status app-supervisor)))
 
 (define (apply-tier-capacity!)
-  (packet-store-set-capacity! app-packets (if (gate-pro?) 50000 2000)))
+  (packet-store-set-capacity! app-packets
+                              (if (eq? (gate-check 'packet-store) #t) 50000 2000)))
 
 (define (sup-set-alarm-threshold! sup ns)
   (set-box! (supervisor-state sup)
@@ -506,7 +507,9 @@
      (failed "unknown role")]
     [(not (member mode* '(real sim)))
      (failed "unknown mode")]
-    [(and (eq? mode* 'real) (not (eq? role* 'listener)) (not (gate-pro?)))
+    [(and (eq? mode* 'real)
+           (not (eq? role* 'listener))
+           (not (eq? (gate-check 'engine) #t)))
      (denied? (gate-check 'engine))]
     [(and (eq? role* 'boundary) (null? ifaces*))
      (failed "boundary clock requires the port list (ifaces)")]
@@ -565,7 +568,7 @@
              [priority2 : (Optional Int64)]
              : ActionResult)
   (cond
-    [(not (gate-pro?)) (deny-pro (gate-check 'engine))]
+    [(not (eq? (gate-check 'engine) #t)) (deny-pro (gate-check 'engine))]
     [else
      (define provided
        (for*/hasheq ([pair (in-list (list (cons 'clock_class clock_class)
