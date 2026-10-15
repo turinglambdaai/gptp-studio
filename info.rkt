@@ -9,7 +9,9 @@
 (define deps
   '("base"
     "gui-lib"
-    "rackunit-lib"))
+    "rackunit-lib"
+    ;; Protocol v1 entitlements (client verification surface)
+    "permit"))
 
 (define build-deps '())
 

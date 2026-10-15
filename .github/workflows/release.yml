@@ -57,6 +57,9 @@ jobs:
       - name: Install Rivet (released package)
         run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
 
+      - name: Install Permit (entitlement gate dependency)
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/permit.git
+
       # --development matches the family precedent of running the full
       # package + smoke + installer flow without production platform
       # signing. The signed update feed is built centrally in the publish
@@ -107,6 +110,9 @@ jobs:
         uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@main
       - name: Install Rivet (released package)
         run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
+
+      - name: Install Permit (entitlement gate dependency)
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/permit.git
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:

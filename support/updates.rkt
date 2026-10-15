@@ -35,7 +35,9 @@
 ;; must be HTTPS — the signed scheme refuses plain HTTP by design.
 
 (require crypto
-         rivet/distribution
+         ;; rivet grew its own platform-symbol export; ours is the product
+         ;; packaging spelling, so the upstream name is excluded here.
+         (except-in rivet/distribution platform-symbol architecture-symbol)
          racket/string)
 
 (provide app-update-identifier

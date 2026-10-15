@@ -1,0 +1,1 @@
+{"issuer":"com.turinglambdaai.gptp-studio","keys":{"gptp-pro-2026":{"algorithm":"Ed25519","not_after":null,"not_before":null,"public_key":"MCowBQYDK2VwAyEAxq+4eSbEMk2EpEbLYw8IVOmGPeLCQVi4PZs7FDsGhR0=","purposes":["entitlement","trial","trial-extension","activation"],"status":"active"}},"protocol":"permit-trust-store","version":1}

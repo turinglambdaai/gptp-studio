@@ -20,7 +20,7 @@
          crypto/all
          net/base64
          rackunit
-         rivet/distribution
+         (except-in rivet/distribution platform-symbol architecture-symbol)
          racket/file
          racket/path
          racket/port

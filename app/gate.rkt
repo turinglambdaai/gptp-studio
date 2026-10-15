@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; Commercial tier gate built on the offline license module
+;; Commercial tier gate built on Permit (github.com/turinglambdaai/permit)
 ;;
 ;;   free   — passive listening (capture+decode), offline pcap analysis,
 ;;            simulator, config editor/preview, presets (watch free)
@@ -9,13 +9,15 @@
 ;;   trial  — 14 days of Pro from the moment the user starts it
 ;;
 ;; The tier never blocks the six pages, only the actions listed above.
-;; Validation is offline RSA-2048 via the system openssl CLI.
+;; A customer activates an offline Permit v1 entitlement credential
+;; (.permit.json), verified against the Ed25519 trust store shipped with
+;; the application.
 
 (require json
          racket/date
          racket/file
          racket/string
-         "../support/license.rkt"
+         "../support/entitlement.rkt"
          racket/runtime-path)
 
 (provide gate-init!
@@ -28,9 +30,8 @@
          gate-check
          gate-state-path)
 
-(define-runtime-path public-key "keys/public.pem")
+(define-runtime-path trust-store-path "keys/trust-store.json")
 
-(define product-name "gPTP Studio")
 (define trial-days 14)
 
 (define gate-cache (box 'free))
@@ -38,8 +39,8 @@
 (define (gate-state-path)
   (build-path (find-system-path 'home-dir) ".gptp-studio" "gate-state.json"))
 
-(define (license-path)
-  (build-path (find-system-path 'home-dir) ".gptp-studio" "license.lic"))
+(define (credential-path)
+  (build-path (find-system-path 'home-dir) ".gptp-studio" "entitlement.permit.json"))
 
 ;; persisted: trial-started ISO date, so the trial survives restarts
 (define (read-gate-state)
@@ -63,9 +64,21 @@
   (define s (number->string n))
   (if (< (string-length s) 2) (string-append "0" s) s))
 
-;; days between two ISO dates (b - a), using glaze's helper arithmetic
+;; days until the ISO yyyy-mm-dd date's end; negative once it has passed
+(define (days-until-expiry iso)
+  (define m (regexp-match #rx"^([0-9]{4})-([0-9]{2})-([0-9]{2})$" iso))
+  (unless m
+    (raise-arguments-error 'days-until-expiry "not an ISO date" "date" iso))
+  (define noon
+    (find-seconds 0 0 12
+                  (string->number (list-ref m 3))
+                  (string->number (list-ref m 2))
+                  (string->number (list-ref m 1))
+                  #f))
+  (inexact->exact (floor (- (/ noon 86400.0) (/ (current-seconds) 86400.0)))))
+
 (define (days-since iso)
-  (days-until-expiry iso)) ; negative days-until-expiry == already past
+  (days-until-expiry iso)) ; negative == already past
 
 (define (trial-days-left)
   (define started (hash-ref (read-gate-state) 'trial-started #f))
@@ -76,14 +89,12 @@
 ;; Recompute the current tier from disk state. Call at startup and after
 ;; activation/trial changes.
 (define (gate-init!)
-  (define lic (license-path))
+  (define lic (credential-path))
   (define tier
     (cond
       [(file-exists? lic)
-       (define r (validate-license lic
-                                   #:public-key public-key
-                                   #:product product-name))
-       (if (hash-ref r 'valid #f) 'pro 'free)]
+       (define-values (ok? _info) (entitlement-validate lic trust-store-path))
+       (if ok? 'pro 'free)]
       [else (if (let ([left (trial-days-left)]) (and left (> left 0))) 'trial 'free)]))
   (set-box! gate-cache tier)
   tier)
@@ -108,44 +119,44 @@
     (write-gate-state! (hash-set st 'trial-started (iso-today))))
   (gate-init!))
 
-;; Activate from a license file path (validated, then copied into place).
+;; Activate from a credential file path (verified, then copied into place).
 (define (gate-activate! path)
   (cond
     [(not (file-exists? path)) (values #f "许可证文件不存在")]
     [else
-     (define r (validate-license path
-                                 #:public-key public-key
-                                 #:product product-name))
-     (if (hash-ref r 'valid #f)
+     (define-values (ok? info) (entitlement-validate path trust-store-path))
+     (if ok?
          (begin
-           (copy-file path (license-path) #t)
+           (copy-file path (credential-path) #t)
            (gate-init!)
-           (values #t (hash-ref r 'subject "已激活")))
-         (values #f (case (hash-ref r 'reason "")
-                       [("signature") "许可证签名无效"]
-                       [("product") "许可证不适用于本产品"]
-                       [("expired") "许可证已过期"]
-                       [("machine") "许可证绑定了其他机器"]
-                       [("malformed") "许可证文件损坏"]
+           (values #t (or (hash-ref info 'subject #f) "已激活")))
+         (values #f (case (hash-ref info 'reason "")
+                       [(signature) "许可证签名无效"]
+                       [(issuer) "许可证不适用于本产品"]
+                       [(expired) "许可证已过期"]
+                       [(not-yet-valid) "许可证尚未生效"]
+                       [(edition) "许可证不包含 Pro 版授权"]
+                       [(type) "文件不是许可证凭据"]
+                       [(key-revoked) "签发密钥已被吊销"]
+                       [(key-window) "签发密钥不在有效签发期内"]
                        [else "许可证校验失败"])))]))
 
 (define (gate-deactivate!)
-  (define lic (license-path))
+  (define lic (credential-path))
   (when (file-exists? lic) (delete-file lic))
   (gate-init!))
 
 (define (gate-info)
   (define tier (gate-tier))
-  (define lic (license-path))
+  (define lic (credential-path))
   (define detail
     (cond
       [(eq? tier 'pro)
-       (define r (with-handlers ([exn:fail? (lambda (_) (hasheq))])
-                   (validate-license lic
-                                     #:public-key public-key
-                                     #:product product-name)))
-       (hasheq 'subject (hash-ref r 'subject #f)
-               'expiry (hash-ref r 'expiry #f))]
+       (define-values (_ok? info)
+         (with-handlers ([exn:fail? (lambda (_) (values #f (hasheq)))])
+           (entitlement-validate lic trust-store-path)))
+       (hasheq 'subject (hash-ref info 'subject #f)
+               'expiry (hash-ref info 'expires #f))]
       [(eq? tier 'trial) (hasheq 'days_left (trial-days-left))]
       [else (hasheq)]))
   (hasheq 'tier (symbol->string tier) 'pro (gate-pro?) 'trial_days trial-days 'detail detail))

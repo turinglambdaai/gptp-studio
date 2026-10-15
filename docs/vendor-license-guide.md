@@ -1,44 +1,113 @@
-# 厂商指南：许可证签发 / Vendor License Guide
+# 厂商指南：Permit 授权签发 / Vendor License Guide
 
-> 仅作者（vendor）需要本文件。私钥不入库（`.gitignore` 已排除 `app/keys/private.pem`），请离线备份。
+> 仅作者（vendor）需要本文件。私钥不入库，请离线备份（家族密钥库
+> `~/Sync/Keys/gptp-studio-permit/`）。
 
-## 一次性：密钥对
+商业授权基于 [Permit](https://github.com/turinglambdaai/permit)——离线可验证、
+在线可管理的签名权利协议。应用内置的是公钥信任库（`app/keys/trust-store.json`），
+验证完全离线；签发只需要 vendor 本机的私钥。
 
-```bash
-raco glaze keygen --out app/keys        # 生成 private.pem + public.pem
-```
-
-`public.pem` 随应用分发（`app/gate.rkt` 经 `define-runtime-path` 内嵌）；`private.pem` 自行保管。
-
-## 签发一张许可证
+## 一次性：密钥对 + 信任库
 
 ```bash
-racket -e '(require glaze/license)
-(issue-license #:private-key "app/keys/private.pem"
-               #:product "gPTP Studio"
-               #:subject "customer@example.com"
-               #:expiry "2027-12-31"          ; 可选
-               #:machine-id (machine-id)      ; 可选（机器绑定，取客户机器上的值）
-               #:out "customer.license")'
+raco permit keygen \
+  --private ~/Sync/Keys/gptp-studio-permit/private-key.der \
+  --public  ~/Sync/Keys/gptp-studio-permit/public-key.der \
+  --trust-store app/keys/trust-store.json \
+  --key-id gptp-pro-2026 \
+  --issuer com.turinglambdaai.gptp-studio
 ```
 
-> 注：`raco glaze license sign` CLI 在含空格的 product 名上参数解析有缺陷，建议走上述 Racket 调用。
+`trust-store.json` 入库并随应用分发；`private-key.der` 自行保管、绝不入库。
+轮换密钥时用 `next` 状态预分发新公钥（见 permit 的 trust 文档）。
 
-## 客户侧激活
+## 签发一张 Pro 授权
 
-1. GUI →「运行与日志 → 激活许可证」选择 `.license` 文件；或
-2. 直接放入 `~/.gptp-studio/license.lic` 后重启。
+从 permit 仓库 `examples/` 的模板出发改字段，或直接写 payload JSON（可省略
+`credential_id` 等由签发器补全的字段时以 `raco permit issue` 的 schema 校验为
+准）：
 
-校验完全离线：canonical JSON + RSA-SHA256（系统 openssl CLI），失败时返回稳定 reason（signature / product / expired / machine / malformed）。
+```json
+{
+  "protocol": "permit",
+  "version": 1,
+  "type": "entitlement",
+  "credential_id": "cred_gptp_001",
+  "entitlement_id": "ent_gptp_customer",
+  "revision": 0,
+  "issuer": "com.turinglambdaai.gptp-studio",
+  "issued_at": "2026-10-16T00:00:00Z",
+  "not_before": null,
+  "subject": {
+    "type": "person",
+    "id": "customer_01",
+    "display": "customer@example.com"
+  },
+  "channel": "commercial",
+  "grants": [
+    {
+      "scope": { "products": ["gptp-studio"], "product_families": [] },
+      "edition": "pro",
+      "features": [],
+      "addons": [],
+      "capabilities": {},
+      "feature_policy": "published-through"
+    }
+  ],
+  "constraints": {
+    "use_expires_at": null,
+    "updates_through": null,
+    "features_through": null,
+    "version_policy": { "min": null, "max": null },
+    "limits": { "named_seats": null, "device_activations": null,
+                "concurrent_seats": null },
+    "installation_id": null,
+    "activation_required": false
+  },
+  "extensions": {}
+}
+```
 
-## 验证 / 吊销
+字段语义：`use_expires_at` 设日期即订阅式（到期停用）；留 null 即永久。
+注意 jsexpr 世界的"无值"写 JSON `null`，不是 `false`。
+
+签发（签名覆盖 payload 字节本身，签发器会先做 schema 校验）：
 
 ```bash
-raco glaze license verify --pub app/keys/public.pem --product "gPTP Studio" customer.license
+raco permit issue \
+  --key ~/Sync/Keys/gptp-studio-permit/private-key.der \
+  --key-id gptp-pro-2026 \
+  --trust-store app/keys/trust-store.json \
+  --payload entitlement.json \
+  --output customer.permit.json
 ```
 
-吊销 = 签发短期许可证（expiry），到期自然失效；换机 = 按新 machine-id 重签（免费政策见 PRICING.md）。
+发给客户的就是 `customer.permit.json`。
 
-## 私钥泄漏预案
+## 续订 / 变更
 
-用 `raco glaze keygen` 换发新密钥对，替换仓库中 `public.pem`，随下一次更新发布；旧密钥签发的许可证全部失效。
+同一 `entitlement_id`、`revision` 加一，重新签发一份完整快照。客户激活新文件
+即完成替换（客户端在收到的凭据间做确定性替换，不构成离线吊销）。
+
+## 客户激活
+
+客户在应用内输入 `.permit.json` 文件路径（About 页 → 激活）。应用验证签名、
+信任库、issuer、有效期与 pro edition 后把文件复制到
+`~/.gptp-studio/entitlement.permit.json`。
+
+## 验证与巡检
+
+```bash
+raco permit verify --trust-store app/keys/trust-store.json \
+                   --credential customer.permit.json
+raco permit check  --trust-store app/keys/trust-store.json \
+                   --credential customer.permit.json \
+                   --product gptp-studio --edition pro   # 或 --feature
+```
+
+`raco permit inspect` 的输出刻意标记为未验证——任何授权判定只走 `verify`。
+
+## 试用
+
+14 天 Pro 试用由应用本地状态机管理（`app/gate.rkt` 的 gate-state），不依赖
+签发；如需远程发放试用延期，签发 `trial-extension` 凭据（Protocol v1）。
