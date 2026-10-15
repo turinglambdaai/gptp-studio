@@ -67,7 +67,7 @@ Priority: optional
 Architecture: $ARCH
 Maintainer: turinglambdaai
 Homepage: https://github.com/turinglambdaai/gptp-studio
-Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0, libpcap0.8 | libpcap0.8t64, linuxptp, ethtool, iproute2, libcap2-bin, openssl
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0, libpcap0.8 | libpcap0.8t64, linuxptp, ethtool, iproute2, libcap2-bin
 Description: Professional gPTP / IEEE 802.1AS debugging workstation
  gPTP Studio is a Linux-native engineering workstation for Automotive
  Ethernet timing work. It combines linuxptp engine control, PHC and hardware
