@@ -1,5 +1,11 @@
 # Glaze 反哺验证报告（历史记录）
 
+> **Historical record.** This document describes the pre-Rivet / pre-Permit
+> implementation and is kept only as migration history. Current desktop runtime
+> is Rivet; current commercial entitlement verification is Permit Protocol v1 /
+> Ed25519. Do not use the Glaze RSA licensing commands below for releases.
+
+
 > 本文记录 gPTP Studio 早期使用 Glaze 验证桌面框架时的历史结果，其中包含当时对 macOS/WebKit 的实验记录。**它不再代表 gPTP Studio 的产品支持矩阵。当前产品只正式支持 Linux。**
 
 > 本次用 Glaze 开发了一个完整的商业级桌面应用（约 4000 行 Racket + 1500 行前端 JS）。
