@@ -13,7 +13,8 @@
          "../capture/store.rkt"
          "../capture/manager.rkt"
          "../engine/config.rkt"
-         "../engine/supervisor.rkt")
+         "../engine/supervisor.rkt"
+         "version.rkt")
 
 (provide app-wv-box
          app-bus
@@ -33,7 +34,6 @@
          settings-set!
          app-version)
 
-(define app-version "0.2.0")
 
 ;; ---- stores (created once) -----------------------------------------------------
 

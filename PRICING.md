@@ -42,10 +42,12 @@ gPTP Studio 源码依据 **Apache License 2.0** 提供。下面的 Free / Pro �
 
 ## 官方授权方式
 
-- 激活流程：购买后收到 `<name>.license` 文件 → 应用内「运行与日志 → 激活许可证」选择文件，或放入 `~/.gptp-studio/license.lic`
-- 许可证为 RSA-2048 离线签名，含机器绑定（可选），无网络校验、无遥测，适合内网/保密环境
-- 换机：按购买方案申请许可证迁移
+- 激活流程：购买后收到 `<name>.license`（Permit credential）→ 应用内「运行与日志 → 激活许可证」选择文件，或放入 `~/.gptp-studio/license.lic`
+- 许可证采用 [Permit](https://github.com/turinglambdaai/permit) Protocol v1 + Ed25519 签名；应用只携带公钥信任库，本地验签，不需要许可证服务器、账号或遥测
+- 默认不采集硬件指纹。需要单安装实例绑定的企业 entitlement 使用应用生成的随机 `installation_id`；换机时按购买方案申请迁移
 - 官方许可证文件、签发私钥和官方 Pro entitlement 不得未经授权复制、出售或冒充官方签发；这不影响 Apache-2.0 对源码本身授予的权利
+
+维护者的手工签发、密钥隔离与换机流程见 [docs/permit-operations.md](docs/permit-operations.md)。
 
 ## 购买
 

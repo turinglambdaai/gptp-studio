@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -45,11 +49,43 @@ jobs:
       - name: Install Rivet (released package)
         run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
 
+      - name: Install Permit (pinned)
+        run: raco pkg install --auto --no-docs --ignore-checksums --name permit https://github.com/turinglambdaai/permit/archive/ccb7bb3fd69a271406ed3e5e79c52ee239d08486.zip
+
+      - name: Compile entitlement tooling
+        run: raco make app/gate.rkt scripts/issue-license.rkt
+
+      - name: Smoke manual Permit issuance
+        shell: bash
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/permit-smoke"
+          mkdir -p "$d"
+          raco permit keygen \
+            --private "$d/private.der" \
+            --public "$d/public.der" \
+            --trust-store "$d/trust.json" \
+            --key-id ci-entitlement \
+            --issuer site.jrtx.gptpstudio
+          racket scripts/issue-license.rkt \
+            --key "$d/private.der" \
+            --trust-store "$d/trust.json" \
+            --key-id ci-entitlement \
+            --subject ci@example.com \
+            --subject-id cus_ci \
+            --updates-through 2027-10-15T23:59:59Z \
+            --out "$d/ci.license"
+          raco permit verify \
+            --trust-store "$d/trust.json" \
+            --credential "$d/ci.license"
+
       - name: Backend tests
         run: raco test tests/*.rkt
 
       - name: Build the GTK4 host against the platform library
-        run: raco rivet build
+        run: |
+          raco rivet build
+          test -s .rivet/stage/app/app/keys/permit-trust-store.json
 
       - name: Generate and stage the typed clients
         run: |

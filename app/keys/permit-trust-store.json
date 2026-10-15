@@ -1,0 +1,6 @@
+{
+  "protocol": "permit-trust-store",
+  "version": 1,
+  "issuer": "site.jrtx.gptpstudio",
+  "keys": {}
+}

@@ -30,6 +30,8 @@ rtimeserver.config
 # app runtime / secrets
 keys/private.pem
 app/keys/private.pem
+app/keys/*private*.der
+app/keys/*private*.key
 *.lic
 dist/
 build/

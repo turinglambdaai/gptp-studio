@@ -166,6 +166,7 @@ struct AppState {
 
   // License page
   GtkLabel* gate_value{nullptr};
+  GtkLabel* installation_id_value{nullptr};
   GtkButton* trial_start{nullptr};
   GtkEntry* license_path{nullptr};
   GtkButton* activate{nullptr};
@@ -753,6 +754,8 @@ void on_trial_clicked(GtkButton*, gpointer) {
         auto const gate = result.get();
         idle_deliver([gate] {
           gtk_label_set_text(g_state.gate_value, (gate.tier + " (trial)").c_str());
+          gtk_label_set_text(g_state.installation_id_value,
+                             gate.installation_id.c_str());
         });
       });
 }
@@ -777,6 +780,8 @@ void on_activate_clicked(GtkButton*, gpointer) {
             auto const info = gate.get();
             idle_deliver([info] {
               gtk_label_set_text(g_state.gate_value, (info.tier + (info.pro ? " (Pro)" : "")).c_str());
+              gtk_label_set_text(g_state.installation_id_value,
+                                 info.installation_id.c_str());
             });
           });
         });
@@ -795,6 +800,8 @@ void on_deactivate_clicked(GtkButton*, gpointer) {
         auto const gate = result.get();
         idle_deliver([gate] {
           gtk_label_set_text(g_state.gate_value, gate.tier.c_str());
+          gtk_label_set_text(g_state.installation_id_value,
+                             gate.installation_id.c_str());
         });
       });
 }
@@ -1858,6 +1865,9 @@ GtkWidget* build_license_page() {
   auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
 
   auto* gate_row = info_row("License tier", &g_state.gate_value);
+  auto* installation_row =
+      info_row("Installation ID", &g_state.installation_id_value);
+  gtk_label_set_selectable(g_state.installation_id_value, TRUE);
 
   auto* trial = gtk_button_new_with_label("Start Trial");
   auto* path = gtk_entry_new();
@@ -1887,6 +1897,7 @@ GtkWidget* build_license_page() {
   gtk_label_set_xalign(GTK_LABEL(note), 0.0F);
 
   gtk_box_append(GTK_BOX(box), gate_row);
+  gtk_box_append(GTK_BOX(box), installation_row);
   gtk_box_append(GTK_BOX(box), trial);
   gtk_box_append(GTK_BOX(box), path_row);
   gtk_box_append(GTK_BOX(box), exports);

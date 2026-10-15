@@ -142,6 +142,7 @@
   ([tier : String]
    [pro : Bool]
    [trial_days : Int64]
+   [installation_id : String]
    [detail : Any]))
 
 (define-record PresetEntry
@@ -284,12 +285,14 @@
   (GateInfo (symbol->string* (hash-ref info 'tier "free"))
             (and (hash-ref info 'pro #f) #t)
             (optional-int (hash-ref info 'trial_days 0))
+            (symbol->string* (hash-ref info 'installation_id ""))
             (hash-ref info 'detail (void))))
 
 (define (current-engine-status) (sup-status->record (sup-status app-supervisor)))
 
 (define (apply-tier-capacity!)
-  (packet-store-set-capacity! app-packets (if (gate-pro?) 50000 2000)))
+  (packet-store-set-capacity! app-packets
+                              (if (eq? (gate-check 'packet-store) #t) 50000 2000)))
 
 (define (sup-set-alarm-threshold! sup ns)
   (set-box! (supervisor-state sup)
@@ -506,7 +509,9 @@
      (failed "unknown role")]
     [(not (member mode* '(real sim)))
      (failed "unknown mode")]
-    [(and (eq? mode* 'real) (not (eq? role* 'listener)) (not (gate-pro?)))
+    [(and (eq? mode* 'real)
+           (not (eq? role* 'listener))
+           (not (eq? (gate-check 'engine) #t)))
      (denied? (gate-check 'engine))]
     [(and (eq? role* 'boundary) (null? ifaces*))
      (failed "boundary clock requires the port list (ifaces)")]
@@ -541,6 +546,10 @@
   (define ref (string->symbol source))
   (cond
     [(not (memq ref '(system none))) (fail-action "unknown reference source")]
+    ;; Always allow turning a managed reference source off. Enabling the paid
+    ;; reference-source workflow requires the corresponding Permit feature.
+    [(and (eq? ref 'system) (not (eq? (gate-check 'reference) #t)))
+     (deny-pro (gate-check 'reference))]
     [else
      (sup-set-reference app-supervisor ref)
      (ok-action (current-engine-status))]))
@@ -565,7 +574,7 @@
              [priority2 : (Optional Int64)]
              : ActionResult)
   (cond
-    [(not (gate-pro?)) (deny-pro (gate-check 'engine))]
+    [(not (eq? (gate-check 'engine) #t)) (deny-pro (gate-check 'engine))]
     [else
      (define provided
        (for*/hasheq ([pair (in-list (list (cons 'clock_class clock_class)
@@ -724,14 +733,17 @@
 
 (define-rpc (license-trial-start : GateInfo)
   (gate-trial-start!)
+  (apply-tier-capacity!)
   (gate-info->record (gate-info)))
 
 (define-rpc (license-activate [path : String] : ActionResult)
   (define-values (ok? msg) (gate-activate! path))
+  (when ok? (apply-tier-capacity!))
   (if ok? (ok-action msg) (fail-action msg)))
 
 (define-rpc (license-deactivate : GateInfo)
   (gate-deactivate!)
+  (apply-tier-capacity!)
   (gate-info->record (gate-info)))
 
 (define-rpc (set-settings [language : String] [offset_warn_us : Int64] : ActionResult)
@@ -772,47 +784,50 @@
     (ok-action (hasheq 'path (path->string path) 'redacted #t))))
 
 (define-rpc (report-export [path : String] [iface : String] [role : String] [reference : String] : ActionResult)
-  (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
-    (define nics (detect-interfaces))
-    (define chosen-iface
-      (if (string=? iface "")
-          (or (hash-ref (sup-status app-supervisor) 'iface #f)
-              (hash-ref (cm-status app-capture) 'iface #f)
-              (settings-ref 'capture-iface)
-              "eth0")
-          iface))
-    (define qualification
-      (qualify-interface #:platform (platform-name)
-                         #:nics nics
-                         #:iface chosen-iface
-                         #:role (if (string=? role "") "listener" role)
-                         #:reference reference
-                         #:capture-status (cm-status app-capture)))
-    (define threshold-ns (* (settings-ref 'offset-warn-us) 1000))
-    (define report
-      (make-engineering-report
-       #:version app-version
-       #:platform (platform-name)
-       #:nics nics
-       #:qualification qualification
-       #:engine (sup-status app-supervisor)
-       #:capture (cm-status app-capture)
-       #:params (params->jsexpr (current-engine-params))
-       #:conf (params->conf (current-engine-params) #:role role)
-       #:offset-points (series-snapshot app-offset-series 5000)
-       #:delay-points (series-snapshot app-delay-series 5000)
-       #:packets (packet-store-snapshot app-packets 5000)
-       #:logs (log-snapshot app-logs #:limit 300)
-       #:offset-jump-threshold-ns threshold-ns))
-    (define markdown-path
-      (if (regexp-match? #rx"[.]json$" path)
-          (path-replace-extension path #".md")
-          path))
-    (write-engineering-report-json! path report)
-    (write-engineering-report-markdown! markdown-path report)
-    (ok-action (hasheq 'json (path->string path)
-                       'markdown (path->string markdown-path)))))
-
+  (cond
+    [(not (eq? (gate-check 'export) #t))
+     (deny-pro (gate-check 'export))]
+    [else
+     (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
+       (define nics (detect-interfaces))
+       (define chosen-iface
+         (if (string=? iface "")
+             (or (hash-ref (sup-status app-supervisor) 'iface #f)
+                 (hash-ref (cm-status app-capture) 'iface #f)
+                 (settings-ref 'capture-iface)
+                 "eth0")
+             iface))
+       (define qualification
+         (qualify-interface #:platform (platform-name)
+                            #:nics nics
+                            #:iface chosen-iface
+                            #:role (if (string=? role "") "listener" role)
+                            #:reference reference
+                            #:capture-status (cm-status app-capture)))
+       (define threshold-ns (* (settings-ref 'offset-warn-us) 1000))
+       (define report
+         (make-engineering-report
+          #:version app-version
+          #:platform (platform-name)
+          #:nics nics
+          #:qualification qualification
+          #:engine (sup-status app-supervisor)
+          #:capture (cm-status app-capture)
+          #:params (params->jsexpr (current-engine-params))
+          #:conf (params->conf (current-engine-params) #:role role)
+          #:offset-points (series-snapshot app-offset-series 5000)
+          #:delay-points (series-snapshot app-delay-series 5000)
+          #:packets (packet-store-snapshot app-packets 5000)
+          #:logs (log-snapshot app-logs #:limit 300)
+          #:offset-jump-threshold-ns threshold-ns))
+       (define markdown-path
+         (if (regexp-match? #rx"[.]json$" path)
+             (path-replace-extension path #".md")
+             path))
+       (write-engineering-report-json! path report)
+       (write-engineering-report-markdown! markdown-path report)
+       (ok-action (hasheq 'json (path->string path)
+                          'markdown (path->string markdown-path))))]))
 (define-rpc (params-merge
              [domain : (Optional Int64)]
              [priority1 : (Optional Int64)]

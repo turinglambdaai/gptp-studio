@@ -4,13 +4,13 @@ This file documents third-party software that is incorporated into or used by
 official gPTP Studio Linux distributions. It is informational and does not
 replace the license terms that apply to each component.
 
-## Glaze
+## Rivet
 
-Project: `turinglambdaai/glaze`
+Project: `turinglambdaai/rivet`
 
 License: MIT
 
-Copyright (c) 2025 turinglambdaai
+Copyright (c) 2026 turinglambdaai
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Permit
+
+Project: `turinglambdaai/permit`
+
+License: Apache License 2.0
+
+Official gPTP Studio builds bundle Permit as the framework-neutral signed
+entitlement verifier and local-trial runtime. Permit credential-signing keys are
+not included in the distribution; only public trust material is shipped.
 
 ## Racket CS runtime and Racket libraries
 
@@ -82,7 +92,6 @@ or installed as package dependencies:
 - linuxptp (`ptp4l`, `phc2sys`, `pmc`)
 - libpcap
 - GTK 3 and WebKitGTK 4.1
-- OpenSSL command-line tools
 - `ethtool`, `iproute2`, and Linux capability tools
 
 The Debian package declares these runtime dependencies instead of vendoring

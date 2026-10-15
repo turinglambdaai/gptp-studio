@@ -27,7 +27,7 @@ gPTP Studio 是一个 **Linux-only 的 gPTP / IEEE 802.1AS 专业调试工作站
 | 主机探测 | sysfs + ethtool + iproute2 | NIC、driver、link、PHC、HW timestamp 能力 |
 | 权限 | root / file capabilities / sudo-n | 明确可观测的启动路径，不在安装时偷偷提权 |
 | 包管理 | `.deb` + tar.gz | Ubuntu LTS 安装与可移植部署 |
-| 许可证 | glaze/license + openssl CLI | 离线授权 |
+| 商业权益 | Permit Protocol v1 + Ed25519 | 离线验签；Trial 本地状态；无硬件指纹 |
 
 ## 进程与线程模型
 

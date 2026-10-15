@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Changed
+
+- **商业权益迁移到 Permit**：删除产品内 RSA/OpenSSL 许可证实现与硬件 machine-id 绑定；官方 entitlement 改为 Permit Protocol v1 / Ed25519 本地验签，默认客户端只携带公钥 trust store。
+- **功能级维护期**：Pro gate 不再只判断一个布尔档位；engine-control、reference-source、pcap-export 与大容量 packet store 按各自发布时间查询 `features_through`，防止维护期结束后手工复制新二进制获得未来付费功能。
+- **本地 Trial**：14 天 Pro 试用改用 Permit storage-agnostic local-trial 状态与随机 installation id，不采集硬件指纹。
+- **密钥职责隔离**：产品 entitlement key 与 updater signing key 明确分离；Release 在正式构建前验证生产 Permit trust store，空占位配置直接拒绝发布。
+
+### Removed
+
+- `support/license.rkt` RSA-2048/OpenSSL 授权模块与旧 `app/keys/public.pem`。
+
 ## 0.2.0 - 2026-10-15
 
 **在线更新上线 + 反馈面对齐家族地基标准。** 签名更新频道（update-stable
