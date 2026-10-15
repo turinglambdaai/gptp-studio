@@ -279,4 +279,5 @@
   (hasheq 'tier (symbol->string tier)
           'pro (not (eq? tier 'free))
           'trial_days trial-days
+          'installation_id iid
           'detail detail))
