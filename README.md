@@ -115,7 +115,7 @@ About 2.5s after startup the app fetches the Ed25519-signed update feed once in 
 
 The source code is Apache-2.0. Free/Pro describe the product experience, update entitlement and support attached to **official distributions**; they do not revoke rights already granted by Apache-2.0. Self-built or modified Apache-2.0 versions are not automatically official Pro builds and do not carry official update/support/validation commitments.
 
-Every official install can start a 14-day local Pro trial without an account or network request. Paid entitlements are Permit-signed and can remain fully offline. See [PRICING.md](PRICING.md) and [docs/licensing-model.md](docs/licensing-model.md).
+Every official install can start a 14-day local Pro trial without an account or network request. Paid entitlements are Permit-signed and can remain fully offline. See [PRICING.md](PRICING.md), [docs/licensing-model.md](docs/licensing-model.md), and the maintainer [Permit operations playbook](docs/permit-operations.md).
 
 ## Architecture
 
