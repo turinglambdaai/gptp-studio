@@ -99,6 +99,8 @@
      (check-true (gate-pro?))
      (check-equal? (gate-check 'engine) #t)
      (check-not-equal? (gate-check 'export) #t)
+     (check-not-equal? (gate-check 'reference) #t)
+     (check-not-equal? (gate-check 'packet-store) #t)
 
      (define info (gate-info))
      (check-equal? (hash-ref info 'tier) "pro")
@@ -113,6 +115,8 @@
      (gate-trial-start!)
      (check-equal? (gate-tier) 'trial)
      (check-equal? (gate-check 'engine) #t)
-     (check-equal? (gate-check 'export) #t)))
+     (check-equal? (gate-check 'export) #t)
+     (check-equal? (gate-check 'reference) #t)
+     (check-equal? (gate-check 'packet-store) #t)))
  (lambda ()
    (delete-directory/files temp-dir)))
