@@ -30,6 +30,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## Permit
+
+Project: `turinglambdaai/permit`
+
+License: Apache License 2.0
+
+Official gPTP Studio builds bundle Permit as the framework-neutral signed
+entitlement verifier and local-trial runtime. Permit credential-signing keys are
+not included in the distribution; only public trust material is shipped.
+
 ## Racket CS runtime and Racket libraries
 
 Official gPTP Studio builds use Racket CS. Racket is offered under the MIT
