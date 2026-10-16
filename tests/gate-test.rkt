@@ -15,7 +15,8 @@
                   issue-credential
                   generate-ed25519-keypair
                   public-key->base64)
-         "../support/entitlement.rkt")
+         "../support/entitlement.rkt"
+         "../app/gate.rkt")
 
 ;; ---- throwaway issuer: key pair + matching trust store ----
 
@@ -48,19 +49,23 @@
 
 (define (gate-payload #:edition [edition "pro"]
                       #:use-expires-at [use-expires-at 'null]
-                      #:issuer [issuer "test.issuer"])
+                      #:issuer [issuer "test.issuer"]
+                      #:credential-id [credential-id "cred_gate_test"]
+                      #:subject-id [subject-id "customer_01"]
+                      #:subject-display [subject-display "customer@example.com"]
+                      #:issued-at [issued-at "2026-01-01T00:00:00Z"])
   (hasheq 'protocol "permit"
           'version 1
           'type "entitlement"
-          'credential_id "cred_gate_test"
+          'credential_id credential-id
           'entitlement_id "ent_gate_test"
           'revision 0
           'issuer issuer
-          'issued_at "2026-01-01T00:00:00Z"
+          'issued_at issued-at
           'not_before 'null
           'subject (hasheq 'type "person"
-                           'id "customer_01"
-                           'display "customer@example.com")
+                           'id subject-id
+                           'display subject-display)
           'channel "commercial"
           'grants
           (list (hasheq 'scope (hasheq 'products '("gptp-studio")
@@ -82,11 +87,12 @@
                   'activation_required #f)
           'extensions (hasheq)))
 
-(define (issue-to-file-with key key-store jsexpr path)
+(define (issue-to-file-with key key-store jsexpr path
+                            #:key-id [key-id "test-1"])
   (define envelope
     (issue-credential (string->bytes/utf-8 (jsexpr->string jsexpr))
                       key
-                      "test-1"
+                      key-id
                       key-store))
   (write-envelope envelope path)
   path)
@@ -181,3 +187,139 @@
 ;; reuses our key id fails there; a distinct key id reports issuer
 (check-not-false (member (hash-ref foreign-info 'reason) '(signature issuer))
                  "foreign credentials are rejected as signature or issuer")
+
+;; ---- credential replacement (gate layer, scratch home) ----
+;; The gate follows the file: a fresh home starts free, activation
+;; upgrades it, replacing the stored credential moves subject with it,
+;; a rejected activation leaves the stored credential in charge, and
+;; deactivation returns to free.
+
+(define scratch-home (make-temporary-file "gate-home-~a" 'directory))
+(putenv "GPTP_STUDIO_HOME" (path->string scratch-home))
+;; the gate layer verifies against the shipped store; the seam points it
+;; at this test's throwaway store for the end-to-end activation flow
+(putenv "GPTP_STUDIO_TRUST_STORE" (path->string trust-store-path))
+
+(check-equal? (gate-init!) 'free "a fresh home starts free")
+
+(define second-path
+  (issue-to-file
+   (gate-payload #:credential-id "cred_gate_2"
+                 #:subject-id "customer_02"
+                 #:subject-display "second@example.com")
+   (make-temporary-file "gate-second-~a.permit.json")))
+
+(define-values (act1-ok? act1-subject) (gate-activate! ok-path))
+(check-true act1-ok? "activating a valid pro credential succeeds")
+(check-equal? act1-subject "customer@example.com" "the first activation reports its subject")
+(check-equal? (gate-tier) 'pro "the gate upgrades to pro")
+
+(define-values (act2-ok? act2-subject) (gate-activate! second-path))
+(check-true act2-ok? "replacing with another valid credential succeeds")
+(check-equal? act2-subject "second@example.com" "the replacement reports its own subject")
+(check-equal? (gate-tier) 'pro "the gate stays pro after replacement")
+(check-equal? (file->string (credential-path)) (file->string second-path)
+              "the stored credential file is the replacement")
+
+;; activating an invalid credential must not take a working gate down
+(define-values (bad-act-ok? _bad-msg) (gate-activate! expired-path))
+(check-false bad-act-ok? "activating an expired credential is refused")
+(check-equal? (gate-tier) 'pro "a refused activation leaves the stored credential in charge")
+
+(gate-deactivate!)
+(check-equal? (gate-tier) 'free "deactivation drops to free")
+(check-false (file-exists? (credential-path)) "deactivation removes the credential file")
+
+;; ---- corrupt / missing state ----
+;; A missing credential file is a typed failure, not a crash; corrupt
+;; credential bytes fail verification; corrupt gate state reads as empty.
+
+(define-values (miss-ok? miss-info)
+  (entitlement-validate (build-path scratch-home "absent.permit.json") trust-store-path))
+(check-false miss-ok? "a missing credential file fails instead of crashing")
+(check-equal? (hash-ref miss-info 'reason) 'malformed "a missing file is reported as malformed")
+
+(define-values (miss-act-ok? _miss-act-msg)
+  (gate-activate! (build-path scratch-home "absent.permit.json")))
+(check-false miss-act-ok? "activating a missing file reports the missing-file error")
+
+(define corrupt-path (make-temporary-file "gate-corrupt-~a.permit.json"))
+(call-with-output-file corrupt-path
+  (lambda (out) (display "{{{not json" out))
+  #:exists 'replace)
+(define-values (corrupt-ok? _corrupt-info)
+  (entitlement-validate corrupt-path trust-store-path))
+(check-false corrupt-ok? "corrupt credential bytes fail verification")
+
+(call-with-output-file (gate-state-path)
+  (lambda (out) (display "{{{not json" out))
+  #:exists 'replace)
+(check-equal? (gate-init!) 'free "corrupt gate state reads as empty state, no crash")
+
+;; ---- key rotation (two app generations) ----
+;; v1 ships K1 active; v2 ships K1 retired with a not_after issuance
+;; cutoff plus K2 active. A pre-rotation credential stays authentic
+;; under v2; a post-rotation credential is unknown to v1; safe issuance
+;; refuses the retired key outright.
+
+(define-values (k2-priv k2-pub) (generate-ed25519-keypair))
+
+(define store-v2-path (make-temporary-file "gate-rot-~a.json"))
+(call-with-output-file store-v2-path
+  (lambda (out)
+    (write-json
+     (hasheq 'protocol "permit-trust-store"
+             'version 1
+             'issuer "test.issuer"
+             'keys (hasheq 'test-1
+                           (hasheq 'algorithm "Ed25519"
+                                   'public_key (public-key->base64 public-key)
+                                   'status "retired"
+                                   'purposes '("entitlement"
+                                               "trial"
+                                               "trial-extension"
+                                               "activation")
+                                   'not_before 'null
+                                   'not_after "2026-06-30T00:00:00Z")
+                           'test-2
+                           (hasheq 'algorithm "Ed25519"
+                                   'public_key (public-key->base64 k2-pub)
+                                   'status "active"
+                                   'purposes '("entitlement"
+                                               "trial"
+                                               "trial-extension"
+                                               "activation")
+                                   'not_before 'null
+                                   'not_after 'null)))
+     out))
+  #:exists 'replace)
+(define store-v2 (read-trust-store store-v2-path))
+
+;; pre-rotation credential (K1, issued 2026-01-01): still authentic under v2
+(define-values (rot-old-ok? _rot-old-info)
+  (entitlement-validate ok-path store-v2-path))
+(check-true rot-old-ok? "a pre-rotation credential verifies under the rotated trust store")
+
+;; post-rotation credential (K2, issued 2026-07-01): valid under v2, unknown to v1
+(define post-rot-path
+  (issue-to-file-with
+   k2-priv store-v2
+   (gate-payload #:credential-id "cred_gate_rot2"
+                 #:subject-id "customer_03"
+                 #:subject-display "post-rotation@example.com"
+                 #:issued-at "2026-07-01T00:00:00Z")
+   (make-temporary-file "gate-rot2-~a.permit.json")
+   #:key-id "test-2"))
+(define-values (rot-new-ok? _rot-new-info)
+  (entitlement-validate post-rot-path store-v2-path))
+(check-true rot-new-ok? "a post-rotation credential verifies under the new trust store")
+(define-values (rot-new-v1-ok? _rot-new-v1-info)
+  (entitlement-validate post-rot-path trust-store-path))
+(check-false rot-new-v1-ok? "an app that never learned K2 rejects the new credential")
+
+;; issuer-boundary defense: the retired key cannot sign new credentials
+(check-exn exn:fail?
+  (lambda ()
+    (issue-credential (string->bytes/utf-8 (jsexpr->string (gate-payload)))
+                      private-key "test-1" store-v2))
+  "safe issuance refuses a retired signing key")

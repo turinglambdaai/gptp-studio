@@ -28,19 +28,38 @@
          gate-deactivate!
          gate-info
          gate-check
-         gate-state-path)
+         gate-state-path
+         credential-path)
 
-(define-runtime-path trust-store-path "keys/trust-store.json")
+(define-runtime-path shipped-trust-store "keys/trust-store.json")
+
+;; Test seam: GPTP_STUDIO_TRUST_STORE points the gate at a test trust
+;; store so activation flows can run against a throwaway issuer. The
+;; shipped store answers in production.
+(define (trust-store-path)
+  (define override (getenv "GPTP_STUDIO_TRUST_STORE"))
+  (if override (string->path override) shipped-trust-store))
 
 (define trial-days 14)
 
 (define gate-cache (box 'free))
 
+;; Test seam: GPTP_STUDIO_HOME redirects the per-user state directory so
+;; tests can exercise activate/replace flows against a scratch home.
+(define (gate-home-dir)
+  (define override (getenv "GPTP_STUDIO_HOME"))
+  (if override (string->path override) (find-system-path 'home-dir)))
+
 (define (gate-state-path)
-  (build-path (find-system-path 'home-dir) ".gptp-studio" "gate-state.json"))
+  (build-path (gate-home-dir) ".gptp-studio" "gate-state.json"))
 
 (define (credential-path)
-  (build-path (find-system-path 'home-dir) ".gptp-studio" "entitlement.permit.json"))
+  (build-path (gate-home-dir) ".gptp-studio" "entitlement.permit.json"))
+
+;; A fresh install has no ~/.gptp-studio yet; create it before any write.
+(define (ensure-gate-dir!)
+  (define d (build-path (gate-home-dir) ".gptp-studio"))
+  (unless (directory-exists? d) (make-directory* d)))
 
 ;; persisted: trial-started ISO date, so the trial survives restarts
 (define (read-gate-state)
@@ -49,6 +68,7 @@
     (if (hash? v) v (hasheq))))
 
 (define (write-gate-state! h)
+  (ensure-gate-dir!)
   (call-with-output-file (gate-state-path)
     (lambda (out) (write-json h out))
     #:exists 'replace))
@@ -93,7 +113,7 @@
   (define tier
     (cond
       [(file-exists? lic)
-       (define-values (ok? _info) (entitlement-validate lic trust-store-path))
+       (define-values (ok? _info) (entitlement-validate lic (trust-store-path)))
        (if ok? 'pro 'free)]
       [else (if (let ([left (trial-days-left)]) (and left (> left 0))) 'trial 'free)]))
   (set-box! gate-cache tier)
@@ -124,9 +144,10 @@
   (cond
     [(not (file-exists? path)) (values #f "许可证文件不存在")]
     [else
-     (define-values (ok? info) (entitlement-validate path trust-store-path))
+     (define-values (ok? info) (entitlement-validate path (trust-store-path)))
      (if ok?
          (begin
+           (ensure-gate-dir!)
            (copy-file path (credential-path) #t)
            (gate-init!)
            (values #t (or (hash-ref info 'subject #f) "已激活")))
@@ -154,7 +175,7 @@
       [(eq? tier 'pro)
        (define-values (_ok? info)
          (with-handlers ([exn:fail? (lambda (_) (values #f (hasheq)))])
-           (entitlement-validate lic trust-store-path)))
+           (entitlement-validate lic (trust-store-path))))
        (hasheq 'subject (hash-ref info 'subject #f)
                'expiry (hash-ref info 'expires #f))]
       [(eq? tier 'trial) (hasheq 'days_left (trial-days-left))]
