@@ -91,12 +91,12 @@
                           "https://github.com/turinglambdaai/gptp-studio/releases/download/v9.9.9/gptp-studio-9.9.9-linux-amd64.deb"
                           (sha256-file/hex artifact-file)
                           (file-size artifact-file)
-                          'deb '())
+                          'deb '() 'app)
          (update-artifact (platform-symbol) (architecture-symbol)
                           "https://github.com/turinglambdaai/gptp-studio/releases/download/v9.9.9/gptp-studio-9.9.9-linux-x64.tar.gz"
                           (sha256-file/hex artifact-file)
                           (file-size artifact-file)
-                          'targz '()))))
+                          'targz '() 'app))))
 
 (define wrapped (open-output-bytes))
 (write-signed-manifest signed-manifest test-priv update-key-id wrapped)
@@ -135,7 +135,7 @@
 (define (config-as version)
   (updater-config app-update-identifier version 'stable
                   (platform-symbol) (architecture-symbol)
-                  test-pub update-key-id 0 (* 150 1024 1024)))
+                  test-pub update-key-id 0 (* 150 1024 1024) 'app))
 
 (define candidate (select-update (config-as "1.2.0") verified))
 (check-true (update-candidate? candidate) "newer release is selected")
@@ -168,7 +168,7 @@
                  "2026-10-13T00:00:00Z" "0.0.0" #f #t 100
                  (list (update-artifact 'windows 'x64
                                         "https://example.com/x.msi"
-                                        (make-string 64 #\a) 4 'msi '()))))
+                                        (make-string 64 #\a) 4 'msi '() 'app))))
  "no artifact for this platform -> no update")
 
 ;; check-result summary for the header pill
@@ -192,7 +192,7 @@
   (define url (car pair))
   (define artifact
     (update-artifact (platform-symbol) (architecture-symbol)
-                     url (make-string 64 #\a) 4 'deb '()))
+                     url (make-string 64 #\a) 4 'deb '() 'app))
   (check-equal?
    (file-name-from-path (staged-artifact-path artifact))
    (string->path (cdr pair))
@@ -252,7 +252,7 @@
                             url
                             (bytes->hex-string (sha256-bytes payload))
                             (bytes-length payload)
-                            installer '()))))
+                            installer '() 'app))))
   (select-update (config-as "1.2.0") manifest))
 
 ;; happy path: download + verify + atomic rename into the stage dir

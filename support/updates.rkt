@@ -125,7 +125,8 @@
                   (embedded-public-key)
                   update-key-id
                   update-rollout-bucket
-                  maximum-download-bytes))
+                  maximum-download-bytes
+                  'app))
 
 ;; ---- feed location -------------------------------------------------------------
 
@@ -159,7 +160,12 @@
   (for/first ([a (in-list (update-manifest-artifacts manifest))]
               #:when (and (eq? (update-artifact-platform a) (platform-symbol))
                           (eq? (update-artifact-architecture a) (architecture-symbol))
-                          (eq? (update-artifact-installer a) kind-wanted)))
+                          (eq? (update-artifact-installer a) kind-wanted)
+                          ;; a feed may carry several installables per
+                          ;; platform (app/cli/tool); this product updates
+                          ;; the app, and component #f is a legacy entry
+                          (let ([c (update-artifact-component a)])
+                            (or (not c) (eq? c 'app)))))
     a))
 
 ;; ---- transport -----------------------------------------------------------------

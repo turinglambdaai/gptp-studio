@@ -158,7 +158,8 @@
                    (sha256-file/hex file)
                    (file-size file)
                    installer
-                   '()))
+                   '()
+                   'app))
 
 ;; The build number is single-sourced from rivet.rktd (the same value the
 ;; generated clients embed), never hardcoded here.
