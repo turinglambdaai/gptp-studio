@@ -1,0 +1,1738 @@
+{
+  "device-rpcs": [],
+  "enums": [
+    {
+      "cases": [
+        "real",
+        "sim"
+      ],
+      "name": "EngineMode"
+    },
+    {
+      "cases": [
+        "grandmaster",
+        "slave",
+        "listener",
+        "boundary"
+      ],
+      "name": "EngineRole"
+    },
+    {
+      "cases": [
+        "system",
+        "none"
+      ],
+      "name": "ReferenceSource"
+    }
+  ],
+  "events": [
+    {
+      "name": "alarm-event",
+      "type": {
+        "kind": "record",
+        "name": "AlarmEvent"
+      }
+    },
+    {
+      "name": "backend-error",
+      "type": {
+        "kind": "scalar",
+        "name": "String"
+      }
+    },
+    {
+      "name": "capture-state-changed",
+      "type": {
+        "kind": "record",
+        "name": "CaptureStatus"
+      }
+    },
+    {
+      "name": "chart-batch",
+      "type": {
+        "kind": "record",
+        "name": "ChartBatchEnvelope"
+      }
+    },
+    {
+      "name": "engine-state",
+      "type": {
+        "kind": "record",
+        "name": "EngineStatus"
+      }
+    },
+    {
+      "name": "packets-appended",
+      "type": {
+        "element": {
+          "kind": "record",
+          "name": "PacketRow"
+        },
+        "kind": "list"
+      }
+    },
+    {
+      "name": "packets-cleared",
+      "type": {
+        "kind": "scalar",
+        "name": "Bool"
+      }
+    }
+  ],
+  "format": "rivet-schema",
+  "format-version": 1,
+  "records": [
+    {
+      "fields": [
+        {
+          "name": "ok",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "need_pro",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "error",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "info",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        }
+      ],
+      "name": "ActionResult"
+    },
+    {
+      "fields": [
+        {
+          "name": "kind",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "value",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "threshold",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "message",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "AlarmEvent"
+    },
+    {
+      "fields": [
+        {
+          "name": "version",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "platform",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "language",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "gate",
+          "type": {
+            "kind": "record",
+            "name": "GateInfo"
+          }
+        },
+        {
+          "name": "i18n",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "nics",
+          "type": {
+            "element": {
+              "kind": "record",
+              "name": "NicInfo"
+            },
+            "kind": "list"
+          }
+        },
+        {
+          "name": "engine",
+          "type": {
+            "kind": "record",
+            "name": "EngineStatus"
+          }
+        },
+        {
+          "name": "capture",
+          "type": {
+            "kind": "record",
+            "name": "CaptureStatus"
+          }
+        },
+        {
+          "name": "offset_warn_us",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "capture_iface",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "params",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "conf",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "Bootstrap"
+    },
+    {
+      "fields": [
+        {
+          "name": "running",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "timestamp_source",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "timestamp_precision",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        }
+      ],
+      "name": "CaptureStatus"
+    },
+    {
+      "fields": [
+        {
+          "name": "series",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "batch",
+          "type": {
+            "kind": "scalar",
+            "name": "Bytes"
+          }
+        }
+      ],
+      "name": "ChartBatchEnvelope"
+    },
+    {
+      "fields": [
+        {
+          "name": "json",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "text",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "DoctorReport"
+    },
+    {
+      "fields": [
+        {
+          "name": "ok",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "need_pro",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "error",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "status",
+          "type": {
+            "element": {
+              "kind": "record",
+              "name": "EngineStatus"
+            },
+            "kind": "optional"
+          }
+        }
+      ],
+      "name": "EngineStartResult"
+    },
+    {
+      "fields": [
+        {
+          "name": "mode",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "role",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "ifaces",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "list"
+          }
+        },
+        {
+          "name": "reference",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "reference_status",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "launch_mode",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "last_failure",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "port_state",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "port_states",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "gm_id",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "offset_ns",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "delay_ns",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "freq_ppb",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "uptime_ms",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "faults",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        },
+        {
+          "name": "processes",
+          "type": {
+            "element": {
+              "kind": "record",
+              "name": "ProcessStatus"
+            },
+            "kind": "list"
+          }
+        }
+      ],
+      "name": "EngineStatus"
+    },
+    {
+      "fields": [
+        {
+          "name": "tier",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "pro",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "trial_days",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "detail",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        }
+      ],
+      "name": "GateInfo"
+    },
+    {
+      "fields": [
+        {
+          "name": "settings",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        }
+      ],
+      "name": "GmSettings"
+    },
+    {
+      "fields": [
+        {
+          "name": "ts_ms",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "source",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "level",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "message",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "LogRow"
+    },
+    {
+      "fields": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "description",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "detail",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        }
+      ],
+      "name": "NicInfo"
+    },
+    {
+      "fields": [
+        {
+          "name": "rows",
+          "type": {
+            "element": {
+              "kind": "record",
+              "name": "PacketRow"
+            },
+            "kind": "list"
+          }
+        },
+        {
+          "name": "stored",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "total",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        }
+      ],
+      "name": "PacketPage"
+    },
+    {
+      "fields": [
+        {
+          "name": "ts",
+          "type": {
+            "kind": "record",
+            "name": "TimestampInfo"
+          }
+        },
+        {
+          "name": "frame_no",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "source",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "mac_src",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "mac_dst",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "ethertype_hex",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "length",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "raw_hex",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "ok",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "is_ptp",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "transport",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "summary",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "error",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "ptp",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        }
+      ],
+      "name": "PacketRow"
+    },
+    {
+      "fields": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "role",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "params",
+          "type": {
+            "kind": "scalar",
+            "name": "Any"
+          }
+        }
+      ],
+      "name": "PresetEntry"
+    },
+    {
+      "fields": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "running",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        }
+      ],
+      "name": "ProcessStatus"
+    },
+    {
+      "fields": [
+        {
+          "name": "series",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "watermark",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "samples",
+          "type": {
+            "kind": "scalar",
+            "name": "Bytes"
+          }
+        }
+      ],
+      "name": "SeriesWindow"
+    },
+    {
+      "fields": [
+        {
+          "name": "seconds",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "nanoseconds",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "source",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "TimestampInfo"
+    }
+  ],
+  "rpcs": [
+    {
+      "arguments": [],
+      "name": "bootstrap",
+      "result": {
+        "kind": "record",
+        "name": "Bootstrap"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "capture-start",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "capture-status-now",
+      "result": {
+        "kind": "record",
+        "name": "CaptureStatus"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "capture-stop",
+      "result": {
+        "kind": "record",
+        "name": "CaptureStatus"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "conf-preview",
+      "result": {
+        "kind": "scalar",
+        "name": "String"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "role",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "reference",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "diagnostics-export",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "doctor-report",
+      "result": {
+        "kind": "record",
+        "name": "DoctorReport"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "engine-check-offsets",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "source",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "engine-set-reference",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "role",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "mode",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "ifaces",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "list"
+          }
+        }
+      ],
+      "name": "engine-start",
+      "result": {
+        "kind": "record",
+        "name": "EngineStartResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "engine-status-now",
+      "result": {
+        "kind": "record",
+        "name": "EngineStatus"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "engine-stop",
+      "result": {
+        "kind": "record",
+        "name": "EngineStatus"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "gm-settings",
+      "result": {
+        "kind": "record",
+        "name": "GmSettings"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "clock_class",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "clock_accuracy",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "offset_scaled_log_variance",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "current_utc_offset",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "leap61",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "leap59",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "current_utc_offset_valid",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "ptp_timescale",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "time_traceable",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "frequency_traceable",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "time_source",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "priority1",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "priority2",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        }
+      ],
+      "name": "gm-settings-apply",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "license-activate",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "license-deactivate",
+      "result": {
+        "kind": "record",
+        "name": "GateInfo"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "license-status",
+      "result": {
+        "kind": "record",
+        "name": "GateInfo"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "license-trial-start",
+      "result": {
+        "kind": "record",
+        "name": "GateInfo"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "list-nics",
+      "result": {
+        "element": {
+          "kind": "record",
+          "name": "NicInfo"
+        },
+        "kind": "list"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "logs",
+      "result": {
+        "element": {
+          "kind": "record",
+          "name": "LogRow"
+        },
+        "kind": "list"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "logs-export",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "packets-clear",
+      "result": {
+        "kind": "scalar",
+        "name": "Bool"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "limit",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        }
+      ],
+      "name": "packets-page",
+      "result": {
+        "kind": "record",
+        "name": "PacketPage"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "domain",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "priority1",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "priority2",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "log_announce_interval",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "log_sync_interval",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "network_transport",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "delay_mechanism",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "transport_specific",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "ptp_dst_mac",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "p2p_dst_mac",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "gm_capable",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "slave_only",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "assume_two_step",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "path_trace_enabled",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "follow_up_info",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "clock_class",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "Int64"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "ifaces",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "list"
+          }
+        }
+      ],
+      "name": "params-merge",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "pcap-export",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "pcap-import",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "preset-apply-rpc",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "preset-delete-rpc",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "role",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "preset-save-rpc",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "presets",
+      "result": {
+        "element": {
+          "kind": "record",
+          "name": "PresetEntry"
+        },
+        "kind": "list"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "role",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "reference",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "ifaces",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "list"
+          }
+        }
+      ],
+      "name": "qualify",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "role",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "reference",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "report-export",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "series-reset",
+      "result": {
+        "kind": "scalar",
+        "name": "Bool"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "series-id",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "series-window",
+      "result": {
+        "kind": "record",
+        "name": "SeriesWindow"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "language",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "offset_warn_us",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        }
+      ],
+      "name": "set-settings",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "simulator-faults",
+      "result": {
+        "kind": "scalar",
+        "name": "Any"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "action",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "iface",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "wireshark-launch",
+      "result": {
+        "kind": "record",
+        "name": "ActionResult"
+      }
+    }
+  ],
+  "rvt-protocol": 1,
+  "states": []
+}
