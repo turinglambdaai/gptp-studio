@@ -219,6 +219,28 @@
   (define n (exact-or-false v))
   (if (integer? n) n (void)))
 
+;; RVT1 Any values are recursive Lists over the protocol primitives; Racket
+;; hashes, symbols, vectors, and inexact numbers are not wire values.  Keep the
+;; application's naturally hash-shaped data, but normalize every open Any leaf
+;; at this boundary.  Hashes use a deterministic list of [key value] entries so
+;; native clients can still render and inspect the full tree.
+(define (any->wire value)
+  (cond
+    [(or (void? value) (boolean? value) (string? value) (bytes? value)
+         (exact-integer? value))
+     value]
+    [(symbol? value) (symbol->string value)]
+    [(hash? value)
+     (for/list ([key (in-list (sort (hash-keys value) string<? #:key ~a))])
+       (list (~a key) (any->wire (hash-ref value key))))]
+    [(vector? value)
+     (for/list ([item (in-vector value)]) (any->wire item))]
+    [(list? value) (map any->wire value)]
+    [(real? value)
+     (define normalized (exact-or-false value))
+     (if (integer? normalized) normalized (void))]
+    [else (~a value)]))
+
 (define (timestamp-info->record ts)
   (TimestampInfo
    (optional-int (hash-ref ts 'seconds 0))
@@ -243,7 +265,7 @@
    (with-handlers ([exn:fail? (lambda (_) "")])
      (frame-summary row))
    (optional-string (hash-ref row 'error #f))
-   (hash-ref row 'ptp (void))))
+   (any->wire (hash-ref row 'ptp (void)))))
 
 (define (sup-status->record status)
   (EngineStatus
@@ -255,14 +277,14 @@
    (symbol->string* (hash-ref status 'reference_status "idle"))
    (optional-string (hash-ref status 'launch_mode #f))
    (optional-string (hash-ref status 'last_failure #f))
-   (hash-ref status 'port_state (void))
-   (hash-ref status 'port_states (void))
-   (hash-ref status 'gm_id (void))
-   (hash-ref status 'offset_ns (void))
-   (hash-ref status 'delay_ns (void))
-   (hash-ref status 'freq_ppb (void))
+   (any->wire (hash-ref status 'port_state (void)))
+   (any->wire (hash-ref status 'port_states (void)))
+   (any->wire (hash-ref status 'gm_id (void)))
+   (any->wire (hash-ref status 'offset_ns (void)))
+   (any->wire (hash-ref status 'delay_ns (void)))
+   (any->wire (hash-ref status 'freq_ppb (void)))
    (optional-int (hash-ref status 'uptime_ms #f))
-   (hash-ref status 'faults (void))
+   (any->wire (hash-ref status 'faults (void)))
    (for/list ([entry (in-list (hash-ref status 'processes '()))])
      (ProcessStatus (symbol->string* (hash-ref entry 'name "?"))
                     (and (hash-ref entry 'running #f) #t)))))
@@ -278,13 +300,13 @@
   ;; detect-interfaces entries: hasheq with name/description plus open detail
   (NicInfo (symbol->string* (hash-ref nic 'name "?"))
            (symbol->string* (hash-ref nic 'description ""))
-           nic))
+           (any->wire nic)))
 
 (define (gate-info->record info)
   (GateInfo (symbol->string* (hash-ref info 'tier "free"))
             (and (hash-ref info 'pro #f) #t)
             (optional-int (hash-ref info 'trial_days 0))
-            (hash-ref info 'detail (void))))
+            (any->wire (hash-ref info 'detail (void)))))
 
 (define (current-engine-status) (sup-status->record (sup-status app-supervisor)))
 
@@ -371,7 +393,7 @@
                        'linktype (hash-ref f 'capture_linktype 1))))
       base))
 
-(define (ok-action [info (void)]) (ActionResult #t #f (void) info))
+(define (ok-action [info (void)]) (ActionResult #t #f (void) (any->wire info)))
 
 (define (deny-pro message) (ActionResult #f #t message (void)))
 
@@ -456,7 +478,7 @@
    (platform-name)
    lang
    (gate-info->record (gate-info))
-   (i18n-dict lang)
+   (any->wire (i18n-dict lang))
    (for/list ([nic (in-list (detect-interfaces))]) (nic->record nic))
    (sup-status->record status)
    (cm-status->record (cm-status app-capture))
@@ -547,7 +569,7 @@
 
 (define-rpc (gm-settings : GmSettings)
   (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
-    (GmSettings (sup-gm-settings app-supervisor))))
+    (GmSettings (any->wire (sup-gm-settings app-supervisor)))))
 
 (define-rpc (gm-settings-apply
              [clock_class : (Optional Int64)]
@@ -588,7 +610,7 @@
      (if ok? (ok-action result) (fail-action result))]))
 
 (define-rpc (simulator-faults : Any)
-  (hash-ref (sup-status app-supervisor) 'faults))
+  (any->wire (hash-ref (sup-status app-supervisor) 'faults)))
 
 (define-rpc (capture-start [iface : String] : ActionResult)
   (settings-set! 'capture-iface iface)
@@ -693,7 +715,7 @@
         (PresetEntry n
                      (symbol->string* (hash-ref p 'role "listener"))
                      (optional-string (hash-ref p 'iface #f))
-                     (hash-ref p 'params (void)))
+                     (any->wire (hash-ref p 'params (void))))
         (PresetEntry n "listener" (void) (void)))))
 
 (define-rpc (preset-save-rpc [name : String] [role : String] [iface : String] : ActionResult)
