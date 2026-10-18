@@ -103,12 +103,12 @@ def main():
     press(start)
     wait_for(
         "simulator state returned through RVT1",
-        lambda: contains(window, "slave / sim / system"),
+        lambda: contains(window, "listener / sim / system"),
     )
     press(stop)
     wait_for(
         "simulator stop state returned through RVT1",
-        lambda: contains(window, "slave / #f / system"),
+        lambda: contains(window, "listener / #f / system"),
     )
 
     (args.output / "accessibility.json").write_text(

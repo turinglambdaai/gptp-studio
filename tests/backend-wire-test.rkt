@@ -21,6 +21,11 @@
 (define backend-path
   (simplify-path (build-path test-directory ".." "app" "backend.rkt")))
 (void (dynamic-require backend-path #f))
+;; `serve` below owns the in-memory ports, while the production `start` entry
+;; owns OS file descriptors. Install the same application-level Event bridge
+;; that `start` installs so this test exercises typed event encoding too.
+(parameterize ([current-namespace (module->namespace backend-path)])
+  (eval '(forward-engine-events!)))
 
 (define-values (server-in client-out) (make-pipe))
 (define-values (client-in server-out) (make-pipe))
