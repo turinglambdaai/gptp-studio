@@ -21,7 +21,7 @@ jobs:
       # static libracketcs plus boot layout the embedder needs, so the
       # runner uses Rivet's checksum-pinned embeddable runtime build.
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@main
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@v0.12.0
 
       - name: Install engine and host build dependencies
         run: |
