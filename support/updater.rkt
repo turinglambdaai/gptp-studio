@@ -259,7 +259,16 @@
 ;; prepare while running fails with "already running". The kind argument is
 ;; kept for the API shape; what gets staged is the artifact the signed
 ;; manifest picked for this install at check time.
-(define (update-prepare! kind candidate)
+;;
+;; #:window-open? carries the licensing decision (app/gate.rkt: Free and
+;; trial update always; a perpetual Pro install updates through its
+;; entitlement's updates_through day). A closed window refuses before any
+;; network leg — the flow lands on failed with the renewal message and the
+;; customer's version keeps working.
+(define (update-prepare! kind candidate #:window-open? [window-open? #t])
+  (unless window-open?
+    (error 'updater
+           "官方更新期已结束：本版本可永久继续使用，续购后才能获取新版本"))
   (define state (hash-ref (unbox flow-box) 'state))
   (when (member state '(downloading applying))
     (error 'updater "an update flow is already running"))

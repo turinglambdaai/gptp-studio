@@ -54,6 +54,7 @@
          architecture-symbol
          system-install?
          pick-artifact
+         updates-window-open?
          check-for-update
          update-info
          update-info-box
@@ -127,6 +128,25 @@
                   update-rollout-bucket
                   maximum-download-bytes
                   'app))
+
+;; ---- the updates window (the commercial contract in code) ----------------------
+;;
+;; A perpetual entitlement carries updates_through — the instant official
+;; updates stop being part of the purchase. When it passes the application
+;; never degrades (perpetual rights: the last obtained official version
+;; keeps working); only the in-app updater stops staging newer official
+;; builds, and the renewal message says why. Free and trial installs always
+;; update. The end day itself counts as entitled (date-prefix comparison),
+;; so a host east of UTC still updates on the morning the instant has
+;; technically passed — a one-year window does not need sharper edges.
+
+(define (updates-window-open? #:pro? pro?
+                              #:updates-through through
+                              #:today today)
+  (or (not pro?)
+      (not (string? through))
+      (string<=? today
+                 (substring through 0 (min 10 (string-length through))))))
 
 ;; ---- feed location -------------------------------------------------------------
 

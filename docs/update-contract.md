@@ -22,6 +22,14 @@
   protocol; hosts never implement crypto). The host polls `update-state`
   (state: idle | downloading | staged | applying | applied | failed) and
   shows progress with the signed percent.
+- **The updates window gates staging, not use**: Free and trial installs
+  update always; a perpetual Pro install updates through its entitlement's
+  `updates_through` day (PRICING.md's "含 1 年官方更新"). When the window
+  has passed, `start-download` refuses before any network leg and the flow
+  lands on `failed` with the renewal message — the customer's version
+  keeps working forever (perpetual rights, `docs/licensing-model.md`).
+  A newer version is still reported honestly: the pill stays, the refusal
+  names the renewal.
 - **Bounded transfer**: a stalled download surfaces a retryable error after
   a finite timeout (no byte progress for 120 s, wall clock capped at
   30 min); a slow or stalled manifest fetch is bounded the same way (60 s).

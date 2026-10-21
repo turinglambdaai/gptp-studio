@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added
+
+- **官方更新窗成为产品机制**（第一个收费范例的地基）：Pro 永久 entitlement
+  的 `updates_through` 自此贯通发行链与产品——commerce 侧 offer
+  （`gptp-studio-pro-perpetual` / `gptp-studio-pro-team-5`，定价见
+  `PRICING.md` v1.1）按支付日 + 365 天推导窗口；产品侧 gate 缓存激活凭据的
+  窗口（`gate-updates-through` / `gate-update-window-open?`），应用内
+  「下载更新」在窗口关闭后拒绝出网并在流程中给出续购说明（`Free` /
+  试用不受限；到期版本永久可用，不降级）。`gate-info` 增加
+  `updates_through` 字段；`docs/update-contract.md` 记录该契约。
+- `PRICING.md` v1.1.0：授权方式一节从 Permit 化之前的 RSA/license.lic 旧文
+  改写为 Permit 凭据机制；价格表移除按月订阅（离线产品不可诚实执行月度
+  时效），明示「续购更新窗即为续费」。
+- `docs/vendor-license-guide.md` 新增正式发行路径：手工签发仅限测试与补发，
+  正式销售走 commerce 的 offer/policy 映射与渠道 webhook。
+
+### Fixed
+
+- 凭据验证信息补齐 `updates-through` 字段（此前只暴露 `use_expires_at`），
+  gate 测试覆盖窗口边界（截止日当天仍可更新、次日拒绝、Free 恒开）。
+
 ## 0.2.0 - 2026-10-15
 
 **在线更新上线 + 反馈面对齐家族地基标准。** 签名更新频道（update-stable

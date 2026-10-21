@@ -16,6 +16,7 @@
                   generate-ed25519-keypair
                   public-key->base64)
          "../support/entitlement.rkt"
+         "../support/updates.rkt"
          "../app/gate.rkt")
 
 ;; ---- throwaway issuer: key pair + matching trust store ----
@@ -49,6 +50,7 @@
 
 (define (gate-payload #:edition [edition "pro"]
                       #:use-expires-at [use-expires-at 'null]
+                      #:updates-through [updates-through 'null]
                       #:issuer [issuer "test.issuer"]
                       #:credential-id [credential-id "cred_gate_test"]
                       #:subject-id [subject-id "customer_01"]
@@ -77,7 +79,7 @@
                         'feature_policy "published-through"))
           'constraints
           (hasheq 'use_expires_at use-expires-at
-                  'updates_through 'null
+                  'updates_through updates-through
                   'features_through 'null
                   'version_policy (hasheq 'min 'null 'max 'null)
                   'limits (hasheq 'named_seats 'null
@@ -110,7 +112,66 @@
 (check-true ok? "a perpetual pro entitlement verifies")
 (check-equal? (hash-ref ok-info 'subject) "customer@example.com" "subject display surfaces")
 (check-false (hash-ref ok-info 'expires) "perpetual entitlement has no use expiry")
+(check-false (hash-ref ok-info 'updates-through)
+             "an entitlement without updates_through surfaces #f")
 (check-equal? (hash-ref ok-info 'issuer) "test.issuer" "issuer comes from the credential")
+
+;; ---- the updates window (the commercial contract in gate form) ----
+;; A perpetual Pro purchase carries updates_through; the window decision
+;; never re-parses the file (the gate caches what the tier came from) and
+;; the end day itself still counts as entitled.
+
+(define window-path
+  (issue-to-file
+   (gate-payload #:updates-through "2027-10-16T00:00:00Z")
+   (make-temporary-file "gate-window-~a.permit.json")))
+(define-values (window-ok? window-info) (validate-file window-path))
+(check-true window-ok? "an updates window does not affect verification")
+(check-equal? (hash-ref window-info 'updates-through) "2027-10-16T00:00:00Z"
+              "updates_through surfaces from the credential")
+
+(check-true (updates-window-open? #:pro? #f #:updates-through #f
+                                  #:today "2026-10-22")
+            "a free install always updates")
+(check-true (updates-window-open? #:pro? #t #:updates-through #f
+                                  #:today "2099-01-01")
+            "a Pro entitlement without the constraint updates forever")
+(check-true (updates-window-open? #:pro? #t
+                                  #:updates-through "2027-10-16T00:00:00Z"
+                                  #:today "2027-10-15")
+            "the day before the instant is entitled")
+(check-true (updates-window-open? #:pro? #t
+                                  #:updates-through "2027-10-16T00:00:00Z"
+                                  #:today "2027-10-16")
+            "the end day itself is entitled")
+(check-false (updates-window-open? #:pro? #t
+                                   #:updates-through "2027-10-16T00:00:00Z"
+                                   #:today "2027-10-17")
+             "the day after the instant is not")
+(check-false (updates-window-open? #:pro? #t
+                                   #:updates-through "2026-10-22"
+                                   #:today "2026-10-23")
+             "a date-only constraint behaves the same")
+
+;; The gate-level decision, driven through a real activation. The seam
+;; points the gate at this test's throwaway store before the replacement
+;; block below installs its own home.
+(let ([scratch (make-temporary-file "gate-home-~a" 'directory)])
+  (putenv "GPTP_STUDIO_HOME" (path->string scratch))
+  (putenv "GPTP_STUDIO_TRUST_STORE" (path->string trust-store-path))
+  (define-values (w-act-ok? _w-subject) (gate-activate! window-path))
+  (check-true w-act-ok? "the windowed credential activates")
+  (check-equal? (gate-init!) 'pro)
+  (check-equal? (gate-updates-through) "2027-10-16T00:00:00Z"
+                "the gate carries the window from the cached verification")
+  (check-false (gate-update-window-open? "2027-10-17")
+               "a closed window refuses official updates")
+  (check-true (gate-update-window-open? "2027-10-16")
+              "the end day still updates")
+  (gate-deactivate!)
+  (check-equal? (gate-init!) 'free)
+  (check-true (gate-update-window-open? "2099-01-01")
+              "a free install updates again after deactivation"))
 
 ;; ---- expired use window ----
 

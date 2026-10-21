@@ -417,6 +417,17 @@
            (lambda () (update-prepare! 'deb #f))
            "no candidate -> clean error")
 
+;; the licensing gate: a closed updates window refuses before any flow or
+;; network leg (app/gate.rkt passes its decision here). The perpetual
+;; right is untouched — the customer keeps the last version; only staging
+;; newer official builds requires a renewal.
+(reset-update-flow!)
+(check-exn exn:fail?
+           (lambda () (update-prepare! 'deb #f #:window-open? #f))
+           "a closed window refuses before the candidate check")
+(check-equal? (flow-state) 'idle
+              "the window refusal never starts a flow")
+
 ;; ---- the swap chain: extract -> chmod (#o755) -> in-place swap --------------------
 ;; The tarball shape's apply replaces the running payload root by rename
 ;; with a restorable .old backup. The chmod MUST use the integer bitmask

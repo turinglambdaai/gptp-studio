@@ -928,7 +928,8 @@
   (with-handlers
       ([exn:fail?
         (lambda (e) (flow-set! 'failed #:error (exn-message e)))])
-    (update-prepare! 'download (unbox update-manifest-box)))
+    (update-prepare! 'download (unbox update-manifest-box)
+                     #:window-open? (gate-update-window-open?)))
   (update-state-now))
 
 ;; Applies what is staged, per install shape (deb: pkexec with the

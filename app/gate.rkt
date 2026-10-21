@@ -18,11 +18,14 @@
          racket/file
          racket/string
          "../support/entitlement.rkt"
+         "../support/updates.rkt"
          racket/runtime-path)
 
 (provide gate-init!
          gate-tier
          gate-pro?
+         gate-updates-through
+         gate-update-window-open?
          gate-trial-start!
          gate-activate!
          gate-deactivate!
@@ -43,6 +46,11 @@
 (define trial-days 14)
 
 (define gate-cache (box 'free))
+
+;; The validated Pro credential's info (hasheq) or #f — cached at
+;; gate-init! so the updates-window decision reads the same verification
+;; the tier came from, never a second parse of the file.
+(define gate-entitlement-box (box #f))
 
 ;; Test seam: GPTP_STUDIO_HOME redirects the per-user state directory so
 ;; tests can exercise activate/replace flows against a scratch home.
@@ -110,18 +118,37 @@
 ;; activation/trial changes.
 (define (gate-init!)
   (define lic (credential-path))
-  (define tier
+  (define-values (tier info)
     (cond
       [(file-exists? lic)
-       (define-values (ok? _info) (entitlement-validate lic (trust-store-path)))
-       (if ok? 'pro 'free)]
-      [else (if (let ([left (trial-days-left)]) (and left (> left 0))) 'trial 'free)]))
+       (define-values (ok? lic-info) (entitlement-validate lic (trust-store-path)))
+       (if ok? (values 'pro lic-info) (values 'free #f))]
+      [else
+       (values (if (let ([left (trial-days-left)]) (and left (> left 0)))
+                   'trial
+                   'free)
+               #f)]))
   (set-box! gate-cache tier)
+  (set-box! gate-entitlement-box info)
   tier)
 
 (define (gate-tier) (unbox gate-cache))
 
 (define (gate-pro?) (not (eq? (unbox gate-cache) 'free)))
+
+;; The validated credential's updates_through instant, or #f (Free/trial
+;; or an entitlement without the constraint).
+(define (gate-updates-through)
+  (define info (unbox gate-entitlement-box))
+  (and info (hash-ref info 'updates-through #f)))
+
+;; Whether staging an official update is part of what this install holds.
+;; Free and trial always update; a perpetual Pro install updates through
+;; its entitlement's updates_through day.
+(define (gate-update-window-open? [today (iso-today)])
+  (updates-window-open? #:pro? (eq? (unbox gate-cache) 'pro)
+                        #:updates-through (gate-updates-through)
+                        #:today today))
 
 ;; Action-level check; returns #t or an error message string.
 (define (gate-check action)
@@ -177,7 +204,8 @@
          (with-handlers ([exn:fail? (lambda (_) (values #f (hasheq)))])
            (entitlement-validate lic (trust-store-path))))
        (hasheq 'subject (hash-ref info 'subject #f)
-               'expiry (hash-ref info 'expires #f))]
+               'expiry (hash-ref info 'expires #f)
+               'updates_through (hash-ref info 'updates-through #f))]
       [(eq? tier 'trial) (hasheq 'days_left (trial-days-left))]
       [else (hasheq)]))
   (hasheq 'tier (symbol->string tier) 'pro (gate-pro?) 'trial_days trial-days 'detail detail))

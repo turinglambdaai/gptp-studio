@@ -88,6 +88,23 @@ raco permit issue \
 
 发给客户的就是 `customer.permit.json`。
 
+## 正式发行：走 commerce
+
+手工 `raco permit issue` 只用于测试和一次性补发。正式销售走
+[Commerce](https://github.com/turinglambdaai/commerce)（家族商业编排层）：
+支付事件进、签名凭据出，offer→policy 的映射固定且可审计。
+
+- 产品 / offer / policy 的权威定义见 commerce 仓库
+  `examples/gptp-studio-updates-window.rkt`：`gptp-studio-pro-perpetual`
+  （¥399，Pro 永久 + 自支付日 365 天官方更新窗）与
+  `gptp-studio-pro-team-5`（¥1 599，同权益 + `named_seats: 5`）。
+- 更新窗是 policy 里的 `#:updates-through-duration-days 365`：具体截止时刻
+  由订单支付证据在发行时推导（`updates_through`），同一订单重放得到同一
+  字节，退款 successor 继承已售窗口、只收紧使用窗。
+- 渠道接线（Pancake 商品映射到 offer id、webhook 部署、认领交付）见
+  commerce 的 `docs/runbook.md` 与 `docs/getting-started.md`。
+- 运维动作（查单、重放、重发、解释拒绝）用 commerce 的 operator CLI。
+
 ## 续订 / 变更
 
 同一 `entitlement_id`、`revision` 加一，重新签发一份完整快照。客户激活新文件

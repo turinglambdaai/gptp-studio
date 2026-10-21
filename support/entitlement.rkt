@@ -24,7 +24,8 @@
 (define entitlement-pro-edition "pro")
 
 ;; path trust-store-path -> (values ok? info)
-;; info on success: subject / expires (use_expires_at or #f) / issuer.
+;; info on success: subject / expires (use_expires_at or #f) /
+;; updates-through (updates_through or #f) / issuer.
 ;; info on failure: reason (a stable symbol for messaging) / detail.
 ;; Verification failures are results here, not errors: an invalid file is
 ;; a customer-input condition, so every failure from the permit layer is
@@ -73,6 +74,8 @@
         (values #t
                 (hasheq 'subject (verified-credential-subject-display result)
                         'expires (verified-credential-use-expires-at result)
+                        'updates-through
+                        (verified-credential-updates-through result)
                         'issuer (verified-credential-issuer result)))])]
     [else
      (values #f (hasheq 'reason (cadr result)
