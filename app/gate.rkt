@@ -6,17 +6,20 @@
 ;;            simulator, config editor/preview, presets (watch free)
 ;;   pro    — engine control (GM/slave), reference-source management,
 ;;            unlimited packet store, pcap/report exports (drive paid)
-;;   trial  — 14 days of Pro from the moment the user starts it
+;;   trial  — 14 days of Pro from the moment the user starts it, tracked
+;;            as permit local-trial state (last_seen high-water mark)
 ;;
 ;; The tier never blocks the six pages, only the actions listed above.
 ;; A customer activates an offline Permit v1 entitlement credential
 ;; (.permit.json), verified against the Ed25519 trust store shipped with
-;; the application.
+;; the application. Each install also holds a stable installation id
+;; (ins_ + 32 hex) so the vendor can issue credentials bound to it.
 
 (require json
          racket/date
          racket/file
          racket/string
+         permit
          "../support/entitlement.rkt"
          "../support/updates.rkt"
          racket/runtime-path)
@@ -32,6 +35,7 @@
          gate-info
          gate-check
          gate-state-path
+         gate-installation-id
          credential-path)
 
 (define-runtime-path shipped-trust-store "keys/trust-store.json")
@@ -69,48 +73,77 @@
   (define d (build-path (gate-home-dir) ".gptp-studio"))
   (unless (directory-exists? d) (make-directory* d)))
 
-;; persisted: trial-started ISO date, so the trial survives restarts
-(define (read-gate-state)
-  (with-handlers ([exn:fail? (lambda (_) (hasheq))])
-    (define v (call-with-input-file (gate-state-path) read-json))
-    (if (hash? v) v (hasheq))))
+;; Stable per-install identity (ins_ + 32 hex, permit's format): created
+;; on first use, persisted beside the gate state, and surfaced on the
+;; License page so a customer can hand it to the vendor for an
+;; installation-bound credential.
+(define (gate-installation-id)
+  (define path (build-path (gate-home-dir) ".gptp-studio" "installation-id"))
+  (define existing
+    (and (file-exists? path)
+         (with-handlers ([exn:fail? (lambda (_) #f)])
+           (string-trim (file->string path)))))
+  (if (and (string? existing) (regexp-match? #px"^ins_[0-9a-f]{32}$" existing))
+      existing
+      (let ([value (generate-installation-id)])
+        (ensure-gate-dir!)
+        (call-with-output-file path
+          (lambda (out) (display value out) (newline out))
+          #:exists 'truncate/replace)
+        value)))
 
-(define (write-gate-state! h)
-  (ensure-gate-dir!)
-  (call-with-output-file (gate-state-path)
-    (lambda (out) (write-json h out))
-    #:exists 'replace))
+;; The trial is permit local-trial state in the historical gate-state.json
+;; path: a fixed started/expires window plus a last_seen high-water mark
+;; that survives restarts and rejects clock rollback (nuisance resistance,
+;; not an anti-tamper boundary).
 
-(define (iso-today)
-  (define d (current-date))
-  (format "~a-~a-~a"
-          (date-year d)
-          (~r2 (date-month d))
-          (~r2 (date-day d))))
+(define trial-duration-seconds (* trial-days 24 60 60))
 
-(define (~r2 n)
-  (define s (number->string n))
-  (if (< (string-length s) 2) (string-append "0" s) s))
+;; local-trial, a legacy {"trial-started": date} hash, or #f for absent,
+;; corrupt, or foreign state. jsexpr->local-trial raises on any wrong
+;; shape, so every malformed byte reads as "no state", never a crash.
+(define (read-trial-state path)
+  (cond
+    [(not (file-exists? path)) #f]
+    [else
+     (with-handlers ([exn:fail? (lambda (_) #f)])
+       (define v (call-with-input-file path read-json))
+       (cond
+         [(not (hash? v)) #f]
+         [(hash-ref v 'trial-started #f) v]
+         [else (jsexpr->local-trial v)]))]))
 
-;; days until the ISO yyyy-mm-dd date's end; negative once it has passed
-(define (days-until-expiry iso)
-  (define m (regexp-match #rx"^([0-9]{4})-([0-9]{2})-([0-9]{2})$" iso))
-  (unless m
-    (raise-arguments-error 'days-until-expiry "not an ISO date" "date" iso))
-  (define noon
-    (find-seconds 0 0 12
-                  (string->number (list-ref m 3))
-                  (string->number (list-ref m 2))
-                  (string->number (list-ref m 1))
-                  #f))
-  (inexact->exact (floor (- (/ noon 86400.0) (/ (current-seconds) 86400.0)))))
+;; Legacy (pre-0.3.0) state anchored the 14-day window at the recorded
+;; date's noon. Migration rewrites the file into local-trial form once:
+;; an active legacy window keeps its remaining time, an expired one stays
+;; expired so Trial cannot restart, and a malformed date reads as absent.
+(define (current-trial!)
+  (define path (gate-state-path))
+  (define state (read-trial-state path))
+  (cond
+    [(local-trial? state) state]
+    [(hash? state)
+     (define started (hash-ref state 'trial-started #f))
+     (define anchor
+       (and (string? started)
+            (regexp-match? #px"^[0-9]{4}-[0-9]{2}-[0-9]{2}$" started)
+            (string-append started "T12:00:00Z")))
+     (and anchor
+          (let ([trial (make-local-trial #:duration-seconds trial-duration-seconds
+                                         #:at anchor)])
+            (write-local-trial trial path)
+            trial))]
+    [else #f]))
 
-(define (days-since iso)
-  (days-until-expiry iso)) ; negative == already past
-
-(define (trial-days-left)
-  (define started (hash-ref (read-gate-state) 'trial-started #f))
-  (and started (+ trial-days (days-since started)))) ; days until expiry; negative = over
+;; Evaluate the trial and persist the last_seen high-water mark after the
+;; observation; #f when no trial state exists.
+(define (trial-evaluation)
+  (define trial (current-trial!))
+  (and trial
+       (let ([evaluation (evaluate-local-trial trial)])
+         (write-local-trial (local-trial-evaluation-state evaluation)
+                            (gate-state-path))
+         evaluation)))
 
 ;; ---- public --------------------------------------------------------------------
 
@@ -121,10 +154,13 @@
   (define-values (tier info)
     (cond
       [(file-exists? lic)
-       (define-values (ok? lic-info) (entitlement-validate lic (trust-store-path)))
+       (define-values (ok? lic-info)
+         (entitlement-validate lic (trust-store-path)
+                               #:installation-id (gate-installation-id)))
        (if ok? (values 'pro lic-info) (values 'free #f))]
       [else
-       (values (if (let ([left (trial-days-left)]) (and left (> left 0)))
+       (define evaluation (trial-evaluation))
+       (values (if (and evaluation (local-trial-evaluation-active? evaluation))
                    'trial
                    'free)
                #f)]))
@@ -145,6 +181,17 @@
 ;; Whether staging an official update is part of what this install holds.
 ;; Free and trial always update; a perpetual Pro install updates through
 ;; its entitlement's updates_through day.
+(define (iso-today)
+  (define d (current-date))
+  (format "~a-~a-~a"
+          (date-year d)
+          (~r2 (date-month d))
+          (~r2 (date-day d))))
+
+(define (~r2 n)
+  (define s (number->string n))
+  (if (< (string-length s) 2) (string-append "0" s) s))
+
 (define (gate-update-window-open? [today (iso-today)])
   (updates-window-open? #:pro? (eq? (unbox gate-cache) 'pro)
                         #:updates-through (gate-updates-through)
@@ -161,9 +208,14 @@
         [else "此功能需要 Pro 许可证。"])))
 
 (define (gate-trial-start!)
-  (define st (read-gate-state))
-  (unless (hash-ref st 'trial-started #f)
-    (write-gate-state! (hash-set st 'trial-started (iso-today))))
+  ;; Only absent, corrupt, or malformed state starts a fresh window: a
+  ;; valid state — active or already expired — is preserved so Trial
+  ;; cannot restart itself.
+  (unless (current-trial!)
+    (ensure-gate-dir!)
+    (write-local-trial
+     (make-local-trial #:duration-seconds trial-duration-seconds)
+     (gate-state-path)))
   (gate-init!))
 
 ;; Activate from a credential file path (verified, then copied into place).
@@ -171,7 +223,9 @@
   (cond
     [(not (file-exists? path)) (values #f "许可证文件不存在")]
     [else
-     (define-values (ok? info) (entitlement-validate path (trust-store-path)))
+     (define-values (ok? info)
+       (entitlement-validate path (trust-store-path)
+                             #:installation-id (gate-installation-id)))
      (if ok?
          (begin
            (ensure-gate-dir!)
@@ -184,6 +238,7 @@
                        [(expired) "许可证已过期"]
                        [(not-yet-valid) "许可证尚未生效"]
                        [(edition) "许可证不包含 Pro 版授权"]
+                       [(installation) "许可证绑定其他安装实例"]
                        [(type) "文件不是许可证凭据"]
                        [(key-revoked) "签发密钥已被吊销"]
                        [(key-window) "签发密钥不在有效签发期内"]
@@ -196,16 +251,30 @@
 
 (define (gate-info)
   (define tier (gate-tier))
+  (define installation (gate-installation-id))
   (define lic (credential-path))
   (define detail
     (cond
       [(eq? tier 'pro)
        (define-values (_ok? info)
          (with-handlers ([exn:fail? (lambda (_) (values #f (hasheq)))])
-           (entitlement-validate lic (trust-store-path))))
+           (entitlement-validate lic (trust-store-path)
+                                 #:installation-id installation)))
        (hasheq 'subject (hash-ref info 'subject #f)
                'expiry (hash-ref info 'expires #f)
                'updates_through (hash-ref info 'updates-through #f))]
-      [(eq? tier 'trial) (hasheq 'days_left (trial-days-left))]
+      [(eq? tier 'trial)
+       (define evaluation (trial-evaluation))
+       (hasheq 'days_left (and evaluation
+                               (inexact->exact
+                                (ceiling (/ (local-trial-evaluation-remaining-seconds
+                                             evaluation)
+                                            86400.0))))
+               'expires_at (and evaluation
+                                (local-trial-evaluation-expires-at evaluation)))]
       [else (hasheq)]))
-  (hasheq 'tier (symbol->string tier) 'pro (gate-pro?) 'trial_days trial-days 'detail detail))
+  (hasheq 'tier (symbol->string tier)
+          'pro (gate-pro?)
+          'trial_days trial-days
+          'installation_id installation
+          'detail detail))

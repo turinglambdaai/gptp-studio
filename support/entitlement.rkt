@@ -23,7 +23,7 @@
 (define entitlement-product "gptp-studio")
 (define entitlement-pro-edition "pro")
 
-;; path trust-store-path -> (values ok? info)
+;; path trust-store-path [#:installation-id] -> (values ok? info)
 ;; info on success: subject / expires (use_expires_at or #f) /
 ;; updates-through (updates_through or #f) / issuer.
 ;; info on failure: reason (a stable symbol for messaging) / detail.
@@ -31,7 +31,11 @@
 ;; a customer-input condition, so every failure from the permit layer is
 ;; mapped onto a typed reason. Signature and trust decisions raise inside
 ;; verify-credential; time and grant decisions come back as status reasons.
-(define (entitlement-validate path trust-store-path)
+;; Callers that hold an installation identity must pass it: a credential
+;; whose constraints bind installation_id only verifies on the matching
+;; install, and fail-closed (#f) rejects every bound credential.
+(define (entitlement-validate path trust-store-path
+                              #:installation-id [installation-id #f])
   ;; A verified credential on success; on any verification failure a
   ;; three-element list ('verify-failed reason detail). Failures travel as
   ;; plain values so the single-value body never sees multiple values.
@@ -56,7 +60,7 @@
           (list 'verify-failed 'type "credential is not an entitlement"))))
   (cond
     [(verified-credential? result)
-     (define status (credential-status result))
+     (define status (credential-status result #:installation-id installation-id))
      (cond
        [(not (hash-ref status 'usable?))
         (values #f
@@ -67,7 +71,10 @@
                           [(installation-mismatch) 'installation]
                           [else 'unusable])
                         'detail (format "~a" (hash-ref status 'reasons))))]
-       [(not (edition-entitled? result entitlement-product entitlement-pro-edition))
+       [(not (edition-entitled? result
+                                entitlement-product
+                                entitlement-pro-edition
+                                #:installation-id installation-id))
         (values #f (hasheq 'reason 'edition
                            'detail "credential does not grant the pro edition"))]
        [else

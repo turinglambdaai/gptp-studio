@@ -142,6 +142,7 @@
   ([tier : String]
    [pro : Bool]
    [trial_days : Int64]
+   [installation_id : String]
    [detail : Any]))
 
 (define-record PresetEntry
@@ -306,6 +307,7 @@
   (GateInfo (symbol->string* (hash-ref info 'tier "free"))
             (and (hash-ref info 'pro #f) #t)
             (optional-int (hash-ref info 'trial_days 0))
+            (symbol->string* (hash-ref info 'installation_id ""))
             (any->wire (hash-ref info 'detail (void)))))
 
 (define (current-engine-status) (sup-status->record (sup-status app-supervisor)))
