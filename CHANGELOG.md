@@ -1,5 +1,37 @@
 # 更新日志 / Changelog
 
+## 0.3.1 - 2026-10-23
+
+**Linux 分发面对齐 taskly 标杆 + 发布 rivet 切 pin。** 修复 v0.3.0 流水线
+「构建了 rpm/AppImage 却没收集」的缺口，发布资产自此全面带校验和。
+
+### Added
+
+- **完整 Linux 包面**：`raco rivet release` 自此收集全部产出——deb、
+  rpm（x86_64/aarch64）、AppImage（x86_64/aarch64，自带 GTK4 依赖闭包）、
+  可移植 tar.gz 与 zip，双架构；`rivet.rktd` 显式声明
+  `linux-formats ("deb" "rpm" "appimage")`。v0.3.0 的流水线其实已经构建了
+  rpm 与 AppImage，但收集步骤的 find 模式把它们漏在了 dist 里。
+- **校验和族**：每个发布资产带 `.sha256` 侧车，发布附带聚合
+  `SHA256SUMS`（发布前 `sha256sum --check` 自验）；SBOM 定版名为
+  `gptp-studio-<版本>-linux-<架构>.sbom.cdx.json`。AppImage 加入
+  版本无关稳定别名（deb/tar.gz 别名延续）。
+- README 双语补 rpm/AppImage 安装路径并把「源码运行」修到 rivet 命令
+  （旧 `raco make main.rkt` 入口在 0.1.0 换栈时已不存在）；
+  ACCEPTANCE 补 rpm/AppImage 验收项。
+
+### Changed
+
+- 发布流水线的 rivet 安装自此 pin 在 `RIVET_PIN`（当前 v0.12.0，与
+  setup-embed-racket action 一致），落实「发布构建切 pin、开发跟最新」；
+  打包工具链显式安装 `rpm`/`desktop-file-utils`。
+
+### Removed
+
+- `scripts/package-deb.sh` / `scripts/package-extras.sh`：glaze 时代
+  的打包脚本，引用的 `scripts/package-linux.sh` 已不存在，能力自 0.1.0
+  起由 rivet 原生 release 流程承担。
+
 ## 0.3.0 - 2026-10-23
 
 **安装身份与本地试用落到 Permit 原语，官方更新窗完成收费闭环。** 安装

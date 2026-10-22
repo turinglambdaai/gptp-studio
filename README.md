@@ -38,7 +38,7 @@ The product contract is **Linux only**.
 | Real GM / Slave engine | linuxptp (`ptp4l`, `phc2sys`, `pmc`) |
 | Timing hardware | NIC hardware timestamping + PHC (`/dev/ptpN`) |
 | Capture | libpcap, with runtime timestamp-source reporting |
-| Packages | `.deb` and relocatable `.tar.gz` |
+| Packages | `.deb` / `.rpm` / `.AppImage` and relocatable `.tar.gz` (+ portable `.zip`); every asset ships a `.sha256` sidecar and releases carry an aggregate `SHA256SUMS` |
 | Other operating systems | Unsupported by product design |
 
 A NIC reporting hardware timestamping and `/dev/ptpN` means the host has the required capability for the linuxptp path. It does **not** by itself prove calibrated end-to-end timing accuracy. Studio keeps capability, runtime timestamp source and any future characterization results separate.
@@ -69,17 +69,44 @@ cd gptp-studio-distributed
 ./bin/gptp-studio
 ```
 
+### RPM-based distributions
+
+Download `gptp-studio-<version>-<build>-linux-x86_64.rpm` (or
+`-aarch64.rpm`) from the
+[releases page](https://github.com/turinglambdaai/gptp-studio/releases/latest)
+and install it:
+
+```bash
+sudo dnf install ./gptp-studio-<version>-<build>-linux-x86_64.rpm
+gptp-studio --doctor
+```
+
+### AppImage (any distribution, no install)
+
+The AppImage bundles its GTK4 dependency closure, so it runs on older
+hosts than the deb/rpm require; the same `--doctor` headless surface
+works before any GUI session:
+
+```bash
+curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.AppImage
+chmod +x gptp-studio-linux-x64.AppImage
+./gptp-studio-linux-x64.AppImage --doctor
+./gptp-studio-linux-x64.AppImage
+```
+
 ### From source
 
 ```bash
 sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
-  libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev
+  libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev \
+  rpm desktop-file-utils
 
 raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
-raco make main.rkt
-racket main.rkt --doctor
-racket main.rkt --simulator
-racket main.rkt
+raco pkg install --auto --no-docs https://github.com/turinglambdaai/permit.git
+raco rivet generate
+raco rivet build          # builds the GTK4 host (binary lands in .rivet/build/linux/)
+raco test tests/          # backend test suite
+raco rivet dev            # run the app; the built binary also answers --doctor
 ```
 
 For real hardware work, start with `gptp-studio --doctor`, fix structural FAIL items, then use GUI Preflight on the exact interface before starting GM/Slave. See [docs/support-doctor.md](docs/support-doctor.md) and [docs/hardware-qualification.md](docs/hardware-qualification.md).
