@@ -7,6 +7,15 @@ on:
 permissions:
   contents: write
 
+# A tag-push event can be delivered twice (v0.3.1 shipped through that
+# race: two builds, interleaved asset/feed writes, and a signed feed
+# that referenced bytes the release no longer carried). Serialize the
+# runs on the tag so the last complete run is the single writer of both
+# the assets and the feed.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 # Single source of truth for the release rivet pin ("发布构建切 pin");
 # every raco pkg install below references this so a bump is one edit.
 # The setup-embed-racket action refs stay hardcoded: GitHub does not
@@ -196,6 +205,12 @@ jobs:
           rm -f "$KEY_PEM"
           git config user.name "gptp-studio feed bot"
           git config user.email "actions@turinglambdaai.github.io"
+          # The checkout is detached at the tag; rebase the feed commit
+          # onto current main so anything that landed on main while the
+          # release built (a concurrent push, a serialized duplicate run)
+          # cannot reject the release's final step.
+          git fetch origin main
+          git rebase origin/main
           git add update-stable.json
           git commit -m "feed: $VERSION [skip ci]"
           git push origin HEAD:main
