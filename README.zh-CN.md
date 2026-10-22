@@ -38,7 +38,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 | 真实 GM / 从钟引擎 | linuxptp（`ptp4l`、`phc2sys`、`pmc`） |
 | 时间硬件 | 支持 hardware timestamp 的 NIC + PHC（`/dev/ptpN`） |
 | 抓包 | libpcap，并显示运行时实际时间戳来源 |
-| 官方包 | `.deb` + 可移植 `.tar.gz` |
+| 官方包 | `.deb` / `.rpm` / `.AppImage` + 可移植 `.tar.gz`（另有便携 `.zip`）；每个资产带 `.sha256` 侧车，发布附带聚合 `SHA256SUMS` |
 | 其他操作系统 | 产品层面不支持 |
 
 网卡报告支持硬件时间戳并存在 `/dev/ptpN`，只代表它具备 linuxptp 所需能力；这**不等于**已经证明端到端时间测量精度。Studio 会把硬件能力、运行时 timestamp source 与未来参考平台校准结果分别管理。
@@ -69,17 +69,42 @@ cd gptp-studio-distributed
 ./bin/gptp-studio
 ```
 
+### RPM 系发行版
+
+从[发布页](https://github.com/turinglambdaai/gptp-studio/releases/latest)
+下载 `gptp-studio-<版本>-<build>-linux-x86_64.rpm`（或 `-aarch64.rpm`）
+后安装：
+
+```bash
+sudo dnf install ./gptp-studio-<版本>-<build>-linux-x86_64.rpm
+gptp-studio --doctor
+```
+
+### AppImage（任意发行版，免安装）
+
+AppImage 自带 GTK4 依赖闭包，比 deb/rpm 能跑在更老的宿主上；GUI 之前
+同样可以走 `--doctor` 无头面：
+
+```bash
+curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.AppImage
+chmod +x gptp-studio-linux-x64.AppImage
+./gptp-studio-linux-x64.AppImage --doctor
+./gptp-studio-linux-x64.AppImage
+```
+
 ### 源码运行
 
 ```bash
 sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
-  libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev
+  libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev \
+  rpm desktop-file-utils
 
 raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
-raco make main.rkt
-racket main.rkt --doctor
-racket main.rkt --simulator
-racket main.rkt
+raco pkg install --auto --no-docs https://github.com/turinglambdaai/permit.git
+raco rivet generate
+raco rivet build          # 构建 GTK4 宿主（产物在 .rivet/build/linux/）
+raco test tests/          # 后端测试套件
+raco rivet dev            # 运行应用；构建出的二进制同样支持 --doctor
 ```
 
 真机调试建议固定流程：先跑 `gptp-studio --doctor`，处理结构性 FAIL，再在 GUI 对目标接口执行 Preflight，最后才启动真实 GM/Slave。详见 [docs/support-doctor.md](docs/support-doctor.md) 与 [docs/hardware-qualification.md](docs/hardware-qualification.md)。

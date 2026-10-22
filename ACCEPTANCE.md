@@ -54,10 +54,12 @@ gptp-studio --simulator
 
 ## 3. 官方包
 
+每个发布资产都带 `.sha256` 侧车，发布附带聚合 `SHA256SUMS`（附 `sha256sum --check SHA256SUMS` 验证）。
+
 ### Debian 包
 
 ```bash
-sudo apt install ./gPTP-Studio-linux-x64.deb
+sudo apt install ./gptp-studio-linux-x64.deb
 command -v gptp-studio
 gptp-studio --doctor
 ```
@@ -69,10 +71,32 @@ gptp-studio --doctor
 - [ ] 安装动作没有自动修改 sudoers 或 file capabilities；
 - [ ] 卸载软件不会删除 `~/.gptp-studio/` 用户数据。
 
+### RPM 包
+
+```bash
+sudo dnf install ./gptp-studio-<version>-<build>-linux-x86_64.rpm
+gptp-studio --doctor
+```
+
+- [ ] `/usr/bin/gptp-studio` 可用，Doctor 与 deb 版语义一致；
+- [ ] Requires 为 gtk4（≥ 4.10）/ libpcap / linuxptp / ethtool / iproute / libcap / libsecret，无 webkit2gtk。
+
+### AppImage
+
+```bash
+chmod +x gptp-studio-linux-x64.AppImage
+./gptp-studio-linux-x64.AppImage --doctor
+./gptp-studio-linux-x64.AppImage
+```
+
+- [ ] 在比 Ubuntu 24.04 更老的宿主上可启动（AppImage 自带 GTK4 依赖闭包）；
+- [ ] `--doctor` 无头面与安装版语义一致；
+- [ ] GUI 正常打开，License 页 Installation ID 与安装版一致（同一 `~/.gptp-studio`）。
+
 ### Relocatable tarball
 
 ```bash
-tar -xzf gPTP-Studio-linux-x64.tar.gz
+tar -xzf gptp-studio-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --version
 ./bin/gptp-studio --doctor
@@ -142,7 +166,7 @@ raco rivet generate && test -s linux/GeneratedBackend.hpp
 raco rivet acceptance --json   # 完整 Linux 产品门
 ```
 
-GitHub Actions（ubuntu-24.04，amd64 + arm64）必须在 PR 与 main 上保持全绿：全部测试、GTK4 宿主构建、生成客户端存在性。发布流水线（tag 触发）额外执行：`raco rivet release --development` 的打包 + 自检 + Doctor 冒烟、amd64 deb 实装冒烟、签名 feed 生成与自验。
+GitHub Actions（ubuntu-24.04，amd64 + arm64）必须在 PR 与 main 上保持全绿：全部测试、GTK4 宿主构建、生成客户端存在性。发布流水线（tag 触发，rivet 按 `RIVET_PIN` 固定在发布 tag）额外执行：`raco rivet release --development` 的打包（deb + rpm + AppImage + tar.gz + zip + SBOM）+ 自检 + Doctor 冒烟、amd64 deb 实装冒烟、逐资产 `.sha256` + 聚合 `SHA256SUMS`、签名 feed 生成与自验。
 
 ## 8. 精度声明
 
