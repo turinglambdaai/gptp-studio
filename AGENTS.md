@@ -45,3 +45,9 @@ NIC, PHC, hardware timestamps, linuxptp capabilities, or sub-microsecond
 accuracy require the separate real-hardware qualification checklist in
 `docs/ux-acceptance.md`; generic CI evidence must never be presented as that
 qualification.
+
+## 组合定位（Portfolio placement）
+
+- 轨道与授权：轨道 1 商业支柱（B2B 专业工具）；授权形态：Apache-2.0 开源核心 + 官方 Pro；商业归属：第一棒，模式已落地（见本仓 PRICING.md 与 docs/licensing-model.md）。
+- 组合归属唯一权威：[PORTFOLIO.md](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)（turinglambdaai.github.io 仓库）。改归属/授权先改权威档，再同步本节。
+- 纪律：价格只进本仓 `PRICING.md`，且收费开始时才发布；README 与产品站不做价格预告。
