@@ -7,6 +7,13 @@ on:
 permissions:
   contents: write
 
+# Single source of truth for the release rivet pin ("发布构建切 pin");
+# every raco pkg install below references this so a bump is one edit.
+# The setup-embed-racket action refs stay hardcoded: GitHub does not
+# expand env in `uses:`.
+env:
+  RIVET_PIN: v0.12.0
+
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -35,7 +42,7 @@ jobs:
       - name: Set up embeddable Racket CS
         uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@v0.12.0
 
-      - name: Install engine and host build dependencies
+      - name: Install engine, host build, and packaging dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -45,6 +52,7 @@ jobs:
             iproute2 \
             libcap2-bin \
             desktop-file-utils \
+            rpm \
             libgtk-4-dev \
             libglib2.0-dev \
             libsecret-1-dev \
@@ -54,8 +62,8 @@ jobs:
             liblz4-dev \
             file
 
-      - name: Install Rivet (released package)
-        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
+      - name: Install Rivet (pinned release package)
+        run: raco pkg install --auto --no-docs --ignore-checksums "https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}"
 
       - name: Install Permit (entitlement gate dependency)
         run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/permit.git
@@ -65,8 +73,13 @@ jobs:
       # signing. The signed update feed is built centrally in the publish
       # job (scripts/make-update-manifest.rkt under the
       # UPDATER_PRIVATE_KEY secret), so the per-runner release keeps
-      # rivet's internal manifest off.
+      # rivet's internal manifest off. linux-formats in rivet.rktd makes
+      # this produce deb + rpm + AppImage alongside the tar.gz and zip;
+      # APPIMAGE_EXTRACT_AND_RUN lets rivet's appimagetool run on the
+      # FUSE-less runner.
       - name: Build, package, and verify the release
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
           raco rivet generate
           raco rivet release --development --without-updates
@@ -85,15 +98,28 @@ jobs:
           test "$?" = "0"
           head -5 doctor.out
 
-      - name: Collect artifacts
-        shell: bash
+      # Every distributable gets a .sha256 sidecar next to its body, the
+      # SBOM carries the version and arch in its name, and the publish job
+      # folds the sidecars into one SHA256SUMS.
+      - name: Collect, name, and checksum the release artifacts
         run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCH="${{ matrix.arch }}"
           mkdir -p release-out
-          find dist -maxdepth 2 -type f \
+          find dist -maxdepth 1 -type f \
             \( -name '*.deb' -o -name '*.tar.gz' -o -name '*.zip' \
-               -o -name 'SHA256SUMS*' -o -name '*sbom*' -o -name '*notices*' \) \
+               -o -name '*.rpm' -o -name '*.AppImage' -o -name 'sbom.cdx.json' \) \
             -exec cp {} release-out/ \;
-          ls -la release-out/
+          cd release-out
+          mv sbom.cdx.json "gptp-studio-${VERSION}-linux-${ARCH}.sbom.cdx.json"
+          for f in *; do
+            case "$f" in
+              *.sha256) ;;
+              *) sha256sum "$f" > "$f.sha256" ;;
+            esac
+          done
+          ls -la
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -108,8 +134,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Set up embeddable Racket CS
         uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@v0.12.0
-      - name: Install Rivet (released package)
-        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
+      - name: Install Rivet (pinned release package)
+        run: raco pkg install --auto --no-docs --ignore-checksums "https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}"
 
       - name: Install Permit (entitlement gate dependency)
         run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/permit.git
@@ -118,6 +144,14 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Aggregate SHA256SUMS
+        run: |
+          set -euo pipefail
+          cd artifacts
+          # Two-space text form (no binary-mode "*" rows).
+          cat *.sha256 | sed 's/ \*/  /' > SHA256SUMS
+          sha256sum --check --quiet SHA256SUMS
 
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
@@ -168,8 +202,9 @@ jobs:
 
       # Family rule: download buttons point at
       # releases/latest/download/<name>, so every release also ships
-      # versionless stable-alias copies of the installers (overwritten on
-      # each release; the versioned assets stay canonical).
+      # versionless stable-alias copies of the primary installers
+      # (overwritten on each release; the versioned assets stay
+      # canonical). The AppImage aliases follow the taskly benchmark.
       - name: Stable alias copies (versionless direct-download links)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -181,4 +216,6 @@ jobs:
           cp "artifacts/gptp-studio-$VERSION-linux-arm64.deb" stable-alias/gptp-studio-linux-arm64.deb
           cp "artifacts/gptp-studio-$VERSION-linux-x64.tar.gz" stable-alias/gptp-studio-linux-x64.tar.gz
           cp "artifacts/gptp-studio-$VERSION-linux-arm64.tar.gz" stable-alias/gptp-studio-linux-arm64.tar.gz
+          cp "artifacts/gptp-studio-$VERSION-linux-x86_64.AppImage" stable-alias/gptp-studio-linux-x64.AppImage
+          cp "artifacts/gptp-studio-$VERSION-linux-aarch64.AppImage" stable-alias/gptp-studio-linux-arm64.AppImage
           gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R "$GITHUB_REPOSITORY"
