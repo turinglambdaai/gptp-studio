@@ -205,14 +205,14 @@ jobs:
           rm -f "$KEY_PEM"
           git config user.name "gptp-studio feed bot"
           git config user.email "actions@turinglambdaai.github.io"
+          git add update-stable.json
+          git commit -m "feed: $VERSION [skip ci]"
           # The checkout is detached at the tag; rebase the feed commit
           # onto current main so anything that landed on main while the
           # release built (a concurrent push, a serialized duplicate run)
           # cannot reject the release's final step.
           git fetch origin main
           git rebase origin/main
-          git add update-stable.json
-          git commit -m "feed: $VERSION [skip ci]"
           git push origin HEAD:main
 
       # Family rule: download buttons point at
