@@ -1,9 +1,24 @@
 # 更新日志 / Changelog
 
-## Unreleased
+## 0.3.0 - 2026-10-23
+
+**安装身份与本地试用落到 Permit 原语，官方更新窗完成收费闭环。** 安装
+ID、试用状态机、凭据验证全部接上 permit 协议；deb/rpm 运行时依赖从
+WebKitGTK 旧栈改为 GTK4 真实依赖。
 
 ### Added
 
+- **安装身份**：每台安装持有稳定 Installation ID（`ins_` + 32 hex，首次
+  使用时生成、持久于 `~/.gptp-studio/installation-id`）。凭据验证把本机
+  ID 传给 permit 的安装绑定检查——`installation_id` 绑定的凭据自此可用，
+  不匹配或未携带 ID 一律 fail-closed。License 页显示可复制的安装 ID
+  （含获取绑定凭据的指引文案），类型化 `GateInfo` RPC 增加
+  `installation_id` 字段；`docs/vendor-license-guide.md` 记录签发侧的
+  绑定流程。
+- **permit 本地试用**：14 天试用从自制日期状态改用 permit local-trial
+  （固定起止窗口 + last_seen 高水位），时钟回拨超容差即失效、重启
+  不重置；旧版 `trial-started` 日期状态在首次读取时自动迁移——未到期
+  保留剩余窗口，已到期保持到期，Trial 不能重启已消费的窗口。
 - **官方更新窗成为产品机制**（第一个收费范例的地基）：Pro 永久 entitlement
   的 `updates_through` 自此贯通发行链与产品——commerce 侧 offer
   （`gptp-studio-pro-perpetual` / `gptp-studio-pro-team-5`，定价见
@@ -17,9 +32,18 @@
   时效），明示「续购更新窗即为续费」。
 - `docs/vendor-license-guide.md` 新增正式发行路径：手工签发仅限测试与补发，
   正式销售走 commerce 的 offer/policy 映射与渠道 webhook。
+- CI 并发守卫：同一 ref 的新推送自动取消排队中的旧运行（main 不取消）。
 
 ### Fixed
 
+- **deb/rpm 运行时依赖**：从 `libgtk-3-0 + libwebkit2gtk-4.1-0`（0.1.0
+  已整体移除的旧栈）改为 `libgtk-4-1 (>= 4.10) + libsecret-1-0`——宿主
+  的真实链接面；rpm 的 `gtk3/webkit2gtk4.1` 同步改 `gtk4/libsecret`。
+  此前在精简系统上安装会缺 GTK4 运行库、反而多装 WebKit。
+- 宿主 License 页残留旧 `license.lic` 占位文案改为 `.permit.json`。
+- ACCEPTANCE.md 与旧栈对齐的章节（GTK3/WebKit 环境依赖、WebKitGTK
+  窗口、旧页名、glaze 时代入口命令、22.04 门）改写为 Rivet/GTK4 产品
+  现状，并补许可证与更新的验收点。
 - 凭据验证信息补齐 `updates-through` 字段（此前只暴露 `use_expires_at`），
   gate 测试覆盖窗口边界（截止日当天仍可更新、次日拒绝、Free 恒开）。
 
