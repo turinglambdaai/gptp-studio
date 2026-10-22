@@ -25,7 +25,7 @@
 - 固定 Ubuntu LTS reference image
 - 主动 timing capability benchmark
 - 参考平台 characterization 数据库
-- 自动更新通道与签名发布
+- ✅ 自动更新通道与签名发布（0.2.0 上线签名 feed 与应用内更新；0.3.0 起官方更新窗按 entitlement 收口）
 - systemd/udev/polkit 是否值得引入，以安全性和可维护性为前提评估
 
 ## v2 — Linux + 专用硬件
