@@ -531,6 +531,13 @@
           }
         },
         {
+          "name": "installation_id",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
           "name": "detail",
           "type": {
             "kind": "scalar",
@@ -868,9 +875,115 @@
         }
       ],
       "name": "TimestampInfo"
+    },
+    {
+      "fields": [
+        {
+          "name": "status",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "message",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "current_version",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "available_version",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "url",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        }
+      ],
+      "name": "UpdateCheck"
+    },
+    {
+      "fields": [
+        {
+          "name": "state",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "percent",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "error",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "staged_path",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "install_command",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        }
+      ],
+      "name": "UpdateState"
     }
   ],
   "rpcs": [
+    {
+      "arguments": [],
+      "name": "apply-update",
+      "result": {
+        "kind": "record",
+        "name": "UpdateState"
+      }
+    },
     {
       "arguments": [],
       "name": "bootstrap",
@@ -909,6 +1022,14 @@
       "result": {
         "kind": "record",
         "name": "CaptureStatus"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "check-updates",
+      "result": {
+        "kind": "record",
+        "name": "UpdateCheck"
       }
     },
     {
@@ -954,6 +1075,14 @@
       "result": {
         "kind": "record",
         "name": "ActionResult"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "diagnostics-text",
+      "result": {
+        "kind": "scalar",
+        "name": "String"
       }
     },
     {
@@ -1707,6 +1836,22 @@
       "result": {
         "kind": "scalar",
         "name": "Any"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "start-download",
+      "result": {
+        "kind": "record",
+        "name": "UpdateState"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "update-state",
+      "result": {
+        "kind": "record",
+        "name": "UpdateState"
       }
     },
     {
