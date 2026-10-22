@@ -1,13 +1,15 @@
 # 验收指南 / ACCEPTANCE
 
-> gPTP Studio 的产品验收只针对 Linux。推荐使用 Ubuntu 22.04 LTS 或 Ubuntu 24.04 LTS，并优先在带真实 PHC/HW timestamp 的网卡上执行真机项。
+> gPTP Studio 的产品验收只针对 Linux。基线发行版是 Ubuntu 24.04 LTS（GTK4 宿主要求 GTK ≥ 4.10，22.04 的 4.6 低于下限），并优先在带真实 PHC/HW timestamp 的网卡上执行真机项。
+>
+> 可执行验收门以 `rivet-acceptance.rktd` 为准（`raco rivet acceptance --json`）：合同测试、RVT1 wire、GTK4 宿主构建、打包、AT-SPI 原生 UI 五个套件。本文件是其上的人工验收补充；涉及物理 NIC/PHC/精度的声明另见 §3–§5 与 `docs/hardware-qualification.md`。
 
 ## 0. 环境
 
 ```bash
 sudo apt update
 sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
-  libgtk-3-0 libwebkit2gtk-4.1-0
+  libgtk-4-1 libsecret-1-0
 ```
 
 先执行：
@@ -32,27 +34,37 @@ gptp-studio --doctor
 gptp-studio --simulator
 ```
 
-- [ ] WebKitGTK 原生窗口正常打开；
-- [ ] 六页导航与顶部状态栏正常；
-- [ ] Overview 曲线持续更新；
-- [ ] Packets 页面持续出现真实编码的模拟 gPTP 帧；
-- [ ] 报文详情、解码树、hex 可用；
-- [ ] Role & Config 修改 Domain/Sync 周期后 `ptp4l.conf` 立即变化；
+- [ ] GTK4 原生窗口正常打开；
+- [ ] 六页导航（Engine / Qualification / Packets / Logs / GM Tuning / License & Reports）与顶部状态栏正常；
+- [ ] Engine 页同步曲线持续更新；
+- [ ] Packets 页面持续出现真实编码的模拟 gPTP 帧，报文详情、解码树、hex 可用；
+- [ ] GM Tuning 修改优先级后 `pmc GRANDMASTER_SETTINGS_NP` 应用到运行中的引擎；
 - [ ] 角色切换、告警、日志、预设、语言切换正常。
 
-## 2. 官方包
+## 2. 许可证与更新
+
+- [ ] License 页显示本机 Installation ID（`ins_` + 32 位十六进制），可选中复制，重启后不变；
+- [ ] Start Trial 后档位变为 trial，剩余天数在 1–14 内；试用期间引擎控制/导出可用；
+- [ ] 系统时钟回拨超过 5 分钟后试用判定失效（免费档），不崩溃；
+- [ ] 试用到期后回到 free，引擎控制/导出重新被拒并给出 Pro 提示；
+- [ ] 激活一份有效 `.permit.json` 后档位变为 Pro，detail 显示 subject 与 updates_through；激活绑定其他 Installation ID 的凭据被拒绝并提示；
+- [ ] Deactivate 后回到 free，`~/.gptp-studio/entitlement.permit.json` 被删除；
+- [ ] 「检查更新…」在有新版本的 feed 上给出同意对话框，全程错误文案可复制；
+- [ ] Pro 永久授权在 `updates_through` 截止日当天仍可下载官方更新，次日起拒绝出网并说明续购；Free/试用不受限。
+
+## 3. 官方包
 
 ### Debian 包
 
 ```bash
-sudo apt install ./gPTP-Studio-v1.0.0-linux-amd64.deb
+sudo apt install ./gPTP-Studio-linux-x64.deb
 command -v gptp-studio
 gptp-studio --doctor
 ```
 
 - [ ] `/usr/bin/gptp-studio` 可用；
-- [ ] 桌面菜单存在 gPTP Studio；
-- [ ] 图标正常；
+- [ ] 依赖声明为 GTK4 运行库（`libgtk-4-1`），不含 WebKitGTK；
+- [ ] 桌面菜单存在 gPTP Studio，图标正常；
 - [ ] `/usr/share/doc/gptp-studio/` 包含 LICENSE / NOTICE / EULA / THIRD_PARTY_NOTICES；
 - [ ] 安装动作没有自动修改 sudoers 或 file capabilities；
 - [ ] 卸载软件不会删除 `~/.gptp-studio/` 用户数据。
@@ -60,17 +72,17 @@ gptp-studio --doctor
 ### Relocatable tarball
 
 ```bash
-tar -xzf gPTP-Studio-v1.0.0-linux-x64.tar.gz
+tar -xzf gPTP-Studio-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --version
 ./bin/gptp-studio --doctor
 ```
 
 - [ ] 无需 Racket 源码环境即可运行；
-- [ ] license payload 完整；
+- [ ] 应用内 `app/keys/trust-store.json`（Permit 信任库）随包分发；
 - [ ] Doctor 与安装版语义一致。
 
-## 3. 真机 NIC / PHC
+## 4. 真机 NIC / PHC
 
 在支持 IEEE 1588/PTP hardware timestamp 的网卡上：
 
@@ -86,7 +98,7 @@ gptp-studio --doctor
 - [ ] link DOWN 只产生 VERIFY/WARN，不作为结构性 FAIL；
 - [ ] 明确没有 HW timestamp 或 PHC 时真实 GM/Slave 被阻止启动。
 
-## 4. 权限路径
+## 5. 权限路径
 
 分别验证至少一种生产可接受路径：
 
@@ -101,7 +113,7 @@ gptp-studio --doctor
 - [ ] GM + system reference 单独检查 `phc2sys` 时钟写权限；
 - [ ] 被拒绝的新会话不会误停正在运行的健康会话。
 
-## 5. 双机 / ECU 真机
+## 6. 双机 / ECU 真机
 
 - [ ] Studio GM → ECU/EthTSyn Slave 能进入同步；
 - [ ] ECU/设备 GM → Studio Slave 曲线收敛；
@@ -109,7 +121,7 @@ gptp-studio --doctor
 - [ ] offset jump 时能回看同一时间附近的 Sync / Follow_Up / PDelay / Announce；
 - [ ] 抓包 timestamp source 与 NIC capability 分开显示。
 
-## 5b. Boundary Clock 双端口真机
+## 6b. Boundary Clock 双端口真机
 
 在两张支持硬件时间戳的网卡上：
 
@@ -121,27 +133,18 @@ gptp-studio --doctor
 - [ ] 上游接真实 GM、下游接 DUT 时，DUT 能同步，`pmc GET CURRENT_DATA_SET` 与 UI 一致；
 - [ ] 模拟器 Boundary 剧本双端口有流量且不影响其它角色。
 
-## 6. 工程质量
+## 7. 工程质量
 
 ```bash
-raco make main.rkt
 raco test tests/
-racket main.rkt --selfcheck
-racket main.rkt --doctor-json | python3 -m json.tool >/dev/null
-bash scripts/package-deb.sh 1.0.0 v1.0.0-local
+raco rivet build
+raco rivet generate && test -s linux/GeneratedBackend.hpp
+raco rivet acceptance --json   # 完整 Linux 产品门
 ```
 
-GitHub Actions 必须在 **Ubuntu 22.04 + Ubuntu 24.04** 同时通过：
+GitHub Actions（ubuntu-24.04，amd64 + arm64）必须在 PR 与 main 上保持全绿：全部测试、GTK4 宿主构建、生成客户端存在性。发布流水线（tag 触发）额外执行：`raco rivet release --development` 的打包 + 自检 + Doctor 冒烟、amd64 deb 实装冒烟、签名 feed 生成与自验。
 
-- Compile
-- 全部测试
-- selfcheck
-- Doctor
-- Linux relocatable tarball smoke
-- Debian package metadata/extract/runtime smoke
-- license payload smoke
-
-## 7. 精度声明
+## 8. 精度声明
 
 任何对外精度数字必须来自固定 reference platform + 外部参考仪器 characterization。以下事实本身都不能被写成精度保证：
 

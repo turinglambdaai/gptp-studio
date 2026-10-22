@@ -166,6 +166,7 @@ struct AppState {
 
   // License page
   GtkLabel* gate_value{nullptr};
+  GtkLabel* installation_value{nullptr};
   GtkButton* trial_start{nullptr};
   GtkEntry* license_path{nullptr};
   GtkButton* activate{nullptr};
@@ -334,6 +335,7 @@ void refresh_capture_buttons(rivet_app::CaptureStatus const& status);
 void repull_series(std::string const& series);
 void repull_packets();
 void repull_logs();
+void apply_gate_info(rivet_app::GateInfo const& gate);
 
 void on_start_clicked(GtkButton*, gpointer);
 gboolean on_update_auto_check(gpointer);
@@ -378,9 +380,7 @@ int on_backend_finished(gpointer) {
         thresholds.push_back({-warn_us * 1000, "alarm low", "#f5c211"});
       }
       g_state.chart->set_thresholds(std::move(thresholds));
-      std::string gate = value.gate.tier;
-      gate += value.gate.pro ? " (Pro)" : "";
-      gtk_label_set_text(g_state.gate_value, gate.c_str());
+      apply_gate_info(value.gate);
     });
   });
   repull_series("offset");
@@ -741,6 +741,20 @@ void on_gm_apply_clicked(GtkButton*, gpointer) {
       });
 }
 
+// One renderer for every GateInfo arrival (bootstrap, trial, activate,
+// deactivate): the tier line plus the copyable installation id a customer
+// hands to the vendor for an installation-bound credential.
+void apply_gate_info(rivet_app::GateInfo const& gate) {
+  std::string suffix;
+  if (gate.tier == "trial") {
+    suffix = " (trial)";
+  } else if (gate.pro) {
+    suffix = " (Pro)";
+  }
+  gtk_label_set_text(g_state.gate_value, (gate.tier + suffix).c_str());
+  gtk_label_set_text(g_state.installation_value, gate.installation_id.c_str());
+}
+
 void on_trial_clicked(GtkButton*, gpointer) {
   if (g_state.api == nullptr) {
     return;
@@ -751,9 +765,7 @@ void on_trial_clicked(GtkButton*, gpointer) {
           return;
         }
         auto const gate = result.get();
-        idle_deliver([gate] {
-          gtk_label_set_text(g_state.gate_value, (gate.tier + " (trial)").c_str());
-        });
+        idle_deliver([gate] { apply_gate_info(gate); });
       });
 }
 
@@ -775,9 +787,7 @@ void on_activate_clicked(GtkButton*, gpointer) {
               return;
             }
             auto const info = gate.get();
-            idle_deliver([info] {
-              gtk_label_set_text(g_state.gate_value, (info.tier + (info.pro ? " (Pro)" : "")).c_str());
-            });
+            idle_deliver([info] { apply_gate_info(info); });
           });
         });
       });
@@ -793,9 +803,7 @@ void on_deactivate_clicked(GtkButton*, gpointer) {
           return;
         }
         auto const gate = result.get();
-        idle_deliver([gate] {
-          gtk_label_set_text(g_state.gate_value, gate.tier.c_str());
-        });
+        idle_deliver([gate] { apply_gate_info(gate); });
       });
 }
 
@@ -1858,10 +1866,12 @@ GtkWidget* build_license_page() {
   auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
 
   auto* gate_row = info_row("License tier", &g_state.gate_value);
+  auto* installation_row = info_row("Installation ID", &g_state.installation_value);
+  gtk_label_set_selectable(g_state.installation_value, TRUE);
 
   auto* trial = gtk_button_new_with_label("Start Trial");
   auto* path = gtk_entry_new();
-  gtk_entry_set_placeholder_text(GTK_ENTRY(path), "/path/to/license.lic");
+  gtk_entry_set_placeholder_text(GTK_ENTRY(path), "/path/to/entitlement.permit.json");
   auto* activate = gtk_button_new_with_label("Activate License");
   auto* deactivate = gtk_button_new_with_label("Deactivate");
   auto* path_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -1881,12 +1891,16 @@ GtkWidget* build_license_page() {
   g_state.report_export = GTK_BUTTON(report);
   g_state.diagnostics_export = GTK_BUTTON(diagnostics);
 
-  auto* note = gtk_label_new("Offline signed licenses; no cloud dependency. Real-engine roles and exports require Pro.");
+  auto* note = gtk_label_new(
+      "Offline Permit credentials (.permit.json); no cloud dependency. "
+      "Real-engine roles and exports require Pro. Hand the installation "
+      "ID to the vendor when requesting an installation-bound license.");
   gtk_label_set_wrap(GTK_LABEL(note), TRUE);
   gtk_widget_add_css_class(note, "dim-label");
   gtk_label_set_xalign(GTK_LABEL(note), 0.0F);
 
   gtk_box_append(GTK_BOX(box), gate_row);
+  gtk_box_append(GTK_BOX(box), installation_row);
   gtk_box_append(GTK_BOX(box), trial);
   gtk_box_append(GTK_BOX(box), path_row);
   gtk_box_append(GTK_BOX(box), exports);

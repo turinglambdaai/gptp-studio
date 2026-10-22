@@ -75,6 +75,14 @@ raco permit keygen \
 字段语义：`use_expires_at` 设日期即订阅式（到期停用）；留 null 即永久。
 注意 jsexpr 世界的"无值"写 JSON `null`，不是 `false`。
 
+### 安装绑定（可选）
+
+`constraints.installation_id` 填客户的安装 ID（`ins_` + 32 位十六进制）即把凭据
+绑定到那一台安装：客户在应用内 License & Reports 页复制 Installation ID 发给
+你，签发时填入该字段。产品端验证时传入本机 ID，不匹配即拒绝（应用提示
+「许可证绑定其他安装实例」）；保持 null 表示不绑定、任意安装可激活。重装系统
+或换机后 ID 会变，走「续订 / 变更」重签一份绑定新 ID 的凭据即可。
+
 签发（签名覆盖 payload 字节本身，签发器会先做 schema 校验）：
 
 ```bash

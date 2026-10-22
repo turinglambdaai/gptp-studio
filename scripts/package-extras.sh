@@ -76,14 +76,13 @@ Summary:        Professional gPTP / IEEE 802.1AS debugging workstation
 License:        EULA
 URL:            https://github.com/turinglambdaai/gptp-studio
 BuildArch:      __GPTP_RPM_ARCH__
-Requires:       gtk3
-Requires:       webkit2gtk4.1
+Requires:       gtk4 >= 4.10.0
 Requires:       libpcap
 Requires:       linuxptp
 Requires:       ethtool
 Requires:       iproute
 Requires:       libcap
-Requires:       openssl
+Requires:       libsecret
 
 %description
 gPTP Studio is a Linux-native engineering workstation for Automotive

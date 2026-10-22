@@ -6,6 +6,7 @@
 ;; issuer key, never the shipped trust store.
 
 (require rackunit
+         racket/date
          racket/file
          racket/runtime-path
          json
@@ -55,7 +56,8 @@
                       #:credential-id [credential-id "cred_gate_test"]
                       #:subject-id [subject-id "customer_01"]
                       #:subject-display [subject-display "customer@example.com"]
-                      #:issued-at [issued-at "2026-01-01T00:00:00Z"])
+                      #:issued-at [issued-at "2026-01-01T00:00:00Z"]
+                      #:installation-id [installation-id 'null])
   (hasheq 'protocol "permit"
           'version 1
           'type "entitlement"
@@ -85,7 +87,7 @@
                   'limits (hasheq 'named_seats 'null
                                   'device_activations 'null
                                   'concurrent_seats 'null)
-                  'installation_id 'null
+                  'installation_id installation-id
                   'activation_required #f)
           'extensions (hasheq)))
 
@@ -384,3 +386,125 @@
     (issue-credential (string->bytes/utf-8 (jsexpr->string (gate-payload)))
                       private-key "test-1" store-v2))
   "safe issuance refuses a retired signing key")
+
+;; ---- installation identity and installation-bound credentials ----
+;; Every install holds a stable ins_… id (persisted beside the gate
+;; state). A credential whose constraints bind that id verifies only on
+;; the matching install; presenting a bound credential without an id
+;; fails closed; the gate surfaces the id for the customer to hand to
+;; the vendor.
+
+(let ([scratch (make-temporary-file "gate-ins-~a" 'directory)])
+  (putenv "GPTP_STUDIO_HOME" (path->string scratch))
+  (define iid (gate-installation-id))
+  (check-true (regexp-match? #px"^ins_[0-9a-f]{32}$" iid)
+              "the installation id has permit's ins_ + 32 hex shape")
+  (check-equal? (gate-installation-id) iid "the id is stable across calls")
+  (check-true (file-exists? (build-path scratch ".gptp-studio" "installation-id"))
+              "the id persists beside the gate state")
+
+  (define bound-here
+    (issue-to-file (gate-payload #:credential-id "cred_gate_bound"
+                                 #:installation-id iid)
+                   (make-temporary-file "gate-bound-~a.permit.json")))
+  (define bound-elsewhere
+    (issue-to-file (gate-payload #:credential-id "cred_gate_foreign-install"
+                                 #:installation-id
+                                 "ins_ffffffffffffffffffffffffffffffff")
+                   (make-temporary-file "gate-bound2-~a.permit.json")))
+
+  (define-values (bh-ok? _bh-info)
+    (entitlement-validate bound-here trust-store-path #:installation-id iid))
+  (check-true bh-ok? "a credential bound to this installation verifies")
+
+  (define-values (be-ok? be-info)
+    (entitlement-validate bound-elsewhere trust-store-path #:installation-id iid))
+  (check-false be-ok? "a credential bound to another installation fails")
+  (check-equal? (hash-ref be-info 'reason) 'installation
+                "the mismatch is reported as installation")
+
+  (define-values (nc-ok? nc-info)
+    (entitlement-validate bound-here trust-store-path))
+  (check-false nc-ok? "a bound credential without an id fails closed")
+  (check-equal? (hash-ref nc-info 'reason) 'installation
+                "fail-closed is reported as installation")
+
+  (define-values (ib-act-ok? _ib-subject) (gate-activate! bound-here))
+  (check-true ib-act-ok? "an installation-bound credential activates")
+  (check-equal? (gate-init!) 'pro "the bound credential drives the pro tier")
+  (define ins-info (gate-info))
+  (check-equal? (hash-ref ins-info 'installation_id) iid
+                "gate-info surfaces the installation id")
+  (gate-deactivate!)
+  (check-equal? (gate-init!) 'free "deactivation drops the bound credential"))
+
+;; ---- the local trial ----
+;; Trial state is permit local-trial format in the historical path: an
+;; explicit start opens a 14-day pro window that survives restarts;
+;; legacy date-anchored state migrates (active stays active, expired
+;; stays expired); corrupt state reads as absent and an explicit start
+;; replaces it.
+
+(define (iso-days-ago n)
+  (define d (seconds->date (- (current-seconds) (* n 86400))))
+  (format "~a-~a-~a"
+          (date-year d)
+          (let ([s (number->string (date-month d))])
+            (if (< (string-length s) 2) (string-append "0" s) s))
+          (let ([s (number->string (date-day d))])
+            (if (< (string-length s) 2) (string-append "0" s) s))))
+
+(define (write-legacy-trial-state! started)
+  ;; gate-installation-id doubles as the "state dir exists" step
+  (gate-installation-id)
+  (call-with-output-file (gate-state-path)
+    (lambda (out) (write-json (hasheq 'trial-started started) out))
+    #:exists 'replace))
+
+;; a fresh trial runs the full pro surface and survives a restart
+(let ([scratch (make-temporary-file "gate-trial-~a" 'directory)])
+  (putenv "GPTP_STUDIO_HOME" (path->string scratch))
+  (check-equal? (gate-init!) 'free "a fresh home without trial state is free")
+  (gate-trial-start!)
+  (check-equal? (gate-init!) 'trial "an explicit start opens the trial tier")
+  (check-true (gate-pro?) "a trial holds the pro surface")
+  (define state (call-with-input-file (gate-state-path) read-json))
+  (check-equal? (hash-ref state 'protocol) "permit-local-trial"
+                "trial state is permit local-trial format")
+  (define detail (hash-ref (gate-info) 'detail))
+  (check-true (and (integer? (hash-ref detail 'days_left))
+                   (<= 1 (hash-ref detail 'days_left) 14))
+              "the trial reports days_left within its window")
+  (check-true (string? (hash-ref detail 'expires_at))
+              "the trial reports its expiry instant")
+  (check-equal? (gate-init!) 'trial "the trial survives a restart"))
+
+;; an active legacy window migrates and keeps running
+(let ([scratch (make-temporary-file "gate-legacy-~a" 'directory)])
+  (putenv "GPTP_STUDIO_HOME" (path->string scratch))
+  (write-legacy-trial-state! (iso-days-ago 1))
+  (check-equal? (gate-init!) 'trial
+                "an active legacy trial migrates to the trial tier")
+  (define state (call-with-input-file (gate-state-path) read-json))
+  (check-equal? (hash-ref state 'protocol) "permit-local-trial"
+                "migration rewrote the state into local-trial format"))
+
+;; an expired legacy window stays expired; Trial cannot restart it
+(let ([scratch (make-temporary-file "gate-legacy2-~a" 'directory)])
+  (putenv "GPTP_STUDIO_HOME" (path->string scratch))
+  (write-legacy-trial-state! "2026-01-01")
+  (check-equal? (gate-init!) 'free "an expired legacy trial reads as free")
+  (gate-trial-start!)
+  (check-equal? (gate-init!) 'free
+                "an expired window is preserved; Trial does not restart"))
+
+;; corrupt state reads as absent; an explicit start replaces it
+(let ([scratch (make-temporary-file "gate-trial3-~a" 'directory)])
+  (putenv "GPTP_STUDIO_HOME" (path->string scratch))
+  (gate-installation-id) ; ensures ~/.gptp-studio exists
+  (call-with-output-file (gate-state-path)
+    (lambda (out) (display "{{{not json" out))
+    #:exists 'replace)
+  (check-equal? (gate-init!) 'free "corrupt trial state reads as free, no crash")
+  (gate-trial-start!)
+  (check-equal? (gate-init!) 'trial "a start after corrupt state opens fresh"))
