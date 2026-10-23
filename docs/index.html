@@ -28,6 +28,11 @@ var _hmt = _hmt || [];
   s.parentNode.insertBefore(hm, s);
 })();
 </script>
+<style>
+  #product-support { display:flex; flex-wrap:wrap; justify-content:center; gap:12px 24px; padding:24px; font:inherit; border-top:1px solid var(--border, #a8a29e); }
+  #product-support a:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+  html:lang(en) #product-support .support-zh, html:lang(zh) #product-support .support-en { display:none; }
+</style>
 </head>
 <body>
   <nav class="nav-container">
@@ -54,7 +59,7 @@ var _hmt = _hmt || [];
 
   <section class="hero" id="overview">
     <div class="container hero-copy">
-      <div class="linux-pill"><span class="linux-dot"></span><span data-en="Linux-only · Ubuntu 22.04 / 24.04" data-zh="仅支持 Linux · Ubuntu 22.04 / 24.04">Linux-only · Ubuntu 22.04 / 24.04</span></div>
+      <div class="linux-pill"><span class="linux-dot"></span><span data-en="Linux-only · Ubuntu 24.04" data-zh="仅支持 Linux · Ubuntu 24.04">Linux-only · Ubuntu 24.04</span></div>
       <span class="eyebrow" data-en="Automotive Ethernet timing" data-zh="Automotive Ethernet 时间同步">Automotive Ethernet timing</span>
       <h1><span data-en="One Linux workstation." data-zh="一台 Linux 工作站，">One Linux workstation.</span> <span class="accent" data-en="Full gPTP visibility." data-zh="看清整个 gPTP。">Full gPTP visibility.</span></h1>
       <p class="lead" data-en="gPTP Studio is a professional IEEE 802.1AS / AUTOSAR EthTSyn debugging workstation built around the Linux timing stack: PHC, hardware timestamping, SO_TIMESTAMPING, linuxptp and explicit privilege control." data-zh="gPTP Studio 是围绕 Linux 时间栈构建的专业 IEEE 802.1AS / AUTOSAR EthTSyn 调试工作站：PHC、硬件时间戳、SO_TIMESTAMPING、linuxptp 与明确可控的权限路径。">gPTP Studio is a professional IEEE 802.1AS / AUTOSAR EthTSyn debugging workstation built around the Linux timing stack.</p>
@@ -88,8 +93,8 @@ var _hmt = _hmt || [];
       <h2 class="section-title"><span data-en="Linux is not a port." data-zh="Linux 不是其中一个移植平台，">Linux is not a port.</span> <span class="accent" data-en="It is the product." data-zh="Linux 就是产品本体。">It is the product.</span></h2>
       <p class="lead" data-en="Other operating systems are intentionally unsupported. A reduced-function port without the same PHC, hardware timestamp and linuxptp path would weaken validation and supportability." data-zh="其他操作系统明确不在产品支持范围内。没有同等 PHC、硬件时间戳和 linuxptp 路径的缩水移植，只会降低验证可信度与售后可支持性。">Other operating systems are intentionally unsupported.</p>
       <table class="support-table">
-        <tr><th data-en="Validated distributions" data-zh="验证发行版">Validated distributions</th><td>Ubuntu 22.04 LTS, Ubuntu 24.04 LTS</td></tr>
-        <tr><th data-en="Desktop" data-zh="桌面 UI">Desktop</th><td>GTK 3 + WebKitGTK 4.1</td></tr>
+        <tr><th data-en="Validated distributions" data-zh="验证发行版">Validated distributions</th><td>Ubuntu 24.04 LTS</td></tr>
+        <tr><th data-en="Desktop" data-zh="桌面 UI">Desktop</th><td>GTK4 + Rivet</td></tr>
         <tr><th data-en="Timing engine" data-zh="时间引擎">Timing engine</th><td>linuxptp: ptp4l / phc2sys / pmc</td></tr>
         <tr><th data-en="Hardware path" data-zh="硬件时间路径">Hardware path</th><td>NIC hardware timestamping + PTP Hardware Clock</td></tr>
         <tr><th data-en="Capture" data-zh="抓包">Capture</th><td>libpcap + runtime timestamp-source reporting</td></tr>
@@ -104,11 +109,11 @@ var _hmt = _hmt || [];
       <h2 class="section-title"><span data-en="Start with" data-zh="第一步先运行">Start with</span> <span class="accent">Doctor.</span></h2>
       <div class="download-grid">
         <div class="download-card"><h3 data-en="Quick start" data-zh="快速开始">Quick start</h3><pre class="command"># Debian/Ubuntu: from the latest release
-sudo apt install ./gPTP-Studio-linux-x64.deb
+sudo apt install ./gptp-studio-&lt;version&gt;-linux-amd64.deb
 gptp-studio --doctor
-gptp-studio</pre><p data-en="Validated on Ubuntu 22.04 / 24.04 LTS. Installs to /opt/gptp-studio, adds /usr/bin/gptp-studio and a desktop entry." data-zh="在 Ubuntu 22.04 / 24.04 LTS 上验证。安装到 /opt/gptp-studio，提供 /usr/bin/gptp-studio 命令与桌面入口。">Validated on Ubuntu 22.04 / 24.04 LTS.</p></div>
-        <div class="download-card"><h3 data-en="Relocatable tar.gz" data-zh="Relocatable tar.gz">Relocatable tar.gz</h3><pre class="command">tar -xzf gPTP-Studio-linux-x64.tar.gz
-cd gptp-studio-distributed
+gptp-studio</pre><p data-en="Validated on Ubuntu 24.04 LTS. Installs to /opt/gptp-studio, adds /usr/bin/gptp-studio and a desktop entry." data-zh="在 Ubuntu 24.04 LTS 上验证。安装到 /opt/gptp-studio，提供 /usr/bin/gptp-studio 命令与桌面入口。">Validated on Ubuntu 24.04 LTS.</p></div>
+        <div class="download-card"><h3 data-en="Relocatable tar.gz" data-zh="Relocatable tar.gz">Relocatable tar.gz</h3><pre class="command">tar -xzf gptp-studio-&lt;version&gt;-linux-x64.tar.gz
+cd &lt;extracted-directory&gt;
 ./bin/gptp-studio --doctor
 ./bin/gptp-studio</pre><p data-en="Self-contained; installs nothing outside its directory. Useful for lab hosts where the payload should stay outside the package database." data-zh="自包含，不在目录外安装任何内容。适合希望应用 payload 与系统包数据库解耦的实验室主机。">Self-contained; installs nothing outside its directory.</p></div>
       </div>
@@ -120,6 +125,7 @@ cd gptp-studio-distributed
   </section>
 
   <footer><div class="container"><p data-en="gPTP Studio · Linux-native IEEE 802.1AS engineering workstation · Apache-2.0 source" data-zh="gPTP Studio · Linux 原生 IEEE 802.1AS 工程工作站 · Apache-2.0 源码">gPTP Studio · Linux-native IEEE 802.1AS engineering workstation · Apache-2.0 source</p></div></footer>
+<nav id="product-support" aria-label="Support / 支持"><a href="https://github.com/turinglambdaai/gptp-studio/issues"><span class="support-zh">反馈</span><span class="support-en" lang="en">Feedback</span></a> <a href="https://github.com/turinglambdaai/gptp-studio/releases"><span class="support-zh">发布与更新</span><span class="support-en" lang="en">Releases</span></a> <a href="https://github.com/turinglambdaai/gptp-studio/blob/main/LICENSE"><span class="support-zh">源码许可</span><span class="support-en" lang="en">Source license</span></a></nav>
 
   <script>
     // Unified language policy: explicit choice wins; otherwise follow system/browser locale.

@@ -148,3 +148,7 @@ raco rivet dev            # 运行应用；构建出的二进制同样支持 --d
 ## 许可证
 
 gPTP Studio 源码以及官方分发物中受 Apache-2.0 覆盖的部分继续适用 Apache-2.0。[EULA.md](EULA.md) 约束官方 Pro entitlement、许可证凭据、官方更新/支持和官方身份关系，但不会覆盖或撤销适用的开源权利。第三方归属见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 反馈与诊断
+
+问题和建议请使用 [GitHub Issues](https://github.com/turinglambdaai/gptp-studio/issues)，附版本、系统/架构和复现步骤。分享前先检查并脱敏诊断；不要公开 API key、授权凭据、密钥库或私有文档。安全敏感问题优先按 SECURITY.md 联系；未提供私密渠道时，先请求私下联系方式，不在公开 issue 中披露敏感细节。此入口不会自动上传数据。
