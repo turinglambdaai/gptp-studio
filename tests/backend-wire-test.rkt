@@ -11,7 +11,8 @@
          racket/path
          racket/string
          rivet/backend
-         rivet/protocol)
+         rivet/protocol
+         "../engine/detect.rkt")
 
 (define scratch (make-temporary-file "gptp-studio-wire-~a" 'directory))
 (putenv "GPTP_STUDIO_HOME" (path->string scratch))
@@ -79,7 +80,9 @@
    (define-values (bootstrap bootstrap-error) (call-rpc "bootstrap"))
    (check-false bootstrap-error)
    (check-equal? (length bootstrap) 12)
-   (check-equal? (list-ref bootstrap 1) "linux")
+   ;; The platform field must report the host truthfully: "linux" on the
+   ;; supported product platform, "unsupported" anywhere else.
+   (check-equal? (list-ref bootstrap 1) (platform-name))
 
    (define-values (started start-error)
      (call-rpc "engine-start" "slave" "sim" "" '()))
