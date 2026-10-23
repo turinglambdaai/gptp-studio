@@ -154,3 +154,7 @@ gPTP Studio source and Apache-covered portions of official distributions remain 
 ## Feedback and diagnostics
 
 Report reproducible bugs and feature requests through [GitHub Issues](https://github.com/turinglambdaai/gptp-studio/issues). Include the release, OS/architecture and steps; inspect and redact diagnostics before sharing. Do not post API keys, license files, vault contents or private documents. For sensitive security reports, follow SECURITY.md when present; otherwise request a private contact route without disclosing sensitive details. Nothing is uploaded automatically.
+
+## Product & pricing
+
+Linux 专业工具；官方 Pro 买断. Launch design, not a live offer: see [PRICING.md](PRICING.md) for prices, boundaries and release gates. Current development builds do not gain payment restrictions from this documentation change.

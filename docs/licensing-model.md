@@ -24,7 +24,7 @@ A Pro purchase can therefore legitimately bundle value such as:
 - the official tested/signed build and its Pro product configuration;
 - updates during the purchased update period;
 - license migration / seat administration;
-- response-time support commitments;
+- asynchronous support within a published scope (no response-time SLA at launch);
 - validated host/NIC reference-platform guidance;
 - future official reports, certification-oriented workflows, or hardware
   integration;
@@ -119,3 +119,7 @@ were released under Apache-2.0.
 保持 Linux-only；先完成 Commerce 一次性购买到离线凭据及更新资格的纵切。区分命名席位、设备数和合同约定，不宣传离线实时撤销。
 
 执行场景与完成标准见[本仓审查 issue](https://github.com/turinglambdaai/gptp-studio/issues/35)及家族[交付标准](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/docs/PRODUCT-STANDARD.md)。未完成的跨平台、硬件或真实支付验证仍是显式门禁；本节不表示这些验证已通过。后续一次认领一个切片，证据回填本文件与 issue。
+
+## Launch policy 2026-10-v2
+
+No product has actual users yet. PRICING.md replaces the earlier provisional prices and purchase path; no new subscriptions or hardware-bound seat model are planned. Raw capture export is intended to become Free, but its legacy gate still needs an implementation change. Official Pro is a perpetual product with an optional 12-month update renewal. Do not describe planned test/report assets as already validated.

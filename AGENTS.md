@@ -48,9 +48,9 @@ qualification.
 
 ## 组合定位（Portfolio placement）
 
-- 轨道与授权：轨道 1 商业支柱（B2B 专业工具）；授权形态：Apache-2.0 开源核心 + 官方 Pro；商业归属：第一棒，模式已落地（见本仓 PRICING.md 与 docs/licensing-model.md）。
-- 组合归属唯一权威：[PORTFOLIO.md](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)（turinglambdaai.github.io 仓库）。改归属/授权先改权威档，再同步本节。
-- 纪律：价格只进本仓 `PRICING.md`，且收费开始时才发布；README 与产品站不做价格预告。
+- 当前决策（2026-10-v2）：Linux 专业工具；官方 Pro 买断。具体价格、免费/付费边界和开卖门禁以本仓 [PRICING.md](PRICING.md) 为唯一权威；旧版收费候选与早鸟方案已被替代。
+- 组合归属：[PORTFOLIO](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)。当前全部产品开发中、没有实际用户；目标定价不表示已经开卖，不因此立即给开发版加收费墙。
+- 免费产品不接商业激活；付费层先实现可验证价值，再接 Commerce/Permit。优先完成本仓既有产品审查 issue；不修改现行源码 LICENSE。
 
 ## 产品交付与下一步（2026-10-23）
 
