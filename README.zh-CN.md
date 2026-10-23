@@ -139,7 +139,7 @@ raco rivet dev            # 运行应用；构建出的二进制同样支持 --d
 
 源码采用 Apache-2.0。Free / Pro 描述的是**官方分发版本**中的产品体验、更新 entitlement 与支持服务，不会撤销或缩小 Apache-2.0 已经授予的权利。自行构建或修改的 Apache-2.0 版本不自动成为官方 Pro 构建，也不附带官方更新、支持和参考平台验证承诺。
 
-每个官方安装包自带 14 天 Pro 试用。定价见 [PRICING.md](PRICING.md)，许可模型见 [docs/licensing-model.md](docs/licensing-model.md)。
+每个官方安装包自带 14 天 Pro 试用。定价见 [PRICING.md](PRICING.zh-CN.md)，许可模型见 [docs/licensing-model.md](docs/licensing-model.md)。
 
 ## 架构原则
 
@@ -155,4 +155,4 @@ gPTP Studio 源码以及官方分发物中受 Apache-2.0 覆盖的部分继续�
 
 ## 产品与收费
 
-Linux 专业工具；官方 Pro 买断。首发目标、免费边界与开卖门禁见 [PRICING.md](PRICING.md)；当前仍在开发，没有实际用户，不表示已开售，也不因此给开发版即时加收费墙。
+Linux 专业工具；官方 Pro 买断。首发目标、免费边界与开卖门禁见 [PRICING.md](PRICING.zh-CN.md)；当前仍在开发，没有实际用户，不表示已开售，也不因此给开发版即时加收费墙。

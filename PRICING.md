@@ -1,41 +1,39 @@
-# gPTP Studio 产品与收费方案
+# gPTP Studio product and pricing plan
 
-## 首发与执行边界
+**English** · [简体中文](PRICING.zh-CN.md)
 
-- 本方案版本 `2026-10-v2`。用户确认所有产品仍在开发、没有实际用户；本文件替代此前冲突的定价/早鸟/Pro 设想，不存在需要迁移的现有客户群。**价格是首发目标，不表示已经开卖或已完成相应功能。**
-- 只发布已交付平台的权益；新计划不改变已经发布源码的 LICENSE。开源源码的使用/修改/再分发权与官方商品、更新和服务分别说明。
-- 修复安全漏洞、读取/备份/导出自己的数据不以再次购买作为条件。模型 key、支付渠道密钥和签发私钥各有边界，不在宿主代码里直接收款或签发。
+## Launch status and implementation boundaries
 
-## 决策
+- Policy version: `2026-10-v2`, 2026-10-23. The owner confirmed that every product is still in development and has no actual users. This document replaces conflicting previous pricing, early-bird and Pro proposals; there is no existing customer cohort to migrate. **Prices are launch targets, not live offers or claims that the listed features are implemented.**
+- Entitlements cover delivered platforms only. New commercial plans do not change the LICENSE of released source. Source use, modification and redistribution rights are separate from official products, updates and services.
+- Security fixes and reading, backing up or exporting your own data must not require another purchase. BYOK keys, payment-provider secrets and issuer private keys have different owners. Native hosts do not collect payment or issue credentials directly.
 
-**Linux 专业工具；官方 Pro 买断**
+## Decision
 
-首发目标：**单人 ¥699 / US$99；5 席 ¥2,799 / US$399；单席更新 ¥279 / US$39，5 席更新 ¥1,119 / US$159（均为新增 12 个月）**。人民币和美元是分别设定的地区目标价格，不是实时汇率换算。
+**Linux professional tool; purchase of the official Pro product**
 
-工程价值和支持成本高于普通效率工具；价格提高到可支撑专业维护的范围。采用买断及可选更新续购，不按抓包次数或 ECU 数收费。
+Launch target: **Individual: ¥699 / US$99; 5 named seats: ¥2,799 / US$399. Optional 12-month update renewal: ¥279 / US$39 per individual, or ¥1,119 / US$159 for 5 seats**. CNY and USD are independently set regional targets, not a live exchange-rate conversion.
 
-## 免费与付费边界
+Engineering value and support effort are higher than for an everyday utility. A professional price should support that maintenance. Use a purchase with optional updates, rather than charging per capture or ECU.
 
-免费 / 评估：被动抓包、协议解码、离线导入、模拟器、参数预览、已有诊断与原始数据导出应免费。原始捕获导出从旧 Pro 门禁移到 Free 的实现尚待完成；不能据此称当前安装包已放开。Apache-2.0 源码权利不变。
+## Free and paid scope
 
-付费：官方 Pro 的 GM/从钟运行控制、参考源管理、重复测试编排、带证据的比较报告与已验证参考组合；席位是命名用户，不是网卡数/设备数/并发数。仅交付并验证的能力可列在正式 offer。
+Free / evaluation: Passive capture, protocol decoding, offline import, simulator, parameter previews, existing diagnostics and raw-data export are intended to be free. Moving raw capture export out of its legacy Pro gate still requires implementation; current installers must not be described as already unrestricted. Apache-2.0 source rights remain unchanged.
 
-## 买断、试用与更新
+Paid: Official Pro GM/slave runtime control, reference-source management, repeatable test orchestration, evidence-backed comparison reports and validated reference combinations. Seats mean named users, not network adapters, devices or concurrent sessions. Only delivered and verified capabilities may appear in an active offer.
 
-首购包含 12 个月新版本资格；到期后，更新窗内已获得的版本继续使用。续购自 `max(支付时间, 当前 updates_through)` 起增加 12 个月，不追收中断月份，不自动扣款；团队续购按所购命名席位数执行。无“终身所有未来更新”方案。一个命名用户可在本人电脑使用，不采集硬件指纹；离线席位是合同约定，不宣传实时并发强制执行。团队购买只合并席位，不隐含协作云服务。
+## Purchase, trial and updates
 
-新增付费层完整试用 14 天，到期回到免费层；完整买断产品试用结束保留读取/搜索/备份/导出。离线试用只作便利和约定，不宣传防回拨或不可重置。付费技术/平台门禁通过前不发预售码。支付成功后由 Commerce 幂等签发 Permit；用发行时间与 `updates_through` 判断更新资格，不能拿当前时间让已获版本突然失效。离线退款/撤销的及时性不做无法实现的承诺。
+A purchase includes 12 months of new-version eligibility. Versions obtained within that update window remain usable afterwards. Optional renewal adds 12 months from `max(payment time, current updates_through)`, with no back-billing for a gap and no automatic charge. Team renewals apply to the purchased number of named seats. There is no lifetime-all-future-updates plan. One named user can use their own computers; no hardware fingerprint is collected. Offline seat limits are contractual, not real-time concurrency enforcement. A team purchase combines seats; it does not imply a collaboration cloud.
 
-无定制开发、硬件采购、认证或响应时限 SLA 包含在上述标价中。支持范围为购买版本、明确支持平台及已验证组合的异步问题处理，不能承诺一人团队全天响应。公开销售前补齐退款/取消说明、币种/税费最终价、隐私与支持范围并在结账页确认；本文件不代替最终结账条款。
+A new paid tier has a full 14-day trial, then returns to the free tier. For a complete paid product, trial expiry preserves reading/search/backup/export. Offline trial state is a convenience and an agreement, not advertised as rollback-proof or impossible to reset. Do not presell codes before technical and platform gates pass. After a successful payment, Commerce issues Permit credentials idempotently. Use release time and `updates_through` for update eligibility; the current date must not suddenly invalidate an acquired version. Do not promise prompt offline refund/revocation enforcement that cannot be implemented.
 
-## 开卖前的下一步
+The target price includes no custom development, hardware procurement, certification or response-time SLA. Support is asynchronous issue handling for the purchased version, supported platforms and validated combinations; a solo maintainer must not promise round-the-clock responses. Before sales, publish refund/cancellation rules, currency/tax totals, privacy terms and support scope, and confirm them at checkout. This plan is not a substitute for final checkout terms.
 
-保持 Linux-only。先完成 #35 的真实参考硬件、权限、运行控制及签名更新门禁，再完成 Commerce 购买/重复回调/凭据恢复/更新资格。模拟器通过不能宣称硬件合格；旧 ¥399/¥1599 试拟价和人工购买入口停止作为有效报价。
+## Next gate before sales
 
-执行入口：[本仓 #35](https://github.com/turinglambdaai/gptp-studio/issues/35)。先交付这个切片，再扩展商业功能。
+Remain Linux-only. Complete real reference-hardware, privilege, runtime-control and signed-update gates in #35, then verify Commerce purchase, duplicate delivery, credential recovery and update eligibility. A passing simulator is not hardware qualification. Previous provisional ¥399/¥1599 prices and manual-purchase instructions are no longer active quotations.
 
-## English
+Execution entry: [issue #35](https://github.com/turinglambdaai/gptp-studio/issues/35). Complete this bounded slice before expanding commercial features.
 
-Launch design, not a live offer. gPTP Studio: 单人 ¥699 / US$99；5 席 ¥2,799 / US$399；单席更新 ¥279 / US$39，5 席更新 ¥1,119 / US$159（均为新增 12 个月）. One named user; perpetual use of eligible official releases with 12 months of updates. Renewal is optional and never an automatic charge. Current development previews are not retroactively restricted.
-
-组合定位及通用边界：[PORTFOLIO](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)。
+Portfolio role and shared boundaries: [PORTFOLIO](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md).
