@@ -3,9 +3,10 @@
 ;; Commercial tier gate built on Permit (github.com/turinglambdaai/permit)
 ;;
 ;;   free   — passive listening (capture+decode), offline pcap analysis,
-;;            simulator, config editor/preview, presets (watch free)
+;;            simulator, config editor/preview, presets, raw capture
+;;            export and Wireshark replay
 ;;   pro    — engine control (GM/slave), reference-source management,
-;;            unlimited packet store, pcap/report exports (drive paid)
+;;            unlimited packet store, engineering reports (drive paid)
 ;;   trial  — 14 days of Pro from the moment the user starts it, tracked
 ;;            as permit local-trial state (last_seen high-water mark)
 ;;
@@ -16,7 +17,6 @@
 ;; (ins_ + 32 hex) so the vendor can issue credentials bound to it.
 
 (require json
-         racket/date
          racket/file
          racket/string
          permit
@@ -178,24 +178,15 @@
   (define info (unbox gate-entitlement-box))
   (and info (hash-ref info 'updates-through #f)))
 
-;; Whether staging an official update is part of what this install holds.
-;; Free and trial always update; a perpetual Pro install updates through
-;; its entitlement's updates_through day.
-(define (iso-today)
-  (define d (current-date))
-  (format "~a-~a-~a"
-          (date-year d)
-          (~r2 (date-month d))
-          (~r2 (date-day d))))
-
-(define (~r2 n)
-  (define s (number->string n))
-  (if (< (string-length s) 2) (string-append "0" s) s))
-
-(define (gate-update-window-open? [today (iso-today)])
+;; Whether staging an official update with the given authenticated
+;; release instant is part of what this install holds. Free and trial
+;; always update; a perpetual Pro install stages releases published at or
+;; before its entitlement's updates_through — the current date plays no
+;; role (see updates-window-open?).
+(define (gate-update-window-open? #:release-published-at published-at)
   (updates-window-open? #:pro? (eq? (unbox gate-cache) 'pro)
                         #:updates-through (gate-updates-through)
-                        #:today today))
+                        #:release-published-at published-at))
 
 ;; Action-level check; returns #t or an error message string.
 (define (gate-check action)
@@ -203,7 +194,7 @@
       #t
       (case action
         [(engine) "引擎控制（GM / 从钟）是 Pro 功能。可开始 14 天免费试用或输入许可证。"]
-        [(export) "报文导出与报告生成是 Pro 功能。"]
+        [(report) "工程报告生成是 Pro 功能。"]
         [(reference) "外接参考源管理是 Pro 功能。"]
         [else "此功能需要 Pro 许可证。"])))
 

@@ -101,7 +101,24 @@
 
    (define-values (stopped stop-error) (call-rpc "engine-stop"))
    (check-false stop-error)
-   (check-equal? (list-ref stopped 0) "#f"))
+   (check-equal? (list-ref stopped 0) "#f")
+
+   ;; Raw-data access is free scope (the 2026-10-auth-1 decision): pcap
+   ;; export answers on the wire with no entitlement at all, while the
+   ;; engineering report refuses with need-pro before doing any work.
+   (define export-path (build-path scratch "free-export.pcap"))
+   (define-values (exported export-error)
+     (call-rpc "pcap-export" (path->string export-path)))
+   (check-false export-error)
+   (check-equal? (list-ref exported 0) #t)
+   (check-true (file-exists? export-path) "the free export wrote a capture file")
+
+   (define report-path (build-path scratch "free-report.json"))
+   (define-values (report report-error)
+     (call-rpc "report-export" (path->string report-path) "" "" ""))
+   (check-false report-error)
+   (check-equal? (take report 2) (list #f #t))
+   (check-false (file-exists? report-path) "the refused report wrote nothing"))
  (lambda ()
    (kill-thread server-thread)
    (delete-directory/files scratch)))
