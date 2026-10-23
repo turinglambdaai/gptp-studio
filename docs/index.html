@@ -116,6 +116,10 @@ gptp-studio</pre><p data-en="Validated on Ubuntu 24.04 LTS. Installs to /opt/gpt
 cd &lt;extracted-directory&gt;
 ./bin/gptp-studio --doctor
 ./bin/gptp-studio</pre><p data-en="Self-contained; installs nothing outside its directory. Useful for lab hosts where the payload should stay outside the package database." data-zh="自包含，不在目录外安装任何内容。适合希望应用 payload 与系统包数据库解耦的实验室主机。">Self-contained; installs nothing outside its directory.</p></div>
+        <div class="download-card"><h3 data-en="AppImage (any distribution)" data-zh="AppImage（任意发行版）">AppImage</h3><pre class="command">curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.AppImage
+chmod +x gptp-studio-linux-x64.AppImage
+./gptp-studio-linux-x64.AppImage --doctor
+./gptp-studio-linux-x64.AppImage</pre><p data-en="Bundles its GTK4 dependency closure, so it runs on older hosts than the packages require; no install step." data-zh="自带 GTK4 依赖闭包，比包管理器版本能跑在更老的宿主上；无需安装。">Bundles its GTK4 dependency closure; no install step.</p></div>
       </div>
       <div class="hero-buttons" style="margin-top:28px">
         <a href="https://github.com/turinglambdaai/gptp-studio/releases/latest" class="btn btn-primary" data-en="Open latest release" data-zh="打开最新 Release">Open latest release</a>

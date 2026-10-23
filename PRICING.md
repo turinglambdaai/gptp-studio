@@ -18,7 +18,7 @@ Engineering value and support effort are higher than for an everyday utility. A 
 
 ## Free and paid scope
 
-Free / evaluation: Passive capture, protocol decoding, offline import, simulator, parameter previews, existing diagnostics and raw-data export are intended to be free. Moving raw capture export out of its legacy Pro gate still requires implementation; current installers must not be described as already unrestricted. Apache-2.0 source rights remain unchanged.
+Free / evaluation: Passive capture, protocol decoding, offline import, simulator, parameter previews, existing diagnostics and raw-data export are intended to be free. Raw capture export (pcap export and Wireshark replay) moved out of its legacy Pro gate in 0.4.0; engineering report generation remains the gated paid evidence surface. Apache-2.0 source rights remain unchanged.
 
 Paid: Official Pro GM/slave runtime control, reference-source management, repeatable test orchestration, evidence-backed comparison reports and validated reference combinations. Seats mean named users, not network adapters, devices or concurrent sessions. Only delivered and verified capabilities may appear in an active offer.
 
