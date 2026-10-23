@@ -46,11 +46,13 @@ gptp-studio --simulator
 - [ ] License 页显示本机 Installation ID（`ins_` + 32 位十六进制），可选中复制，重启后不变；
 - [ ] Start Trial 后档位变为 trial，剩余天数在 1–14 内；试用期间引擎控制/导出可用；
 - [ ] 系统时钟回拨超过 5 分钟后试用判定失效（免费档），不崩溃；
-- [ ] 试用到期后回到 free，引擎控制/导出重新被拒并给出 Pro 提示；
+- [ ] 试用到期后回到 free；原始抓包导出与 Wireshark 留存回放仍免费。付费报告等受限动作按当前 PRICING 拒绝并解释，不将所有导出一概加墙；
 - [ ] 激活一份有效 `.permit.json` 后档位变为 Pro，detail 显示 subject 与 updates_through；激活绑定其他 Installation ID 的凭据被拒绝并提示；
 - [ ] Deactivate 后回到 free，`~/.gptp-studio/entitlement.permit.json` 被删除；
 - [ ] 「检查更新…」在有新版本的 feed 上给出同意对话框，全程错误文案可复制；
-- [ ] Pro 永久授权在 `updates_through` 截止日当天仍可下载官方更新，次日起拒绝出网并说明续购；Free/试用不受限。
+- [ ] Pro 永久使用不因维护窗结束失效；候选版本经签名认证的 `published_at` 在 `updates_through` 之前/恰好等于时符合更新资格，之后才拒绝该候选并解释续购。在窗内发布的版本即使今天已经过窗仍符合资格；固定 UTC 边界与缺失发行时间的拒绝证据独立记录。Free/试用更新规则按当前产品契约。
+
+具体键盘、焦点、错误恢复与双语界面场景见 [GTK 交互验收](docs/ux-acceptance.zh-CN.md) / [English](docs/ux-acceptance.md)。清单更新不表示这些运行场景已经通过。
 
 ## 3. 官方包
 

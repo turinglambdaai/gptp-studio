@@ -10,6 +10,8 @@
 
 ## Maintain the product
 
+- [GTK interaction qualification](ux-acceptance.md) · [中文](ux-acceptance.zh-CN.md): actual native navigation, session/packet input, failure recovery and evidence; supplements [ACCEPTANCE](../ACCEPTANCE.md), with no runtime pass implied.
+
 Read [AGENTS](../AGENTS.md) and its existing implementation issue/plan before changing behavior. The technical contracts linked there remain canonical. [PRICING](../PRICING.md) / [中文](../PRICING.zh-CN.md) own commercial implementation decisions, not a live offer. Historical design/roadmap documents are not proof a platform, hosted service or payment flow has shipped. Keep customer navigation on the public user path.
 
 Public English/Chinese guides carry matching promises. Some deep technical or historical documents remain in one language; their presence is not a claim that the whole archive is translated.
