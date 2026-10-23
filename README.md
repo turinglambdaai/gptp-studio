@@ -12,6 +12,12 @@ For AUTOSAR EthTSyn / IEEE 802.1AS debugging, one Linux workstation can act as *
 
 Built with [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turinglambdaai/rivet): a first-party GTK4 desktop host over an embedded Racket backend through a typed RPC/event contract, with Linux-native timing/network facilities for the real engine path. Live sync convergence renders through Rivet's shared real-time chart data plane.
 
+## Start here
+
+Engineering preview. An official professional edition is planned, but no purchase or hardware-accuracy guarantee is offered here. Linux only, with x64 and arm64 release assets. Windows and macOS are not product targets. Physical capture and PHC work require compatible hardware and appropriate privileges.
+
+[Installation, first use, privacy, backup and recovery](docs/USER-GUIDE.md) · [简体中文](docs/USER-GUIDE.zh-CN.md)
+
 ## Highlights
 
 - **Four roles, one workstation** — GrandMaster, Slave, two-port Boundary Clock (multi-interface `ptp4l` + `phc2sys -a -r`) and passive Listener with generated `ptp4l.conf`
@@ -150,11 +156,3 @@ One Racket backend process serves a typed RPC/event contract to the native GTK4 
 ## License
 
 gPTP Studio source and Apache-covered portions of official distributions remain licensed under Apache-2.0. [EULA.md](EULA.md) governs official Pro entitlements, license credentials, updates/support and official-brand terms without overriding applicable open-source rights. Third-party attribution is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Feedback and diagnostics
-
-Report reproducible bugs and feature requests through [GitHub Issues](https://github.com/turinglambdaai/gptp-studio/issues). Include the release, OS/architecture and steps; inspect and redact diagnostics before sharing. Do not post API keys, license files, vault contents or private documents. For sensitive security reports, follow SECURITY.md when present; otherwise request a private contact route without disclosing sensitive details. Nothing is uploaded automatically.
-
-## Product & pricing
-
-Linux professional tool; purchase of the official Pro product. Read the complete [English pricing and product policy](PRICING.md) or [简体中文](PRICING.zh-CN.md) for target prices, free/paid boundaries and launch gates. This is a launch design, not a live offer; this documentation does not add payment restrictions to current development builds.

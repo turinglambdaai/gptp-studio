@@ -12,6 +12,12 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 
 项目使用 [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turinglambdaai/rivet)：原生 GTK4 桌面宿主经类型化 RPC/事件契约驱动内嵌 Racket 后端，真实时间路径交给 Linux 原生 PHC / hardware timestamp / linuxptp。同步收敛曲线由 Rivet 共享的实时图表数据面渲染。
 
+## 开始使用
+
+工程预览。规划有官方专业版，此处尚不提供购买或硬件精度保证。 仅支持 Linux，提供 x64 和 arm64 发布附件。Windows 和 macOS 不属于产品目标。真实抓包与 PHC 操作需要兼容硬件和适当权限。
+
+[安装、首次使用、隐私与备份恢复](docs/USER-GUIDE.zh-CN.md) · [English](docs/USER-GUIDE.md)
+
 ## 核心能力
 
 - **四角色一台工作站**：GrandMaster、从钟、双端口 Boundary Clock（多接口 `ptp4l` + `phc2sys -a -r`）、被动监听，自动生成 `ptp4l.conf`
@@ -148,11 +154,3 @@ raco rivet dev            # 运行应用；构建出的二进制同样支持 --d
 ## 许可证
 
 gPTP Studio 源码以及官方分发物中受 Apache-2.0 覆盖的部分继续适用 Apache-2.0。[EULA.md](EULA.md) 约束官方 Pro entitlement、许可证凭据、官方更新/支持和官方身份关系，但不会覆盖或撤销适用的开源权利。第三方归属见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-## 反馈与诊断
-
-问题和建议请使用 [GitHub Issues](https://github.com/turinglambdaai/gptp-studio/issues)，附版本、系统/架构和复现步骤。分享前先检查并脱敏诊断；不要公开 API key、授权凭据、密钥库或私有文档。安全敏感问题优先按 SECURITY.md 联系；未提供私密渠道时，先请求私下联系方式，不在公开 issue 中披露敏感细节。此入口不会自动上传数据。
-
-## 产品与收费
-
-Linux 专业工具；官方 Pro 买断。首发目标、免费边界与开卖门禁见 [PRICING.md](PRICING.zh-CN.md)；当前仍在开发，没有实际用户，不表示已开售，也不因此给开发版即时加收费墙。
