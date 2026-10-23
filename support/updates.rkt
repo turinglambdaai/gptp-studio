@@ -59,6 +59,11 @@
          update-info
          update-info-box
          update-manifest-box
+         ;; re-exports the start-download eligibility needs: the
+         ;; candidate's manifest carries the authenticated release
+         ;; instant the window decision consumes
+         update-candidate-manifest
+         update-manifest-published-at
          call-under-watchdog!)
 
 ;; ---- product facts -------------------------------------------------------------
@@ -132,21 +137,40 @@
 ;; ---- the updates window (the commercial contract in code) ----------------------
 ;;
 ;; A perpetual entitlement carries updates_through — the instant official
-;; updates stop being part of the purchase. When it passes the application
-;; never degrades (perpetual rights: the last obtained official version
-;; keeps working); only the in-app updater stops staging newer official
-;; builds, and the renewal message says why. Free and trial installs always
-;; update. The end day itself counts as entitled (date-prefix comparison),
-;; so a host east of UTC still updates on the morning the instant has
-;; technically passed — a one-year window does not need sharper edges.
+;; updates stop being part of the purchase. Eligibility answers one
+;; question about the candidate release: was it published at or before
+;; that instant? The inputs are the signed feed's authenticated
+;; published_at and the entitlement's cutoff — never the current date
+;; (PRICING.md's authorization decision: "Use release time and
+;; updates_through for update eligibility; the current date must not
+;; suddenly invalidate an acquired version"). A release inside the window
+;; therefore stays stageable forever, an expired window never degrades
+;; the running install (perpetual rights: the last obtained official
+;; version keeps working), and the renewal message explains a refusal.
+;; Free and trial installs always update.
+
+;; UTC RFC 3339 values in this shape ("YYYY-MM-DD" or
+;; "YYYY-MM-DDTHH:MM:SSZ") compare chronologically as plain strings, so
+;; no date parsing is involved. A date-only cutoff extends to that day's
+;; end: the entitlement's day counts as entitled, and a host east of UTC
+;; still updates on that morning — a one-year window does not need
+;; sharper edges.
+(define (normalize-cutoff through)
+  (if (= (string-length through) 10)
+      (string-append through "T23:59:59Z")
+      through))
 
 (define (updates-window-open? #:pro? pro?
                               #:updates-through through
-                              #:today today)
-  (or (not pro?)
-      (not (string? through))
-      (string<=? today
-                 (substring through 0 (min 10 (string-length through))))))
+                              #:release-published-at published-at)
+  (cond
+    [(not pro?) #t]
+    [(not (string? through)) #t]
+    ;; An authenticated candidate without a readable instant cannot prove
+    ;; it is inside the window: refuse staging for gated installs
+    ;; (fail-closed). The rivet manifest schema always carries one.
+    [(not (string? published-at)) #f]
+    [else (string<=? published-at (normalize-cutoff through))]))
 
 ;; ---- feed location -------------------------------------------------------------
 

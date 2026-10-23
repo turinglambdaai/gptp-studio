@@ -23,13 +23,17 @@
   (state: idle | downloading | staged | applying | applied | failed) and
   shows progress with the signed percent.
 - **The updates window gates staging, not use**: Free and trial installs
-  update always; a perpetual Pro install updates through its entitlement's
-  `updates_through` day (PRICING.md's "含 1 年官方更新"). When the window
-  has passed, `start-download` refuses before any network leg and the flow
-  lands on `failed` with the renewal message — the customer's version
-  keeps working forever (perpetual rights, `docs/licensing-model.md`).
-  A newer version is still reported honestly: the pill stays, the refusal
-  names the renewal.
+  update always; a perpetual Pro install stages exactly the releases its
+  entitlement covers. Eligibility is a pure function of the candidate
+  release's authenticated `published_at` (the signed feed) against the
+  entitlement's `updates_through` — the current date is not an input, so
+  a release published inside the window stays stageable forever no
+  matter when the customer checks (PRICING.md's authorization decision).
+  A release published after the cutoff is refused at `start-download`
+  before any network leg and the flow lands on `failed` with the renewal
+  message — the customer's installed version keeps working forever
+  (perpetual rights, `docs/licensing-model.md`). A newer version is
+  still reported honestly: the pill stays, the refusal names the renewal.
 - **Bounded transfer**: a stalled download surfaces a retryable error after
   a finite timeout (no byte progress for 120 s, wall clock capped at
   30 min); a slow or stalled manifest fetch is bounded the same way (60 s).
@@ -52,8 +56,10 @@
 | relocatable tarball (everything else) | `linux/<arch>` `targz` entry | same stage dir | in-place swap: extract to a temp dir beside the stage, rename the running payload root to `<root>.old`, move the extracted payload in, chmod the launch executables with the integer mode `#o755`; a failed swap restores `<root>.old` so the previous install always stays runnable; the host then offers `重启应用 / Quit to Restart` |
 
 The arm64 feed entries are the same shapes (`gptp-studio-<v>-linux-arm64.*`
-assets); `pick-artifact` keys on the running architecture. There is no
-AppImage (deliberately not ported) and no Windows/macOS channel.
+assets); `pick-artifact` keys on the running architecture. The AppImage
+is a distribution format, not an update shape: its users update by
+re-downloading from Releases (the in-app updater serves deb and tarball
+shapes only). There is no Windows/macOS channel.
 
 ## The feed: `update-stable.json`
 

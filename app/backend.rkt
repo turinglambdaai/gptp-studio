@@ -655,17 +655,16 @@
                       (count (lambda (d) (hash-ref d 'is_ptp #f)) decoded)))
     (ok-action (length decoded))))
 
+;; Raw capture export is free scope (the authorization decision moves it
+;; out of the legacy Pro gate); only the engineering report is gated.
 (define-rpc (pcap-export [path : String] : ActionResult)
-  (cond
-    [(not (eq? (gate-check 'export) #t)) (deny-pro (gate-check 'export))]
-    [else
-     (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
-       (define frames
-         (reverse
-          (for/list ([f (in-list (packet-store-snapshot app-packets 999999))])
-            (packet->capture-file-frame f))))
-       (write-capture-file path frames)
-       (ok-action (length frames)))]))
+  (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
+    (define frames
+      (reverse
+       (for/list ([f (in-list (packet-store-snapshot app-packets 999999))])
+         (packet->capture-file-frame f))))
+    (write-capture-file path frames)
+    (ok-action (length frames))))
 
 (define-rpc (wireshark-launch [action : String] [iface : String] : ActionResult)
   (cond
@@ -680,8 +679,7 @@
        (log-add! app-logs 'app 'info
                  (format "Wireshark live: iface=~a filter=~a" iface filter))
        (ok-action result))]
-    [(not (eq? (gate-check 'export) #t)) (deny-pro (gate-check 'export))]
-    [else (ok-action (open-retained-in-wireshark))]))
+    [(string=? action "retained") (ok-action (open-retained-in-wireshark))]))
 
 (define-rpc (series-window [series-id : String] : SeriesWindow)
   (cond
@@ -795,8 +793,13 @@
     (write-diagnostic-snapshot! path snapshot)
     (ok-action (hasheq 'path (path->string path) 'redacted #t))))
 
+;; The engineering report is the paid evidence surface (PRICING.md's paid
+;; scope); raw data access around it stays free.
 (define-rpc (report-export [path : String] [iface : String] [role : String] [reference : String] : ActionResult)
-  (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
+  (cond
+    [(not (eq? (gate-check 'report) #t)) (deny-pro (gate-check 'report))]
+    [else
+     (with-handlers ([exn:fail? (lambda (e) (fail-action (exn-message e)))])
     (define nics (detect-interfaces))
     (define chosen-iface
       (if (string=? iface "")
@@ -835,7 +838,7 @@
     (write-engineering-report-json! path report)
     (write-engineering-report-markdown! markdown-path report)
     (ok-action (hasheq 'json (path->string path)
-                       'markdown (path->string markdown-path)))))
+                       'markdown (path->string markdown-path))))]))
 
 (define-rpc (params-merge
              [domain : (Optional Int64)]
@@ -930,8 +933,18 @@
   (with-handlers
       ([exn:fail?
         (lambda (e) (flow-set! 'failed #:error (exn-message e)))])
-    (update-prepare! 'download (unbox update-manifest-box)
-                     #:window-open? (gate-update-window-open?)))
+    (define candidate (unbox update-manifest-box))
+    ;; Eligibility is the candidate's authenticated release instant
+    ;; against the entitlement cutoff — never the current date
+    ;; (docs/update-contract.md).
+    (define published-at
+      (and candidate
+           (update-manifest-published-at
+            (update-candidate-manifest candidate))))
+    (update-prepare! 'download candidate
+                     #:window-open?
+                     (gate-update-window-open?
+                      #:release-published-at published-at)))
   (update-state-now))
 
 ;; Applies what is staged, per install shape (deb: pkexec with the

@@ -33,7 +33,7 @@
          settings-set!
          app-version)
 
-(define app-version "0.3.1")
+(define app-version "0.4.0")
 
 ;; ---- stores (created once) -----------------------------------------------------
 

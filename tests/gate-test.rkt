@@ -119,9 +119,11 @@
 (check-equal? (hash-ref ok-info 'issuer) "test.issuer" "issuer comes from the credential")
 
 ;; ---- the updates window (the commercial contract in gate form) ----
-;; A perpetual Pro purchase carries updates_through; the window decision
-;; never re-parses the file (the gate caches what the tier came from) and
-;; the end day itself still counts as entitled.
+;; A perpetual Pro purchase carries updates_through. Eligibility is a
+;; pure function of the candidate release's authenticated instant
+;; against that cutoff — the current date is not an input — so a release
+;; inside the window stays stageable forever and no check date can
+;; invalidate an acquired version.
 
 (define window-path
   (issue-to-file
@@ -133,27 +135,40 @@
               "updates_through surfaces from the credential")
 
 (check-true (updates-window-open? #:pro? #f #:updates-through #f
-                                  #:today "2026-10-22")
+                                  #:release-published-at "2099-01-01T00:00:00Z")
             "a free install always updates")
 (check-true (updates-window-open? #:pro? #t #:updates-through #f
-                                  #:today "2099-01-01")
+                                  #:release-published-at "2099-01-01T00:00:00Z")
             "a Pro entitlement without the constraint updates forever")
-(check-true (updates-window-open? #:pro? #t
-                                  #:updates-through "2027-10-16T00:00:00Z"
-                                  #:today "2027-10-15")
-            "the day before the instant is entitled")
-(check-true (updates-window-open? #:pro? #t
-                                  #:updates-through "2027-10-16T00:00:00Z"
-                                  #:today "2027-10-16")
-            "the end day itself is entitled")
-(check-false (updates-window-open? #:pro? #t
-                                   #:updates-through "2027-10-16T00:00:00Z"
-                                   #:today "2027-10-17")
-             "the day after the instant is not")
-(check-false (updates-window-open? #:pro? #t
-                                   #:updates-through "2026-10-22"
-                                   #:today "2026-10-23")
-             "a date-only constraint behaves the same")
+
+;; fixed UTC boundaries around the cutoff instant
+(define window-cutoff "2027-10-16T00:00:00Z")
+(check-true (updates-window-open? #:pro? #t #:updates-through window-cutoff
+                                  #:release-published-at "2027-10-15T23:59:59Z")
+            "one second before the cutoff is inside the window")
+(check-true (updates-window-open? #:pro? #t #:updates-through window-cutoff
+                                  #:release-published-at window-cutoff)
+            "a release published exactly at the cutoff is entitled")
+(check-false (updates-window-open? #:pro? #t #:updates-through window-cutoff
+                                   #:release-published-at "2027-10-16T00:00:01Z")
+             "one second after the cutoff is outside")
+(check-false (updates-window-open? #:pro? #t #:updates-through window-cutoff
+                                   #:release-published-at #f)
+             "a candidate without an authenticated instant fails closed")
+;; a date-only cutoff covers through the end of that day
+(check-true (updates-window-open? #:pro? #t #:updates-through "2027-10-16"
+                                  #:release-published-at "2027-10-16T23:59:59Z")
+            "a date-only cutoff extends to that day's end")
+(check-false (updates-window-open? #:pro? #t #:updates-through "2027-10-16"
+                                   #:release-published-at "2027-10-17T00:00:00Z")
+             "the day after a date-only cutoff is outside")
+;; whatever the wall clock says, the same inputs answer the same way —
+;; the decision reads no clock at all
+(check-equal? (updates-window-open? #:pro? #t #:updates-through window-cutoff
+                                    #:release-published-at "2020-01-01T00:00:00Z")
+              (updates-window-open? #:pro? #t #:updates-through window-cutoff
+                                    #:release-published-at "2020-01-01T00:00:00Z")
+              "eligibility is deterministic in its two inputs")
 
 ;; The gate-level decision, driven through a real activation. The seam
 ;; points the gate at this test's throwaway store before the replacement
@@ -166,14 +181,46 @@
   (check-equal? (gate-init!) 'pro)
   (check-equal? (gate-updates-through) "2027-10-16T00:00:00Z"
                 "the gate carries the window from the cached verification")
-  (check-false (gate-update-window-open? "2027-10-17")
-               "a closed window refuses official updates")
-  (check-true (gate-update-window-open? "2027-10-16")
-              "the end day still updates")
+  (check-false (gate-update-window-open?
+                #:release-published-at "2027-10-16T00:00:01Z")
+               "a release after the cutoff is not staged")
+  (check-true (gate-update-window-open?
+               #:release-published-at "2027-10-16T00:00:00Z")
+              "the cutoff-instant release still stages")
+  ;; An old release published inside a window that has since passed stays
+  ;; eligible, and the install keeps every right it had — the window
+  ;; gates staging, never use.
+  (check-true (gate-update-window-open?
+               #:release-published-at "2026-10-01T00:00:00Z")
+              "an in-window release stays eligible after the window passes")
+  (check-equal? (gate-tier) 'pro "the tier outlives the window")
+  (check-true (gate-pro?) "an expired window never invalidates the install")
+  (check-true (gate-check 'engine) "Pro actions keep working past the window")
   (gate-deactivate!)
   (check-equal? (gate-init!) 'free)
-  (check-true (gate-update-window-open? "2099-01-01")
+  (check-true (gate-update-window-open?
+               #:release-published-at "2099-01-01T00:00:00Z")
               "a free install updates again after deactivation"))
+
+;; A credential whose window is already entirely past is still a valid
+;; perpetual Pro entitlement: the install upgrades and keeps working.
+(let ([scratch (make-temporary-file "gate-past-~a" 'directory)])
+  (putenv "GPTP_STUDIO_HOME" (path->string scratch))
+  (putenv "GPTP_STUDIO_TRUST_STORE" (path->string trust-store-path))
+  (define past-path
+    (issue-to-file
+     (gate-payload #:updates-through "2020-01-01T00:00:00Z")
+     (make-temporary-file "gate-pastwin-~a.permit.json")))
+  (define-values (p-act-ok? _p-subject) (gate-activate! past-path))
+  (check-true p-act-ok? "a past-window credential is still a valid purchase")
+  (check-equal? (gate-init!) 'pro "an expired window still grants the pro tier")
+  (check-true (gate-check 'engine) "an expired window install keeps Pro actions")
+  (check-false (gate-update-window-open?
+                #:release-published-at "2021-01-01T00:00:00Z")
+               "nothing published after the cutoff stages")
+  (check-true (gate-update-window-open?
+               #:release-published-at "2019-12-31T23:59:59Z")
+               "anything published inside the cutoff stays eligible"))
 
 ;; ---- expired use window ----
 
