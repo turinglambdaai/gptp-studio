@@ -39,9 +39,13 @@ namespace {
 // ---- host strings -----------------------------------------------------------
 // Compiled-in mirror of the shared table (app/i18n.rkt is the single
 // source; taskly's linux host keeps the same compiled-in fallback). The
-// language follows the backend's settings via bootstrap.
+// language follows the backend's settings via bootstrap, and
+// tests/i18n-host-mirror-test.rkt keeps this copy byte-identical to the
+// shared block. The default matches the backend's settings default
+// (app/state.rkt defaults 'language "zh"), so a fresh Chinese-first home
+// paints consistently before the backend answers.
 
-char const* g_language = "en";
+char const* g_language = "zh";
 
 struct TrEntry {
   char const* key;
@@ -94,6 +98,103 @@ TrEntry const kStrings[] = {
     {"about-copied", "诊断信息已复制到剪贴板，可粘贴到 issue。",
      "Diagnostics copied to the clipboard — paste them into your issue."},
     {"dialog-close", "关闭", "Close"},
+    // Native primary controls — mirror of app/i18n.rkt's native-host block
+    // (issue #40): page titles, mode/role/interface wording and every
+    // primary button/status the host owns. Protocol values (dropdown items,
+    // PTP field captions) intentionally stay untranslated.
+    {"page-engine", "引擎", "Engine"},
+    {"page-qualification", "资格检测", "Qualification"},
+    {"page-packets", "报文", "Packets"},
+    {"page-logs", "日志", "Logs"},
+    {"page-tuning", "GM 调优", "GM Tuning"},
+    {"page-license", "许可与报告", "License & Reports"},
+    {"label-role", "角色", "Role"},
+    {"label-mode", "模式", "Mode"},
+    {"label-iface", "网卡", "Interface"},
+    {"iface-example", "例如 eth0", "e.g. eth0"},
+    {"btn-start-engine", "启动引擎", "Start Engine"},
+    {"btn-stop-engine", "停止引擎", "Stop Engine"},
+    {"caption-port-state", "端口状态", "Port state"},
+    {"caption-engine", "引擎", "Engine"},
+    {"caption-processes", "进程", "Processes"},
+    {"frame-live-series", "实时时序曲线", "Live timing series"},
+    {"chart-sync-title", "同步收敛", "sync convergence"},
+    {"btn-run-qualification", "运行资格检测", "Run Qualification"},
+    {"capture-iface-placeholder", "抓包网卡", "capture interface"},
+    {"btn-start-capture", "开始抓包", "Start Capture"},
+    {"btn-restart-capture", "重新开始抓包", "Restart Capture"},
+    {"btn-stop-capture", "停止抓包", "Stop Capture"},
+    {"btn-import-pcap", "导入 pcap", "Import pcap"},
+    {"btn-export-pcap", "导出 pcap", "Export pcap"},
+    {"btn-wireshark-live", "Wireshark 实时回放", "Wireshark live"},
+    {"btn-clear", "清空", "Clear"},
+    {"count-zero", "0 条", "0 shown"},
+    {"count-shown-last", "{0} 条（最新在后）", "{0} shown (newest last)"},
+    {"count-stored-total", "已存 {0} / 共 {1} 条", "{0} stored / {1} total"},
+    {"btn-export-logs", "导出日志", "Export Logs"},
+    {"tuning-note",
+     "GM 运行调优经 pmc GRANDMASTER_SETTINGS_NP 作用于运行中的引擎（Pro）。",
+     "GM runtime tuning applies through pmc GRANDMASTER_SETTINGS_NP on the "
+     "running engine (Pro)."},
+    {"btn-apply-gm", "应用到运行中的引擎", "Apply to Running Engine"},
+    {"caption-license-tier", "许可档位", "License tier"},
+    {"caption-installation-id", "安装 ID", "Installation ID"},
+    {"btn-start-trial", "开始试用", "Start Trial"},
+    {"btn-activate-license", "激活许可证", "Activate License"},
+    {"btn-deactivate", "移除许可证", "Deactivate"},
+    {"btn-export-report", "导出工程报告", "Export Engineering Report"},
+    {"btn-export-diagnostics", "导出诊断", "Export Diagnostics"},
+    {"license-note",
+     "离线 Permit 凭据（.permit.json），不依赖云服务。真实引擎角色与导出需要 "
+     "Pro。申请绑定安装的许可证时，请把安装 ID 交给供应商。",
+     "Offline Permit credentials (.permit.json); no cloud dependency. "
+     "Real-engine roles and exports require Pro. Hand the installation "
+     "ID to the vendor when requesting an installation-bound license."},
+    {"tooltip-menu", "菜单", "Menu"},
+    {"status-starting-backend", "正在启动内嵌 Racket CS…",
+     "Starting embedded Racket CS…"},
+    {"status-backend-ready", "内嵌 Racket CS 已就绪",
+     "Embedded Racket CS is ready"},
+    {"status-backend-failed", "后端启动失败：{0}", "Backend failed: {0}"},
+    {"status-missing-runtime", "可执行文件旁缺少 runtime/*.boot 与 res/core.zo",
+     "Missing runtime/*.boot and res/core.zo next to the executable"},
+    {"status-backend-error", "后端：{0}", "Backend: {0}"},
+    {"status-engine-started", "引擎已启动", "engine started"},
+    {"status-pro-required", "需要 Pro：{0}", "Pro required: {0}"},
+    {"status-engine-start-failed", "引擎启动失败：{0}",
+     "engine start failed: {0}"},
+    {"status-engine-stopped", "引擎已停止", "engine stopped"},
+    {"status-capturing", "正在抓包", "capturing"},
+    {"status-idle", "空闲", "idle"},
+    {"status-capture-started", "抓包已开始", "capture started"},
+    {"status-capture-failed", "抓包失败：{0}", "capture failed: {0}"},
+    {"status-gm-applied", "GM 设置已应用", "GM settings applied"},
+    {"status-gm-failed", "GM 调优：{0}", "GM tuning: {0}"},
+    {"status-license-activated", "许可证已激活", "license activated"},
+    {"status-license-error", "许可证：{0}", "license: {0}"},
+    {"status-imported", "已导入 {0} 条报文", "imported {0} packets"},
+    {"status-import-failed", "导入失败：{0}", "import failed: {0}"},
+    {"status-pcap-exported", "pcap 已导出", "pcap exported"},
+    {"status-export-error", "导出：{0}", "export: {0}"},
+    {"status-wireshark-launched", "Wireshark 已启动", "wireshark launched"},
+    {"status-wireshark-error", "Wireshark：{0}", "wireshark: {0}"},
+    {"status-report-exported", "报告已导出", "report exported"},
+    {"status-report-error", "报告：{0}", "report: {0}"},
+    {"status-diagnostics-exported", "诊断已导出", "diagnostics exported"},
+    {"status-diagnostics-error", "诊断：{0}", "diagnostics: {0}"},
+    {"state-last-failure", "（上次失败：{0}）", "  (last failure: {0})"},
+    {"qual-failed", "失败：{0}", "failed: {0}"},
+    {"tier-suffix-trial", "（试用）", " (trial)"},
+    {"tier-suffix-pro", "（Pro）", " (Pro)"},
+    {"dialog-import-pcap", "导入 pcap / pcapng", "Import pcap / pcapng"},
+    {"dialog-export-pcap", "导出 pcap", "Export pcap"},
+    {"dialog-export-logs", "导出日志", "Export logs"},
+    {"dialog-export-report", "导出工程报告", "Export engineering report"},
+    {"dialog-export-diagnostics", "导出诊断快照", "Export diagnostics snapshot"},
+    {"update-err-download-start", "无法开始下载",
+     "the download could not be started"},
+    {"update-err-backend-unreachable", "后端不可达", "backend unreachable"},
+    {"update-err-unknown", "未知失败", "unknown failure"},
 };
 
 std::string tr(char const* key) {
@@ -106,14 +207,27 @@ std::string tr(char const* key) {
   return std::string(key);
 }
 
-std::string format_positional(std::string const& pattern,
-                              std::string const& argument) {
-  auto const position = pattern.find("{0}");
+std::string format_positional_at(std::string const& pattern, int index,
+                                 std::string const& argument) {
+  std::string const token = "{" + std::to_string(index) + "}";
+  auto const position = pattern.find(token);
   if (position == std::string::npos) {
     return pattern;
   }
   return pattern.substr(0, position) + argument +
-         pattern.substr(position + 3);
+         pattern.substr(position + token.size());
+}
+
+std::string format_positional(std::string const& pattern,
+                              std::string const& argument) {
+  return format_positional_at(pattern, 0, argument);
+}
+
+std::string format_two(std::string const& pattern,
+                       std::string const& first,
+                       std::string const& second) {
+  return format_positional_at(format_positional_at(pattern, 0, first), 1,
+                              second);
 }
 
 // ---- app state -----------------------------------------------------------
@@ -209,6 +323,22 @@ UpdateFlowState g_update;
 // the host keeps the items and rewrites the labels once the language lands.
 GMenuItem* g_menu_item_updates{nullptr};
 GMenuItem* g_menu_item_about{nullptr};
+
+// Widgets whose text is a tr() key are registered here so the bootstrap
+// language arrival retranslates them in one pass (the same flip the menu
+// items do — issue #40's language-consistent primary controls).
+struct TrWidget {
+  enum class Kind { Label, Button, Placeholder, Frame, Tooltip };
+  char const* key;
+  GtkWidget* widget;
+  Kind kind;
+};
+
+std::vector<TrWidget> g_tr_widgets;
+
+void track_tr(char const* key, GtkWidget* widget, TrWidget::Kind kind) {
+  g_tr_widgets.push_back({key, widget, kind});
+}
 
 // ---- utilities ------------------------------------------------------------
 
@@ -336,6 +466,7 @@ void repull_series(std::string const& series);
 void repull_packets();
 void repull_logs();
 void apply_gate_info(rivet_app::GateInfo const& gate);
+void retranslate_static_labels();
 
 void on_start_clicked(GtkButton*, gpointer);
 gboolean on_update_auto_check(gpointer);
@@ -343,12 +474,13 @@ gboolean on_update_auto_check(gpointer);
 int on_backend_finished(gpointer) {
   std::lock_guard lock(g_state.startup_mutex);
   if (!g_state.startup_error.empty()) {
-    g_state.set_status("Backend failed: " + g_state.startup_error);
+    g_state.set_status(
+        format_positional(tr("status-backend-failed"), g_state.startup_error));
     return G_SOURCE_REMOVE;
   }
   g_state.backend = std::move(g_state.startup_backend);
   g_state.api = std::make_unique<rivet_app::API>(*g_state.backend);
-  g_state.set_status("Embedded Racket CS is ready");
+  g_state.set_status(tr("status-backend-ready"));
   (void)g_state.api->bootstrap_async([](rivet_app::Result<rivet_app::Bootstrap> result) {
     if (result.error) {
       return;
@@ -359,6 +491,9 @@ int on_backend_finished(gpointer) {
       if (value.language == "zh" || value.language == "en") {
         g_language = value.language == "zh" ? "zh" : "en";
       }
+      // The settings language just landed: retranslate every registered
+      // primary control plus the stack page titles (menus included below).
+      retranslate_static_labels();
       if (g_menu_item_updates != nullptr) {
         g_menu_item_set_label(g_menu_item_updates,
                               tr("menu-check-updates").c_str());
@@ -406,7 +541,7 @@ int on_backend_finished(gpointer) {
 void start_backend() {
   auto layout = discover_runtime_layout();
   if (!layout) {
-    g_state.set_status("Missing runtime/*.boot and res/core.zo next to the executable");
+    g_state.set_status(tr("status-missing-runtime"));
     return;
   }
   rivet::linux_runtime::RacketRuntimeConfig config;
@@ -448,7 +583,8 @@ void start_backend() {
             auto stored = static_cast<long long>(g_state.packet_rows.size());
             gtk_label_set_text(
                 g_state.packet_count,
-                (std::to_string(stored) + " shown (newest last)").c_str());
+                format_positional(tr("count-shown-last"), std::to_string(stored))
+                    .c_str());
           });
         }
         if (std::get_if<rivet_app::Packets_clearedEvent>(&event)) {
@@ -459,7 +595,7 @@ void start_backend() {
               gtk_list_box_remove(g_state.packet_list, GTK_WIDGET(child));
               child = gtk_list_box_get_row_at_index(g_state.packet_list, 0);
             }
-            gtk_label_set_text(g_state.packet_count, "0 shown");
+            gtk_label_set_text(g_state.packet_count, tr("count-zero").c_str());
           });
         }
         if (auto capture = std::get_if<rivet_app::Capture_state_changedEvent>(&event)) {
@@ -474,7 +610,10 @@ void start_backend() {
         }
         if (auto error = std::get_if<rivet_app::Backend_errorEvent>(&event)) {
           auto message = error->value;
-          idle_deliver([message] { g_state.set_status("Backend: " + message); });
+          idle_deliver([message] {
+            g_state.set_status(
+                format_positional(tr("status-backend-error"), message));
+          });
         }
       } catch (...) {
       }
@@ -506,7 +645,7 @@ void refresh_engine_labels(rivet_app::EngineStatus const& status) {
   gtk_label_set_text(g_state.port_value, value_text(status.port_state).c_str());
   std::string state_text = status.role + " / " + status.mode + " / " + status.reference;
   if (status.last_failure.has_value()) {
-    state_text += "  (last failure: " + *status.last_failure + ")";
+    state_text += format_positional(tr("state-last-failure"), *status.last_failure);
   }
   gtk_label_set_text(g_state.engine_state_value, state_text.c_str());
   std::string processes;
@@ -514,20 +653,24 @@ void refresh_engine_labels(rivet_app::EngineStatus const& status) {
     if (!processes.empty()) {
       processes += "  ";
     }
-    processes += process.name + (process.running ? ": running" : ": stopped");
+    processes += process.name + ": " +
+                 tr(process.running ? "running" : "stopped");
   }
   gtk_label_set_text(g_state.processes_value, processes.c_str());
 }
 
 void refresh_capture_buttons(rivet_app::CaptureStatus const& status) {
-  std::string text = status.running ? "capturing" : "idle";
+  std::string text = status.running ? tr("status-capturing") : tr("status-idle");
   if (status.iface.has_value()) {
-    text += " on " + *status.iface;
+    text += " · " + *status.iface;
   }
   if (status.timestamp_source.has_value()) {
     text += " (" + *status.timestamp_source + ")";
   }
-  gtk_button_set_label(g_state.capture_start, status.running ? "Restart Capture" : "Start Capture");
+  gtk_button_set_label(g_state.capture_start,
+                       tr(status.running ? "btn-restart-capture"
+                                         : "btn-start-capture")
+                           .c_str());
   gtk_widget_set_sensitive(GTK_WIDGET(g_state.capture_stop), status.running);
   g_state.set_status(text);
 }
@@ -582,8 +725,9 @@ void repull_packets() {
           }
           gtk_label_set_text(
               g_state.packet_count,
-              (std::to_string(static_cast<long long>(page.stored)) + " stored / " +
-               std::to_string(static_cast<long long>(page.total)) + " total")
+              format_two(tr("count-stored-total"),
+                         std::to_string(static_cast<long long>(page.stored)),
+                         std::to_string(static_cast<long long>(page.total)))
                   .c_str());
         });
       });
@@ -636,11 +780,13 @@ void on_start_clicked(GtkButton*, gpointer) {
         auto const value = result.get();
         idle_deliver([value] {
           if (value.ok) {
-            g_state.set_status("engine started");
+            g_state.set_status(tr("status-engine-started"));
           } else if (value.need_pro) {
-            g_state.set_status("Pro required: " + value.error.value_or(""));
+            g_state.set_status(format_positional(
+                tr("status-pro-required"), value.error.value_or("")));
           } else {
-            g_state.set_status("engine start failed: " + value.error.value_or("?"));
+            g_state.set_status(format_positional(
+                tr("status-engine-start-failed"), value.error.value_or("?")));
           }
           if (value.status.has_value()) {
             refresh_engine_labels(*value.status);
@@ -659,7 +805,7 @@ void on_stop_clicked(GtkButton*, gpointer) {
     }
     auto const status = result.get();
     idle_deliver([status] {
-      g_state.set_status("engine stopped");
+      g_state.set_status(tr("status-engine-stopped"));
       refresh_engine_labels(status);
     });
   });
@@ -679,7 +825,10 @@ void on_qual_run_clicked(GtkButton*, gpointer) {
         auto const value = result.get();
         idle_deliver([value] {
           auto* buffer = gtk_text_view_get_buffer(g_state.qual_report);
-          std::string text = value.ok ? value_text(value.info) : ("failed: " + value.error.value_or("?"));
+          std::string text = value.ok
+                                 ? value_text(value.info)
+                                 : format_positional(tr("qual-failed"),
+                                                     value.error.value_or("?"));
           gtk_text_buffer_set_text(buffer, text.c_str(), static_cast<int>(text.size()));
         });
       });
@@ -697,7 +846,10 @@ void on_capture_start_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok ? "capture started" : ("capture failed: " + value.error.value_or("?")));
+          g_state.set_status(value.ok
+                                 ? tr("status-capture-started")
+                                 : format_positional(tr("status-capture-failed"),
+                                                     value.error.value_or("?")));
         });
       });
 }
@@ -735,8 +887,10 @@ void on_gm_apply_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok ? "GM settings applied"
-                                      : ("GM tuning: " + value.error.value_or("?")));
+          g_state.set_status(value.ok
+                                 ? tr("status-gm-applied")
+                                 : format_positional(tr("status-gm-failed"),
+                                                     value.error.value_or("?")));
         });
       });
 }
@@ -747,9 +901,9 @@ void on_gm_apply_clicked(GtkButton*, gpointer) {
 void apply_gate_info(rivet_app::GateInfo const& gate) {
   std::string suffix;
   if (gate.tier == "trial") {
-    suffix = " (trial)";
+    suffix = tr("tier-suffix-trial");
   } else if (gate.pro) {
-    suffix = " (Pro)";
+    suffix = tr("tier-suffix-pro");
   }
   gtk_label_set_text(g_state.gate_value, (gate.tier + suffix).c_str());
   gtk_label_set_text(g_state.installation_value, gate.installation_id.c_str());
@@ -781,7 +935,10 @@ void on_activate_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok ? "license activated" : ("license: " + value.error.value_or("?")));
+          g_state.set_status(value.ok
+                                 ? tr("status-license-activated")
+                                 : format_positional(tr("status-license-error"),
+                                                     value.error.value_or("?")));
           (void)g_state.api->license_status_async([](rivet_app::Result<rivet_app::GateInfo> gate) {
             if (gate.error) {
               return;
@@ -866,7 +1023,7 @@ void on_pcap_import_clicked(GtkButton*, gpointer) {
   if (g_state.api == nullptr) {
     return;
   }
-  open_file_dialog_path("Import pcap / pcapng", [](std::string path) {
+  open_file_dialog_path(tr("dialog-import-pcap").c_str(), [](std::string path) {
     if (path.empty() || g_state.api == nullptr) {
       return;
     }
@@ -876,8 +1033,11 @@ void on_pcap_import_clicked(GtkButton*, gpointer) {
       }
       auto const value = result.get();
       idle_deliver([value] {
-        g_state.set_status(value.ok ? ("imported " + value_text(value.info) + " packets")
-                                    : ("import failed: " + value.error.value_or("?")));
+        g_state.set_status(value.ok
+                               ? format_positional(tr("status-imported"),
+                                                    value_text(value.info))
+                               : format_positional(tr("status-import-failed"),
+                                                    value.error.value_or("?")));
         repull_packets();
       });
     });
@@ -889,7 +1049,7 @@ void on_pcap_export_clicked(GtkButton*, gpointer) {
     return;
   }
   save_file_dialog_path(
-      "Export pcap", "gptp-studio-capture.pcap", [](std::string path) {
+      tr("dialog-export-pcap").c_str(), "gptp-studio-capture.pcap", [](std::string path) {
         if (path.empty() || g_state.api == nullptr) {
           return;
         }
@@ -900,8 +1060,10 @@ void on_pcap_export_clicked(GtkButton*, gpointer) {
               }
               auto const value = result.get();
               idle_deliver([value] {
-                g_state.set_status(value.ok ? "pcap exported"
-                                            : ("export: " + value.error.value_or("?")));
+                g_state.set_status(value.ok
+                                       ? tr("status-pcap-exported")
+                                       : format_positional(tr("status-export-error"),
+                                                           value.error.value_or("?")));
               });
             });
       });
@@ -919,7 +1081,10 @@ void on_wireshark_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok ? "wireshark launched" : ("wireshark: " + value.error.value_or("?")));
+          g_state.set_status(value.ok
+                                 ? tr("status-wireshark-launched")
+                                 : format_positional(tr("status-wireshark-error"),
+                                                     value.error.value_or("?")));
         });
       });
 }
@@ -929,7 +1094,7 @@ void on_log_export_clicked(GtkButton*, gpointer) {
     return;
   }
   save_file_dialog_path(
-      "Export logs", "gptp-studio.log", [](std::string path) {
+      tr("dialog-export-logs").c_str(), "gptp-studio.log", [](std::string path) {
         if (path.empty() || g_state.api == nullptr) {
           return;
         }
@@ -943,7 +1108,7 @@ void on_report_export_clicked(GtkButton*, gpointer) {
     return;
   }
   save_file_dialog_path(
-      "Export engineering report", "gptp-studio-report.json", [](std::string path) {
+      tr("dialog-export-report").c_str(), "gptp-studio-report.json", [](std::string path) {
         if (path.empty() || g_state.api == nullptr) {
           return;
         }
@@ -954,8 +1119,10 @@ void on_report_export_clicked(GtkButton*, gpointer) {
               }
               auto const value = result.get();
               idle_deliver([value] {
-                g_state.set_status(value.ok ? "report exported"
-                                            : ("report: " + value.error.value_or("?")));
+                g_state.set_status(value.ok
+                                       ? tr("status-report-exported")
+                                       : format_positional(tr("status-report-error"),
+                                                           value.error.value_or("?")));
               });
             });
       });
@@ -963,7 +1130,7 @@ void on_report_export_clicked(GtkButton*, gpointer) {
 
 void on_diagnostics_export_clicked(GtkButton*, gpointer) {
   save_file_dialog_path(
-      "Export diagnostics snapshot", "gptp-studio-diagnostics.json",
+      tr("dialog-export-diagnostics").c_str(), "gptp-studio-diagnostics.json",
       [](std::string path) {
         if (path.empty() || g_state.api == nullptr) {
           return;
@@ -976,8 +1143,11 @@ void on_diagnostics_export_clicked(GtkButton*, gpointer) {
               }
               auto const value = result.get();
               idle_deliver([value] {
-                g_state.set_status(value.ok ? "diagnostics exported"
-                                            : ("diagnostics: " + value.error.value_or("?")));
+                g_state.set_status(value.ok
+                                       ? tr("status-diagnostics-exported")
+                                       : format_positional(
+                                             tr("status-diagnostics-error"),
+                                             value.error.value_or("?")));
               });
             });
       });
@@ -1324,7 +1494,7 @@ int on_update_poll_tick(gpointer) {
             show_update_message(
                 "gPTP Studio",
                 format_positional(tr("update-install-failed"),
-                                  state.error.value_or("unknown failure")));
+                                  state.error.value_or(tr("update-err-unknown"))));
             return;
           }
           if (state.state == "applied") {
@@ -1405,7 +1575,7 @@ void start_update_download() {
           stop_update_poll();
           close_update_progress();
           g_update.download_in_flight = false;
-          show_update_error("the download could not be started");
+          show_update_error(tr("update-err-download-start"));
         });
       });
 }
@@ -1476,7 +1646,7 @@ void check_for_updates(bool silent) {
             if (silent) {
               return;
             }
-            show_update_error("backend unreachable");
+            show_update_error(tr("update-err-backend-unreachable"));
             return;
           }
           // The check settled (any status): record the stamp so the next
@@ -1491,7 +1661,7 @@ void check_for_updates(bool silent) {
             return;  // auto-check only speaks when there is news
           }
           if (check.status == "error") {
-            show_update_error(check.message.value_or("unknown failure"));
+            show_update_error(check.message.value_or(tr("update-err-unknown")));
             return;
           }
           g_state.set_status("gPTP Studio " + check.current_version);
@@ -1627,23 +1797,36 @@ GtkWidget* info_row(char const* caption, GtkLabel** out) {
   return box;
 }
 
+GtkWidget* info_row_tr(char const* key, GtkLabel** out) {
+  auto* box = info_row(tr(key).c_str(), out);
+  // the caption is the row's first child; register it for retranslation
+  track_tr(key, gtk_widget_get_first_child(box), TrWidget::Kind::Label);
+  return box;
+}
+
 GtkWidget* build_engine_page() {
   auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
 
   auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-  auto* role_label = gtk_label_new("Role");
+  auto* role_label = gtk_label_new(tr("label-role").c_str());
+  track_tr("label-role", role_label, TrWidget::Kind::Label);
   const char* roles[] = {"grandmaster", "slave", "listener", "boundary", nullptr};
   auto* role = gtk_drop_down_new_from_strings(roles);
   gtk_drop_down_set_selected(GTK_DROP_DOWN(role), 2);
-  auto* mode_label = gtk_label_new("Mode");
+  auto* mode_label = gtk_label_new(tr("label-mode").c_str());
+  track_tr("label-mode", mode_label, TrWidget::Kind::Label);
   const char* modes[] = {"sim", "real", nullptr};
   auto* mode = gtk_drop_down_new_from_strings(modes);
-  auto* iface_label = gtk_label_new("Interface");
+  auto* iface_label = gtk_label_new(tr("label-iface").c_str());
+  track_tr("label-iface", iface_label, TrWidget::Kind::Label);
   auto* iface = gtk_entry_new();
-  gtk_entry_set_placeholder_text(GTK_ENTRY(iface), "e.g. eth0");
+  gtk_entry_set_placeholder_text(GTK_ENTRY(iface), tr("iface-example").c_str());
+  track_tr("iface-example", iface, TrWidget::Kind::Placeholder);
   gtk_widget_set_size_request(iface, 160, -1);
-  auto* start = gtk_button_new_with_label("Start Engine");
-  auto* stop = gtk_button_new_with_label("Stop Engine");
+  auto* start = gtk_button_new_with_label(tr("btn-start-engine").c_str());
+  auto* stop = gtk_button_new_with_label(tr("btn-stop-engine").c_str());
+  track_tr("btn-start-engine", start, TrWidget::Kind::Button);
+  track_tr("btn-stop-engine", stop, TrWidget::Kind::Button);
   gtk_widget_add_css_class(start, "suggested-action");
   gtk_box_append(GTK_BOX(controls), role_label);
   gtk_box_append(GTK_BOX(controls), role);
@@ -1664,9 +1847,9 @@ GtkWidget* build_engine_page() {
   gtk_box_append(GTK_BOX(metrics), info_row("offsetFromMaster", &g_state.offset_value));
   gtk_box_append(GTK_BOX(metrics), info_row("meanPathDelay", &g_state.delay_value));
   gtk_box_append(GTK_BOX(metrics), info_row("grandmaster", &g_state.gm_value));
-  gtk_box_append(GTK_BOX(metrics), info_row("port state", &g_state.port_value));
-  gtk_box_append(GTK_BOX(metrics), info_row("engine", &g_state.engine_state_value));
-  gtk_box_append(GTK_BOX(metrics), info_row("processes", &g_state.processes_value));
+  gtk_box_append(GTK_BOX(metrics), info_row_tr("caption-port-state", &g_state.port_value));
+  gtk_box_append(GTK_BOX(metrics), info_row_tr("caption-engine", &g_state.engine_state_value));
+  gtk_box_append(GTK_BOX(metrics), info_row_tr("caption-processes", &g_state.processes_value));
   auto* alarm = gtk_label_new("");
   gtk_label_set_xalign(GTK_LABEL(alarm), 0.0F);
   gtk_widget_add_css_class(alarm, "warning");
@@ -1676,12 +1859,13 @@ GtkWidget* build_engine_page() {
   g_state.chart = std::make_unique<rivet::ui::ChartArea>();
   g_state.chart->set_series({{"offset", "offsetFromMaster", "#3584e4", "ns"},
                              {"delay", "meanPathDelay", "#e01b24", "ns"}});
-  g_state.chart->set_title("sync convergence");
+  g_state.chart->set_title(tr("chart-sync-title"));
   g_state.chart->on_gap = [](std::string const& series) { repull_series(series); };
   gtk_widget_set_vexpand(g_state.chart->widget(), TRUE);
   gtk_widget_set_size_request(g_state.chart->widget(), -1, 260);
 
-  auto* chart_frame = gtk_frame_new("Live timing series");
+  auto* chart_frame = gtk_frame_new(tr("frame-live-series").c_str());
+  track_tr("frame-live-series", chart_frame, TrWidget::Kind::Frame);
   gtk_frame_set_child(GTK_FRAME(chart_frame), g_state.chart->widget());
 
   gtk_box_append(GTK_BOX(box), controls);
@@ -1696,11 +1880,13 @@ GtkWidget* build_engine_page() {
 GtkWidget* build_qualification_page() {
   auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
   auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-  auto* iface_label = gtk_label_new("Interface");
+  auto* iface_label = gtk_label_new(tr("label-iface").c_str());
+  track_tr("label-iface", iface_label, TrWidget::Kind::Label);
   const char* interfaces[] = {"eth0", nullptr};
   auto* iface = gtk_drop_down_new_from_strings(interfaces);
   gtk_drop_down_set_selected(GTK_DROP_DOWN(iface), 0);
-  auto* run = gtk_button_new_with_label("Run Qualification");
+  auto* run = gtk_button_new_with_label(tr("btn-run-qualification").c_str());
+  track_tr("btn-run-qualification", run, TrWidget::Kind::Button);
   gtk_widget_add_css_class(run, "suggested-action");
   gtk_box_append(GTK_BOX(controls), iface_label);
   gtk_box_append(GTK_BOX(controls), iface);
@@ -1728,14 +1914,22 @@ GtkWidget* build_packets_page() {
 
   auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
   auto* iface = gtk_entry_new();
-  gtk_entry_set_placeholder_text(GTK_ENTRY(iface), "capture interface");
+  gtk_entry_set_placeholder_text(GTK_ENTRY(iface),
+                                 tr("capture-iface-placeholder").c_str());
+  track_tr("capture-iface-placeholder", iface, TrWidget::Kind::Placeholder);
   gtk_widget_set_size_request(iface, 160, -1);
-  auto* capture_start = gtk_button_new_with_label("Start Capture");
-  auto* capture_stop = gtk_button_new_with_label("Stop Capture");
-  auto* import_button = gtk_button_new_with_label("Import pcap");
-  auto* export_button = gtk_button_new_with_label("Export pcap");
-  auto* wireshark = gtk_button_new_with_label("Wireshark live");
-  auto* clear = gtk_button_new_with_label("Clear");
+  auto* capture_start = gtk_button_new_with_label(tr("btn-start-capture").c_str());
+  auto* capture_stop = gtk_button_new_with_label(tr("btn-stop-capture").c_str());
+  auto* import_button = gtk_button_new_with_label(tr("btn-import-pcap").c_str());
+  auto* export_button = gtk_button_new_with_label(tr("btn-export-pcap").c_str());
+  auto* wireshark = gtk_button_new_with_label(tr("btn-wireshark-live").c_str());
+  auto* clear = gtk_button_new_with_label(tr("btn-clear").c_str());
+  track_tr("btn-start-capture", capture_start, TrWidget::Kind::Button);
+  track_tr("btn-stop-capture", capture_stop, TrWidget::Kind::Button);
+  track_tr("btn-import-pcap", import_button, TrWidget::Kind::Button);
+  track_tr("btn-export-pcap", export_button, TrWidget::Kind::Button);
+  track_tr("btn-wireshark-live", wireshark, TrWidget::Kind::Button);
+  track_tr("btn-clear", clear, TrWidget::Kind::Button);
   gtk_box_append(GTK_BOX(controls), iface);
   gtk_box_append(GTK_BOX(controls), capture_start);
   gtk_box_append(GTK_BOX(controls), capture_stop);
@@ -1751,7 +1945,7 @@ GtkWidget* build_packets_page() {
   g_state.wireshark_live = GTK_BUTTON(wireshark);
   g_state.packets_clear = GTK_BUTTON(clear);
 
-  auto* count = gtk_label_new("0 shown");
+  auto* count = gtk_label_new(tr("count-zero").c_str());
   gtk_label_set_xalign(GTK_LABEL(count), 0.0F);
   gtk_widget_add_css_class(count, "dim-label");
   g_state.packet_count = GTK_LABEL(count);
@@ -1789,7 +1983,8 @@ GtkWidget* build_packets_page() {
 
 GtkWidget* build_logs_page() {
   auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-  auto* export_button = gtk_button_new_with_label("Export Logs");
+  auto* export_button = gtk_button_new_with_label(tr("btn-export-logs").c_str());
+  track_tr("btn-export-logs", export_button, TrWidget::Kind::Button);
   g_state.log_export = GTK_BUTTON(export_button);
   auto* scrolled = gtk_scrolled_window_new();
   gtk_widget_set_vexpand(scrolled, TRUE);
@@ -1846,12 +2041,14 @@ GtkWidget* build_tuning_page() {
     }
   }
 
-  auto* note = gtk_label_new("GM runtime tuning applies through pmc GRANDMASTER_SETTINGS_NP on the running engine (Pro).");
+  auto* note = gtk_label_new(tr("tuning-note").c_str());
+  track_tr("tuning-note", note, TrWidget::Kind::Label);
   gtk_label_set_wrap(GTK_LABEL(note), TRUE);
   gtk_widget_add_css_class(note, "dim-label");
   gtk_label_set_xalign(GTK_LABEL(note), 0.0F);
 
-  auto* apply = gtk_button_new_with_label("Apply to Running Engine");
+  auto* apply = gtk_button_new_with_label(tr("btn-apply-gm").c_str());
+  track_tr("btn-apply-gm", apply, TrWidget::Kind::Button);
   gtk_widget_add_css_class(apply, "suggested-action");
   g_state.gm_apply = GTK_BUTTON(apply);
 
@@ -1865,15 +2062,19 @@ GtkWidget* build_tuning_page() {
 GtkWidget* build_license_page() {
   auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
 
-  auto* gate_row = info_row("License tier", &g_state.gate_value);
-  auto* installation_row = info_row("Installation ID", &g_state.installation_value);
+  auto* gate_row = info_row_tr("caption-license-tier", &g_state.gate_value);
+  auto* installation_row =
+      info_row_tr("caption-installation-id", &g_state.installation_value);
   gtk_label_set_selectable(g_state.installation_value, TRUE);
 
-  auto* trial = gtk_button_new_with_label("Start Trial");
+  auto* trial = gtk_button_new_with_label(tr("btn-start-trial").c_str());
+  track_tr("btn-start-trial", trial, TrWidget::Kind::Button);
   auto* path = gtk_entry_new();
   gtk_entry_set_placeholder_text(GTK_ENTRY(path), "/path/to/entitlement.permit.json");
-  auto* activate = gtk_button_new_with_label("Activate License");
-  auto* deactivate = gtk_button_new_with_label("Deactivate");
+  auto* activate = gtk_button_new_with_label(tr("btn-activate-license").c_str());
+  auto* deactivate = gtk_button_new_with_label(tr("btn-deactivate").c_str());
+  track_tr("btn-activate-license", activate, TrWidget::Kind::Button);
+  track_tr("btn-deactivate", deactivate, TrWidget::Kind::Button);
   auto* path_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
   gtk_box_append(GTK_BOX(path_row), path);
   gtk_box_append(GTK_BOX(path_row), activate);
@@ -1884,17 +2085,17 @@ GtkWidget* build_license_page() {
   g_state.deactivate = GTK_BUTTON(deactivate);
 
   auto* exports = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-  auto* report = gtk_button_new_with_label("Export Engineering Report");
-  auto* diagnostics = gtk_button_new_with_label("Export Diagnostics");
+  auto* report = gtk_button_new_with_label(tr("btn-export-report").c_str());
+  auto* diagnostics = gtk_button_new_with_label(tr("btn-export-diagnostics").c_str());
+  track_tr("btn-export-report", report, TrWidget::Kind::Button);
+  track_tr("btn-export-diagnostics", diagnostics, TrWidget::Kind::Button);
   gtk_box_append(GTK_BOX(exports), report);
   gtk_box_append(GTK_BOX(exports), diagnostics);
   g_state.report_export = GTK_BUTTON(report);
   g_state.diagnostics_export = GTK_BUTTON(diagnostics);
 
-  auto* note = gtk_label_new(
-      "Offline Permit credentials (.permit.json); no cloud dependency. "
-      "Real-engine roles and exports require Pro. Hand the installation "
-      "ID to the vendor when requesting an installation-bound license.");
+  auto* note = gtk_label_new(tr("license-note").c_str());
+  track_tr("license-note", note, TrWidget::Kind::Label);
   gtk_label_set_wrap(GTK_LABEL(note), TRUE);
   gtk_widget_add_css_class(note, "dim-label");
   gtk_label_set_xalign(GTK_LABEL(note), 0.0F);
@@ -1916,6 +2117,56 @@ GtkWidget* build_license_page() {
 
 // ---- activation -----------------------------------------------------------
 
+// Retranslate every registered primary control, the stack page titles and
+// the chart title. Runs once per bootstrap language arrival (issue #40:
+// the host's primary controls follow the backend's settings language).
+void retranslate_static_labels() {
+  for (auto const& tw : g_tr_widgets) {
+    std::string const text = tr(tw.key);
+    switch (tw.kind) {
+      case TrWidget::Kind::Label:
+        gtk_label_set_text(GTK_LABEL(tw.widget), text.c_str());
+        break;
+      case TrWidget::Kind::Button:
+        gtk_button_set_label(GTK_BUTTON(tw.widget), text.c_str());
+        break;
+      case TrWidget::Kind::Placeholder:
+        gtk_entry_set_placeholder_text(GTK_ENTRY(tw.widget), text.c_str());
+        break;
+      case TrWidget::Kind::Frame:
+        gtk_frame_set_label(GTK_FRAME(tw.widget), text.c_str());
+        break;
+      case TrWidget::Kind::Tooltip:
+        gtk_widget_set_tooltip_text(tw.widget, text.c_str());
+        break;
+    }
+  }
+  struct PageTitle {
+    char const* name;
+    char const* key;
+  };
+  PageTitle const pages[] = {
+      {"engine", "page-engine"},
+      {"qualification", "page-qualification"},
+      {"packets", "page-packets"},
+      {"logs", "page-logs"},
+      {"tuning", "page-tuning"},
+      {"license", "page-license"},
+  };
+  if (g_state.stack != nullptr) {
+    for (auto const& page : pages) {
+      GtkWidget* child = gtk_stack_get_child_by_name(g_state.stack, page.name);
+      if (child != nullptr) {
+        auto* stack_page = gtk_stack_get_page(g_state.stack, child);
+        g_object_set(stack_page, "title", tr(page.key).c_str(), nullptr);
+      }
+    }
+  }
+  if (g_state.chart) {
+    g_state.chart->set_title(tr("chart-sync-title"));
+  }
+}
+
 void on_activate(GtkApplication* app, gpointer) {
   if (g_state.window) {
     gtk_window_present(g_state.window);
@@ -1935,7 +2186,7 @@ void on_activate(GtkApplication* app, gpointer) {
   auto* header = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
   auto* title = gtk_label_new("gPTP Studio");
   gtk_widget_add_css_class(title, "title-2");
-  auto* status = gtk_label_new("Starting embedded Racket CS…");
+  auto* status = gtk_label_new(tr("status-starting-backend").c_str());
   gtk_label_set_xalign(GTK_LABEL(status), 0.0F);
   gtk_widget_add_css_class(status, "dim-label");
   gtk_widget_set_hexpand(status, TRUE);
@@ -1955,19 +2206,20 @@ void on_activate(GtkApplication* app, gpointer) {
   auto* menu_button = gtk_menu_button_new();
   gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(menu_button),
                                 "open-menu-symbolic");
-  gtk_widget_set_tooltip_text(menu_button, "Menu");
+  gtk_widget_set_tooltip_text(menu_button, tr("tooltip-menu").c_str());
+  track_tr("tooltip-menu", menu_button, TrWidget::Kind::Tooltip);
   gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(menu_button),
                                  G_MENU_MODEL(menu));
   gtk_box_append(GTK_BOX(header), menu_button);
 
   auto* stack = gtk_stack_new();
   gtk_stack_set_transition_type(GTK_STACK(stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
-  gtk_stack_add_titled(GTK_STACK(stack), build_engine_page(), "engine", "Engine");
-  gtk_stack_add_titled(GTK_STACK(stack), build_qualification_page(), "qualification", "Qualification");
-  gtk_stack_add_titled(GTK_STACK(stack), build_packets_page(), "packets", "Packets");
-  gtk_stack_add_titled(GTK_STACK(stack), build_logs_page(), "logs", "Logs");
-  gtk_stack_add_titled(GTK_STACK(stack), build_tuning_page(), "tuning", "GM Tuning");
-  gtk_stack_add_titled(GTK_STACK(stack), build_license_page(), "license", "License & Reports");
+  gtk_stack_add_titled(GTK_STACK(stack), build_engine_page(), "engine", tr("page-engine").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_qualification_page(), "qualification", tr("page-qualification").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_packets_page(), "packets", tr("page-packets").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_logs_page(), "logs", tr("page-logs").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_tuning_page(), "tuning", tr("page-tuning").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_license_page(), "license", tr("page-license").c_str());
   auto* switcher = gtk_stack_switcher_new();
   gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(switcher), GTK_STACK(stack));
   gtk_widget_set_vexpand(stack, TRUE);

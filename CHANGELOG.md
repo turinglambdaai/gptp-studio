@@ -1,5 +1,24 @@
 # 更新日志 / Changelog
 
+## Unreleased（未发布）
+
+### Changed
+
+- **原生主控件双语化（issue #40 语言一致性切片）**：GTK 宿主
+  （`linux/src/main.cpp`）的页面标题、模式/角色/网卡标签、全部主按钮、
+  占位符与状态行走 `tr()`；共享表（`app/i18n.rkt`）补齐原生宿主词条块。
+  bootstrap 语言到达后一次性重翻译全部已注册控件与栈页标题；协议值
+  （角色/模式下拉项、PTP 字段名）按语言策略保持不译。宿主默认语言改为
+  与后端设置默认一致（zh），中文默认环境首屏不再闪英文。
+
+### Added
+
+- `tests/i18n-host-mirror-test.rkt`：宿主编译期字符串表与共享表逐键
+  逐字节一致性守卫（本轮即抓出 `dialog-close` 在共享表缺失的漂移）。
+- `scripts/e2e/e2e-linux.sh` 在验收 home 预置 `settings.json`
+  （language=en），AT-SPI 断言与运行语言解耦（与 taskly 验收档案同法）；
+  zh 词条由镜像测试守卫。
+
 ## 0.4.0 - 2026-10-23
 
 **授权决策 `2026-10-auth-1` 落地：原始数据导出回归免费，更新资格改由

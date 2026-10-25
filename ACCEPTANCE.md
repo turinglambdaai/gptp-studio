@@ -36,6 +36,7 @@ gptp-studio --simulator
 
 - [ ] GTK4 原生窗口正常打开；
 - [ ] 六页导航（Engine / Qualification / Packets / Logs / GM Tuning / License & Reports）与顶部状态栏正常；
+- [ ] 主页面名、模式/角色/网卡标签与全部主按钮在中文与英文设置下语言一致（bootstrap 语言到达后重翻译，协议值下拉项保持原样）；
 - [ ] Engine 页同步曲线持续更新；
 - [ ] Packets 页面持续出现真实编码的模拟 gPTP 帧，报文详情、解码树、hex 可用；
 - [ ] GM Tuning 修改优先级后 `pmc GRANDMASTER_SETTINGS_NP` 应用到运行中的引擎；

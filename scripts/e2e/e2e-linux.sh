@@ -20,6 +20,12 @@ unset DISPLAY
 mkdir -p "$XDG_RUNTIME_DIR" "$GPTP_STUDIO_HOME"
 chmod 700 "$XDG_RUNTIME_DIR"
 
+# Acceptance profile: pin the backend language to English so the AT-SPI
+# assertions below match deterministic button names (the settings default
+# is zh; taskly's acceptance profile pins its locale the same way). The
+# zh table itself is guarded by tests/i18n-host-mirror-test.rkt.
+printf '{"language":"en"}\n' >"$GPTP_STUDIO_HOME/settings.json"
+
 weston --backend=headless-backend.so --socket="$WAYLAND_DISPLAY" --idle-time=0 \
   --debug --log="$output/weston.log" &
 weston_pid=$!
