@@ -74,24 +74,19 @@
 ;; delivery (issue #45) streams events while no RPC is in flight.
 (define (wait-for-event name seconds)
   (let loop ([deadline (+ (current-inexact-milliseconds) (* seconds 1000))])
-    (define remaining (/ (- deadline (current-inexact-milliseconds)) 1000))
+    (define remaining (- deadline (current-inexact-milliseconds)))
     (cond
       [(<= remaining 0) #f]
+      [(not (sync/timeout (/ remaining 1000) client-in)) #f]
       [else
-       ;; sync/timeout answers the ready port, not a frame; read the frame
-       ;; only after it reports ready so timeouts stay bounded.
-       (define ready (sync/timeout remaining client-in))
+       (define frame (read-frame client-in))
        (cond
-         [(not ready) #f]
+         [(not (equal? (frame-type frame) message:event)) (loop deadline)]
          [else
-          (define frame (read-frame client-in))
-          (cond
-            [(not (equal? (frame-type frame) message:event)) (loop deadline)]
-            [else
-             (define decoded (decode-value (frame-payload frame)))
-             (if (and (pair? decoded) (string=? (car decoded) name))
-                 #t
-                 (loop deadline))])])]))))
+          (define decoded (decode-value (frame-payload frame)))
+          (if (and (pair? decoded) (string=? (car decoded) name))
+              #t
+              (loop deadline))])])]))
 
 (dynamic-wind
  void
