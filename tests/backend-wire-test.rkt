@@ -78,15 +78,20 @@
     (cond
       [(<= remaining 0) #f]
       [else
-       (define frame (sync/timeout remaining client-in))
+       ;; sync/timeout answers the ready port, not a frame; read the frame
+       ;; only after it reports ready so timeouts stay bounded.
+       (define ready (sync/timeout remaining client-in))
        (cond
-         [(not frame) #f]
-         [(not (equal? (frame-type frame) message:event)) (loop deadline)]
+         [(not ready) #f]
          [else
-          (define decoded (decode-value (frame-payload frame)))
-          (if (and (pair? decoded) (string=? (car decoded) name))
-              #t
-              (loop deadline))])])))
+          (define frame (read-frame client-in))
+          (cond
+            [(not (equal? (frame-type frame) message:event)) (loop deadline)]
+            [else
+             (define decoded (decode-value (frame-payload frame)))
+             (if (and (pair? decoded) (string=? (car decoded) name))
+                 #t
+                 (loop deadline))])])])])))
 
 (dynamic-wind
  void
