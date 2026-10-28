@@ -239,6 +239,15 @@ struct AppState {
   GtkLabel* alarm_line{nullptr};
   GtkWidget* alarm_widget{nullptr};
 
+  // Topbar live pills — the always-visible session strip (1.0 topbar).
+  GtkLabel* pill_role{nullptr};
+  GtkLabel* pill_port{nullptr};
+  GtkLabel* pill_gm{nullptr};
+  GtkLabel* pill_offset{nullptr};
+  GtkLabel* pill_delay{nullptr};
+  GtkLabel* pill_tier{nullptr};
+  GtkLabel* brand_version{nullptr};
+
   // Engine page
   GtkDropDown* role{nullptr};
   GtkDropDown* mode{nullptr};
@@ -518,6 +527,7 @@ int on_backend_finished(gpointer) {
       if (value.language == "zh" || value.language == "en") {
         g_language = value.language == "zh" ? "zh" : "en";
       }
+      gtk_label_set_text(g_state.brand_version, value.version.c_str());
       // The settings language just landed: retranslate every registered
       // primary control plus the stack page titles (menus included below).
       retranslate_static_labels();
@@ -538,8 +548,8 @@ int on_backend_finished(gpointer) {
       auto warn_us = value.offset_warn_us;
       std::vector<rivet::ui::ChartThreshold> thresholds;
       if (warn_us > 0) {
-        thresholds.push_back({warn_us * 1000, "alarm high", "#f5c211"});
-        thresholds.push_back({-warn_us * 1000, "alarm low", "#f5c211"});
+        thresholds.push_back({warn_us * 1000, "alarm high", "#F44336"});
+        thresholds.push_back({-warn_us * 1000, "alarm low", "#F44336"});
       }
       g_state.chart->set_thresholds(std::move(thresholds));
       apply_gate_info(value.gate);
@@ -671,6 +681,13 @@ void refresh_engine_labels(rivet_app::EngineStatus const& status) {
   gtk_label_set_text(g_state.delay_value, value_text(status.delay_ns).c_str());
   gtk_label_set_text(g_state.gm_value, value_text(status.gm_id).c_str());
   gtk_label_set_text(g_state.port_value, value_text(status.port_state).c_str());
+  // The topbar pills mirror the live values (1.0 topbar: role, port state,
+  // grandmaster, offset, delay always visible).
+  gtk_label_set_text(g_state.pill_role, status.role.c_str());
+  gtk_label_set_text(g_state.pill_port, value_text(status.port_state).c_str());
+  gtk_label_set_text(g_state.pill_gm, value_text(status.gm_id).c_str());
+  gtk_label_set_text(g_state.pill_offset, offset.c_str());
+  gtk_label_set_text(g_state.pill_delay, value_text(status.delay_ns).c_str());
   std::string state_text = status.role + " / " + status.mode + " / " + status.reference;
   if (status.last_failure.has_value()) {
     state_text += format_positional(tr("state-last-failure"), *status.last_failure);
@@ -941,6 +958,7 @@ void apply_gate_info(rivet_app::GateInfo const& gate) {
   }
   gtk_label_set_text(g_state.gate_value, (gate.tier + suffix).c_str());
   gtk_label_set_text(g_state.installation_value, gate.installation_id.c_str());
+  gtk_label_set_text(g_state.pill_tier, (gate.tier + suffix).c_str());
 }
 
 void on_trial_clicked(GtkButton*, gpointer) {
@@ -1828,46 +1846,102 @@ void show_about_dialog() {
 
 // ---- page construction ----------------------------------------------------
 
-// One host stylesheet, theme-symbolic colors only: it follows Adwaita
-// light/dark without a palette duplicated here (ApplyTheme picks the widget
-// variant and returns the scheme used for the two text-tone exceptions that
-// symbolic colors cannot express — the amber alarm and nothing else).
+// DESIGN-TOKENS — the product's industrial blue theme, ported from the 1.0
+// presentation layer (public/css/app.css): deep-blue topbar, white cards on
+// a light-blue canvas, white sidebar rail with a blue active item, orange
+// role accent and red alarms. The GTK host owns both schemes; ApplyTheme
+// decides which one renders.
+struct Palette {
+  char const* page_bg;
+  char const* topbar_a;
+  char const* topbar_b;
+  char const* sidebar_bg;
+  char const* card_bg;
+  char const* border;
+  char const* text;
+  char const* muted;
+  char const* blue;
+  char const* blue_dark;
+  char const* orange;
+  char const* red;
+  char const* hover;
+};
+
+Palette const kLight{
+    "#E3F2FD", "#0D47A1", "#1565C0", "#FFFFFF", "#FFFFFF",
+    "#dce7f5", "#1e293b", "#64748b", "#2196F3", "#1565C0",
+    "#FF9800", "#F44336", "rgba(33, 150, 243, 0.10)"};
+
+Palette const kDark{
+    "#17202b", "#0d2039", "#16345c", "#1e2a38", "#223045",
+    "#2e4258", "#e8eef5", "#8aa0b8", "#2196F3", "#1565C0",
+    "#FF9800", "#F44336", "rgba(33, 150, 243, 0.16)"};
+
+// One host stylesheet built from the palette: the widget theme stays stock
+// for form controls, while every owned surface (topbar, sidebar, cards,
+// status bar, packet rows) reads the product tokens.
 void apply_host_css(rivet::linux_ui::ColorScheme scheme) {
-  std::string const alarm_text =
-      scheme == rivet::linux_ui::ColorScheme::dark ? "#f5c211" : "#9a6700";
+  Palette const& p =
+      scheme == rivet::linux_ui::ColorScheme::dark ? kDark : kLight;
   std::string css;
-  // One padding rhythm for every stack page.
-  css += ".gptp-page { padding: 14px 16px 16px; }\n";
-  // Cards: a quiet elevation step over the window background.
-  css += ".metric-card { background: @theme_base_color; border: 1px solid"
-         " alpha(@theme_fg_color, 0.16); border-radius: 10px;"
-         " padding: 10px 14px 9px; }\n";
-  css += ".card-frame { background: @theme_base_color; border: 1px solid"
-         " alpha(@theme_fg_color, 0.16); border-radius: 10px; }\n";
-  css += ".card-frame textview, .card-frame textview > text {"
-         " background: @theme_base_color; }\n";
-  // Typography: captions mute, values tabular so live numbers do not jiggle.
-  css += ".metric-caption { font-size: 12px; font-weight: 600;"
-         " color: alpha(@theme_fg_color, 0.55); }\n";
+  // Topbar: the deep-blue gradient with brand + live status pills.
+  css += std::string("headerbar.gptp-topbar { background: linear-gradient(90deg, ") +
+         p.topbar_a + ", " + p.topbar_b + "); border: none; box-shadow: none; }\n";
+  css += "headerbar.gptp-topbar label { color: #FFFFFF; }\n";
+  css += ".brand-name { font-size: 15px; font-weight: 700; }\n";
+  css += ".brand-version { font-size: 11px; color: alpha(#FFFFFF, 0.72); }\n";
+  css += ".pill { background: alpha(#FFFFFF, 0.14); border-radius: 13px;"
+         " padding: 2px 10px; font-size: 12px; }\n";
+  css += ".pill-mono { font-family: \"Monospace\"; }\n";
+  css += std::string(".pill-role { background: ") + p.orange +
+         "; font-weight: 600; }\n";
+  // Sidebar rail: nav list with a rounded blue active item.
+  css += std::string(".gptp-sidebar { background: ") + p.sidebar_bg + ";"
+         " border-right: 1px solid " + p.border + "; }\n";
+  css += ".nav-list { background: transparent; }\n";
+  css += ".nav-list row { min-height: 34px; padding: 4px 8px;"
+         " margin: 1px 6px; border-radius: 8px; background: transparent;"
+         " border: none; box-shadow: none; }\n";
+  css += std::string(".nav-list row:hover { background: ") + p.hover + "; }\n";
+  css += std::string(".nav-list row.nav-active { background: ") + p.blue +
+         "; background-image: none; }\n";
+  css += ".nav-list row.nav-active label { color: #FFFFFF; font-weight: 600; }\n";
+  css += ".nav-icon { min-width: 22px; }\n";
+  // Pages sit on the light-blue canvas; cards are the white elevation step.
+  css += std::string(".gptp-page { background: ") + p.page_bg +
+         "; padding: 14px 16px 16px; }\n";
+  css += std::string(".gptp-body { background: ") + p.page_bg + "; }\n";
+  css += std::string(".metric-card { background: ") + p.card_bg + "; border: 1px solid " +
+         p.border + "; border-radius: 10px; padding: 10px 14px 9px; }\n";
+  css += std::string(".card-frame { background: ") + p.card_bg + "; border: 1px solid " +
+         p.border + "; border-radius: 10px; }\n";
+  css += std::string(".card-frame textview, .card-frame textview text {"
+                     " background: ") + p.card_bg + "; }\n";
+  // Typography: muted captions, tabular values so live numbers do not jiggle.
+  css += std::string(".metric-caption { font-size: 12px; font-weight: 600; color: ") +
+         p.muted + "; }\n";
   css += ".metric-value { font-family: \"Monospace\"; font-size: 17px;"
          " font-weight: 600; }\n";
-  css += ".info-caption { font-size: 12px; }\n";
+  css += std::string(".info-caption { font-size: 12px; color: ") + p.muted + "; }\n";
   css += ".info-value { font-size: 13px; }\n";
   css += ".count-caption { font-size: 12px; }\n";
-  // Footer status bar: the error surface keeps its selectable text.
-  css += ".gptp-statusbar { border-top: 1px solid"
-         " alpha(@theme_fg_color, 0.15); padding: 4px 12px; min-height: 26px; }\n";
-  css += ".gptp-statusbar label { font-size: 12px;"
-         " color: alpha(@theme_fg_color, 0.72); }\n";
-  css += ".gptp-statusbar label.status-error { color: @error_color;"
-         " font-weight: 600; }\n";
+  css += std::string(".gptp-statusbar { background: ") + p.sidebar_bg +
+         "; border-top: 1px solid " + p.border +
+         "; padding: 4px 12px; min-height: 26px; }\n";
+  css += std::string(".gptp-statusbar label { font-size: 12px; color: ") + p.muted + "; }\n";
+  css += std::string(".gptp-statusbar label.status-error { color: ") + p.red +
+         "; font-weight: 600; }\n";
   // Packet list rows: dense, monospace, single-line.
-  css += "listbox.packet-list { background: @theme_base_color; }\n";
-  css += "listbox.packet-list > row { min-height: 24px; padding: 1px 10px;"
+  css += std::string(".packet-list { background: ") + p.card_bg + "; }\n";
+  css += ".packet-list row { min-height: 24px; padding: 1px 10px;"
          " font-family: \"Monospace\"; font-size: 12px; }\n";
-  // Alarm line: the deliberate text-tone exception per scheme.
-  css += "label.alarm-line { font-size: 12px; font-weight: 600; color: " +
-         alarm_text + "; }\n";
+  // Alarm line and primary action carry the product accents.
+  css += std::string("label.alarm-line { font-size: 12px; font-weight: 600; color: ") +
+         p.orange + "; }\n";
+  css += std::string("button.suggested-action { background: ") + p.blue +
+         "; background-image: none; border: 1px solid " + p.blue_dark +
+         "; box-shadow: none; color: #FFFFFF; text-shadow: none; }\n";
+  css += std::string("button.suggested-action:hover { background: ") + p.blue_dark + "; }\n";
   auto* provider = gtk_css_provider_new();
   gtk_css_provider_load_from_string(provider, css.c_str());
   gtk_style_context_add_provider_for_display(gdk_display_get_default(),
@@ -2019,8 +2093,8 @@ GtkWidget* build_engine_page() {
   // belongs to the curve it fired on; hidden until an event arrives).
   auto* chart_body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
   g_state.chart = std::make_unique<rivet::ui::ChartArea>();
-  g_state.chart->set_series({{"offset", "offsetFromMaster", "#3584e4", "ns"},
-                             {"delay", "meanPathDelay", "#e01b24", "ns"}});
+  g_state.chart->set_series({{"offset", "offsetFromMaster", "#2196F3", "ns"},
+                             {"delay", "meanPathDelay", "#FF9800", "ns"}});
   g_state.chart->set_title(tr("chart-sync-title"));
   g_state.chart->on_gap = [](std::string const& series) { repull_series(series); };
   gtk_widget_set_vexpand(g_state.chart->widget(), TRUE);
@@ -2404,18 +2478,53 @@ void retranslate_static_labels() {
   }
 }
 
+// Sidebar nav selection, fully host-owned: the active look is a class, not
+// the system theme's :selected state (whose colors otherwise bleed through
+// on interactive selection), and single-click activation comes from a click
+// gesture because selection mode is off.
+void on_nav_row_chosen(GtkListBox* list, GtkListBoxRow* row) {
+  if (list == nullptr || row == nullptr || g_state.stack == nullptr) {
+    return;
+  }
+  guint index = 0;
+  while (GtkListBoxRow* it = gtk_list_box_get_row_at_index(list, index)) {
+    gtk_widget_remove_css_class(GTK_WIDGET(it), "nav-active");
+    ++index;
+  }
+  gtk_widget_add_css_class(GTK_WIDGET(row), "nav-active");
+  auto const* name =
+      static_cast<char const*>(g_object_get_data(G_OBJECT(row), "page-name"));
+  if (name != nullptr) {
+    gtk_stack_set_visible_child_full(g_state.stack, name,
+                                     GTK_STACK_TRANSITION_TYPE_CROSSFADE);
+  }
+}
+
+void on_nav_row_activated(GtkListBox*, GtkListBoxRow* row, gpointer list) {
+  on_nav_row_chosen(GTK_LIST_BOX(list), row);
+}
+
+void on_nav_row_clicked(GtkGestureClick* gesture, gint, gdouble, gdouble,
+                        gpointer user_data) {
+  auto* row = GTK_LIST_BOX_ROW(gtk_event_controller_get_widget(
+      GTK_EVENT_CONTROLLER(gesture)));
+  auto* list = GTK_LIST_BOX(user_data);
+  if (row != nullptr) {
+    on_nav_row_chosen(list, row);
+  }
+}
+
 void on_activate(GtkApplication* app, gpointer) {
   if (g_state.window) {
     gtk_window_present(g_state.window);
     return;
   }
   // ApplyTheme pins the widget variant and returns the scheme the host
-  // stylesheet may use for its scheme-specific text tones.
+  // palette (DESIGN-TOKENS) renders with.
   auto const scheme = rivet::linux_ui::ApplyTheme();
   apply_host_css(scheme);
 
   auto* window = gtk_application_window_new(app);
-  // Product title only — the toolkit attribution lives in the About dialog.
   gtk_window_set_title(GTK_WINDOW(window), "gPTP Studio");
   gtk_window_set_default_size(GTK_WINDOW(window), 1120, 760);
   gtk_widget_set_size_request(window, 900, 620);
@@ -2430,12 +2539,59 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_stack_add_titled(GTK_STACK(stack), build_license_page(), "license", tr("page-license").c_str());
   gtk_widget_set_vexpand(stack, TRUE);
 
-  // Header bar: the page switcher is the title widget (the six pages are
-  // the window's identity), the app menu sits at the end.
+  // Topbar: deep-blue CSD header with the brand, version badge, live
+  // status pills and the app menu (the 1.0 topbar, native edition). The
+  // headerbar keeps the min/max/close window controls.
   auto* header = gtk_header_bar_new();
-  auto* switcher = gtk_stack_switcher_new();
-  gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(switcher), GTK_STACK(stack));
-  gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header), switcher);
+  gtk_widget_add_css_class(header, "gptp-topbar");
+  auto* brand = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  auto* mark = gtk_label_new("⏱");
+  auto* name_label = gtk_label_new("gPTP Studio");
+  gtk_widget_add_css_class(name_label, "brand-name");
+  auto* version_label = gtk_label_new(rivet_app::kVersion);
+  gtk_widget_add_css_class(version_label, "brand-version");
+  g_state.brand_version = GTK_LABEL(version_label);
+  gtk_box_append(GTK_BOX(brand), mark);
+  gtk_box_append(GTK_BOX(brand), name_label);
+  gtk_box_append(GTK_BOX(brand), version_label);
+  gtk_header_bar_pack_start(GTK_HEADER_BAR(header), brand);
+
+  auto* pills = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  auto* pill_role = gtk_label_new("—");
+  gtk_widget_add_css_class(pill_role, "pill");
+  gtk_widget_add_css_class(pill_role, "pill-role");
+  auto* pill_port = gtk_label_new("—");
+  gtk_widget_add_css_class(pill_port, "pill");
+  auto* pill_gm = gtk_label_new("—");
+  gtk_widget_add_css_class(pill_gm, "pill");
+  gtk_widget_add_css_class(pill_gm, "pill-mono");
+  gtk_label_set_ellipsize(GTK_LABEL(pill_gm), PANGO_ELLIPSIZE_END);
+  gtk_label_set_max_width_chars(GTK_LABEL(pill_gm), 24);
+  gtk_widget_set_tooltip_text(pill_gm, "GrandMaster");
+  auto* pill_offset = gtk_label_new("—");
+  gtk_widget_add_css_class(pill_offset, "pill");
+  gtk_widget_add_css_class(pill_offset, "pill-mono");
+  gtk_widget_set_tooltip_text(pill_offset, "offsetFromMaster");
+  auto* pill_delay = gtk_label_new("—");
+  gtk_widget_add_css_class(pill_delay, "pill");
+  gtk_widget_add_css_class(pill_delay, "pill-mono");
+  gtk_widget_set_tooltip_text(pill_delay, "meanPathDelay");
+  auto* pill_tier = gtk_label_new("—");
+  gtk_widget_add_css_class(pill_tier, "pill");
+  gtk_box_append(GTK_BOX(pills), pill_role);
+  gtk_box_append(GTK_BOX(pills), pill_port);
+  gtk_box_append(GTK_BOX(pills), pill_gm);
+  gtk_box_append(GTK_BOX(pills), pill_offset);
+  gtk_box_append(GTK_BOX(pills), pill_delay);
+  gtk_box_append(GTK_BOX(pills), pill_tier);
+  g_state.pill_role = GTK_LABEL(pill_role);
+  g_state.pill_port = GTK_LABEL(pill_port);
+  g_state.pill_gm = GTK_LABEL(pill_gm);
+  g_state.pill_offset = GTK_LABEL(pill_offset);
+  g_state.pill_delay = GTK_LABEL(pill_delay);
+  g_state.pill_tier = GTK_LABEL(pill_tier);
+  gtk_header_bar_pack_start(GTK_HEADER_BAR(header), pills);
+
   auto* menu = g_menu_new();
   g_menu_item_updates =
       g_menu_item_new(tr("menu-check-updates").c_str(), "app.check-updates");
@@ -2450,7 +2606,59 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(menu_button),
                                  G_MENU_MODEL(menu));
   gtk_header_bar_pack_end(GTK_HEADER_BAR(header), menu_button);
+  // Suppress the centered window-title text: the brand box owns identity.
+  auto* empty_title = gtk_label_new(nullptr);
+  gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header), empty_title);
   gtk_window_set_titlebar(GTK_WINDOW(window), header);
+
+  // Sidebar rail: the six pages as icon+label nav rows (1.0 sidebar).
+  auto* sidebar = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_add_css_class(sidebar, "gptp-sidebar");
+  auto* nav = gtk_list_box_new();
+  gtk_list_box_set_selection_mode(GTK_LIST_BOX(nav), GTK_SELECTION_NONE);
+  gtk_widget_add_css_class(nav, "nav-list");
+  struct NavItem {
+    char const* name;
+    char const* key;
+    char const* icon;
+  };
+  NavItem const nav_items[] = {
+      {"engine", "page-engine", "📊"},
+      {"qualification", "page-qualification", "🔌"},
+      {"packets", "page-packets", "📦"},
+      {"logs", "page-logs", "📝"},
+      {"tuning", "page-tuning", "🎛️"},
+      {"license", "page-license", "🔑"},
+  };
+  for (auto const& item : nav_items) {
+    auto* row_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    auto* icon = gtk_label_new(item.icon);
+    gtk_widget_add_css_class(icon, "nav-icon");
+    auto* text = gtk_label_new(tr(item.key).c_str());
+    track_tr(item.key, text, TrWidget::Kind::Label);
+    gtk_box_append(GTK_BOX(row_box), icon);
+    gtk_box_append(GTK_BOX(row_box), text);
+    auto* row = gtk_list_box_row_new();
+    gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), row_box);
+    g_object_set_data_full(G_OBJECT(row), "page-name", g_strdup(item.name),
+                           g_free);
+    gtk_list_box_append(GTK_LIST_BOX(nav), row);
+    auto* click = gtk_gesture_click_new();
+    g_signal_connect(click, "released", G_CALLBACK(on_nav_row_clicked), nav);
+    gtk_widget_add_controller(row, GTK_EVENT_CONTROLLER(click));
+  }
+  g_signal_connect(nav, "row-activated",
+                   G_CALLBACK(on_nav_row_activated), nav);
+  auto* nav_scroll = gtk_scrolled_window_new();
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(nav_scroll),
+                                 GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_widget_set_vexpand(nav_scroll, TRUE);
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(nav_scroll), nav);
+  gtk_box_append(GTK_BOX(sidebar), nav_scroll);
+  GtkListBoxRow* first_row = gtk_list_box_get_row_at_index(GTK_LIST_BOX(nav), 0);
+  if (first_row != nullptr) {
+    gtk_widget_add_css_class(GTK_WIDGET(first_row), "nav-active");
+  }
 
   // Footer status bar: session/error surface, out of the content's way.
   auto* status = gtk_label_new(tr("status-starting-backend").c_str());
@@ -2464,8 +2672,12 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_widget_add_css_class(statusbar, "gptp-statusbar");
   gtk_box_append(GTK_BOX(statusbar), status);
 
+  auto* body = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_add_css_class(body, "gptp-body");
+  gtk_box_append(GTK_BOX(body), sidebar);
+  gtk_box_append(GTK_BOX(body), stack);
   auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-  gtk_box_append(GTK_BOX(root), stack);
+  gtk_box_append(GTK_BOX(root), body);
   gtk_box_append(GTK_BOX(root), statusbar);
   gtk_window_set_child(GTK_WINDOW(window), root);
 
