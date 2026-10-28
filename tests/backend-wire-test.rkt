@@ -91,7 +91,7 @@
              (define decoded (decode-value (frame-payload frame)))
              (if (and (pair? decoded) (string=? (car decoded) name))
                  #t
-                 (loop deadline))])])])])))
+                 (loop deadline))])])]))))
 
 (dynamic-wind
  void
