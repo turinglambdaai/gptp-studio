@@ -28,12 +28,17 @@
      (when (> (length (packet-store-items s)) cap)
        (set-packet-store-items! s (take (packet-store-items s) cap))))))
 
-;; push a decoded frame (jsexpr); keeps newest at the front
+;; push a decoded frame (jsexpr); keeps newest at the front.
+;; The store owns frame numbering: callers (simulator, live capture) pass
+;; no frame-no at all, so the absolute sequence is assigned here — the
+;; wire's PacketRow.frame_no is a non-optional Int64 and a #f here fails
+;; the whole packets-page/packets-appended encode (issue #45).
 (define (packet-store-push! s frame)
   (call-with-semaphore
    (packet-store-sema s)
    (lambda ()
-     (define items (cons frame (packet-store-items s)))
+     (define numbered (hash-set frame 'frame_no (packet-store-total s)))
+     (define items (cons numbered (packet-store-items s)))
      (set-packet-store-items! s items)
      (set-packet-store-total! s (add1 (packet-store-total s)))
      (when (> (length items) (packet-store-cap s))

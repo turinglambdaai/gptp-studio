@@ -69,6 +69,25 @@
        (values #f (decode-value (frame-payload response)))]
       [_ (loop events)])))
 
+;; Wait until an event with the given name arrives (non-matching events are
+;; consumed); #f on timeout. Lives outside call-rpc because the live-data
+;; delivery (issue #45) streams events while no RPC is in flight.
+(define (wait-for-event name seconds)
+  (let loop ([deadline (+ (current-inexact-milliseconds) (* seconds 1000))])
+    (define remaining (/ (- deadline (current-inexact-milliseconds)) 1000))
+    (cond
+      [(<= remaining 0) #f]
+      [else
+       (define frame (sync/timeout remaining client-in))
+       (cond
+         [(not frame) #f]
+         [(not (equal? (frame-type frame) message:event)) (loop deadline)]
+         [else
+          (define decoded (decode-value (frame-payload frame)))
+          (if (and (pair? decoded) (string=? (car decoded) name))
+              #t
+              (loop deadline))])])))
+
 (dynamic-wind
  void
  (lambda ()
@@ -94,6 +113,27 @@
     (for/or ([event (in-list last-events)])
       (and (pair? event) (equal? (car event) "engine-state")))
     "the simulator mutation must publish its state Event over RVT1")
+
+   ;; Live-data delivery (issue #45): a running simulator must push packet
+   ;; events and chart batches to the host, and packets-page/series-window
+   ;; must round-trip. CI stayed green while both surfaces were dead
+   ;; because nothing asserted them.
+   (check-true (wait-for-event "packets-appended" 10)
+               "packet events must reach the host")
+   (check-true (wait-for-event "chart-batch" 10)
+               "chart batches must reach the host")
+   (define-values (page page-error) (call-rpc "packets-page" 200))
+   (check-false page-error)
+   ;; PacketPage = [rows stored total]; PacketRow = [ts frame_no ...].
+   (check-true (list? page))
+   (check-true (> (length (list-ref page 0)) 0) "packets-page must carry rows")
+   (check-true (exact-integer? (list-ref (list-ref (list-ref page 0) 0) 1))
+               "frame_no must be an integer, never absent")
+   (define-values (window window-error) (call-rpc "series-window" "offset"))
+   (check-false window-error)
+   (check-true (bytes? (list-ref window 2)))
+   (check-true (> (bytes-length (list-ref window 2)) 12)
+               "the offset ring must carry samples")
 
    (define-values (status status-error) (call-rpc "engine-status-now"))
    (check-false status-error)

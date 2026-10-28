@@ -250,9 +250,12 @@
 
 (define (packet->record row)
   (define ts (hash-ref row 'ts #f))
+  ;; frame_no is a non-optional Int64 on the wire; a non-integer from any
+  ;; producer must fall back to 0 rather than fail the whole page encode.
+  (define frame-no (optional-int (hash-ref row 'frame_no #f)))
   (PacketRow
    (if (hash? ts) (timestamp-info->record ts) (TimestampInfo 0 0 "unknown"))
-   (optional-int (hash-ref row 'frame_no 0))
+   (if (exact-integer? frame-no) frame-no 0)
    (symbol->string* (hash-ref row 'iface "?"))
    (symbol->string* (hash-ref row 'source "?"))
    (optional-string (hash-ref row 'mac_src #f))
@@ -269,6 +272,12 @@
    (any->wire (hash-ref row 'ptp (void)))))
 
 (define (sup-status->record status)
+  ;; The engine hashes mark absent values with #f; the Any scalar fields
+  ;; must not carry a Bool where the host expects number/string — the host
+  ;; then renders "no" instead of an em-dash (issue #45's status pills).
+  (define (any-field key)
+    (define v (hash-ref status key (void)))
+    (if (boolean? v) (void) (any->wire v)))
   (EngineStatus
    (symbol->string* (hash-ref status 'mode "idle"))
    (symbol->string* (hash-ref status 'role "listener"))
@@ -278,14 +287,14 @@
    (symbol->string* (hash-ref status 'reference_status "idle"))
    (optional-string (hash-ref status 'launch_mode #f))
    (optional-string (hash-ref status 'last_failure #f))
-   (any->wire (hash-ref status 'port_state (void)))
-   (any->wire (hash-ref status 'port_states (void)))
-   (any->wire (hash-ref status 'gm_id (void)))
-   (any->wire (hash-ref status 'offset_ns (void)))
-   (any->wire (hash-ref status 'delay_ns (void)))
-   (any->wire (hash-ref status 'freq_ppb (void)))
+   (any-field 'port_state)
+   (any-field 'port_states)
+   (any-field 'gm_id)
+   (any-field 'offset_ns)
+   (any-field 'delay_ns)
+   (any-field 'freq_ppb)
    (optional-int (hash-ref status 'uptime_ms #f))
-   (any->wire (hash-ref status 'faults (void)))
+   (any-field 'faults)
    (for/list ([entry (in-list (hash-ref status 'processes '()))])
      (ProcessStatus (symbol->string* (hash-ref entry 'name "?"))
                     (and (hash-ref entry 'running #f) #t)))))
@@ -416,15 +425,29 @@
 (define (forward-engine-events!)
   (unless (unbox forwarder-installed?)
     (set-box! forwarder-installed? #t)
+    ;; Failures here must be visible: a silently swallowed forwarder bug
+    ;; looks exactly like a dead GUI surface (issue #45). Log the first
+    ;; failure per event name into the aggregated log the host shows.
+    (define logged-failures (make-hash))
     (define (handle name data)
-      (with-handlers ([exn:fail? (lambda (e) (void))])
+      (with-handlers
+          ([exn:fail?
+            (lambda (e)
+              (unless (hash-has-key? logged-failures name)
+                (hash-set! logged-failures name #t)
+                (log-add! app-logs 'backend 'error
+                          (format "event forward failed for ~a: ~a" name (exn-message e)))))])
         (case name
           [(state-changed) (engine-state (current-engine-status))]
           [(capture-state) (capture-state-changed (cm-status->record data))]
           [(capture-stopped) (capture-state-changed (cm-status->record (cm-status app-capture)))]
           [(packets)
-           (define rows (for/list ([row (in-list (hash-ref data 'packets '()))])
-                          (packet->record row)))
+           ;; The engine emits a bare list of decoded frames (the capture
+           ;; manager emits the same shape). hash-ref on a list raised and
+           ;; the swallow turned live packet events into a dead GUI list.
+           (define rows
+             (for/list ([row (in-list (if (list? data) data (hash-ref data 'packets '())))])
+               (packet->record row)))
            (unless (null? rows) (packets-appended rows))]
           [(packets-cleared) (packets-cleared #t)]
           [(alarm)
@@ -449,8 +472,14 @@
                       (handle name data)))))
 
 ;; The chart-batch ticker: drains both rings at UI cadence and emits typed
-;; batch events. Runs under the backend's own custodian space via a thread
-;; started once at serve time.
+;; batch events. Started lazily from the bootstrap RPC, NOT at serve time:
+;; rivet's current-event-emitter is a thread parameter set only on the
+;; connection thread, and a thread spawned before serve inherits nothing —
+;; every emission raised and the swallow turned live curves into a dead
+;; GUI chart (issue #45). Created from a handler that runs on the
+;; connection thread, the ticker inherits the emitter and works; if the
+;; connection dies the failures now land in the aggregated log instead of
+;; vanishing.
 (define batch-ticker-thread (box #f))
 
 (define (start-batch-ticker!)
@@ -458,9 +487,16 @@
     (set-box! batch-ticker-thread
               (thread
                (lambda ()
+                 (define reported (box #f))
                  (let loop ()
                    (sleep 33/1000)
-                   (with-handlers ([exn:fail? (lambda (_) (void))])
+                   (with-handlers
+                       ([exn:fail?
+                         (lambda (e)
+                           (unless (unbox reported)
+                             (set-box! reported #t)
+                             (log-add! app-logs 'backend 'error
+                                       (format "chart batch ticker stopped: ~a" (exn-message e)))))])
                      (for ([pair (in-list (list (cons "offset" app-offset-series)
                                                 (cons "delay" app-delay-series)))])
                        (define batch (series-drain-batch! (cdr pair)))
@@ -473,6 +509,11 @@
 (define-rpc (bootstrap : Bootstrap)
   (gate-init!)
   (apply-tier-capacity!)
+  ;; First contact with the host: this handler runs on the connection
+  ;; thread, so starting the ticker here lets its thread inherit the
+  ;; thread-local event emitter (issue #45 — started at serve time, every
+  ;; emission raised against a missing emitter).
+  (start-batch-ticker!)
   (define status (sup-status app-supervisor))
   (define lang (settings-ref 'language))
   (Bootstrap
@@ -1023,5 +1064,7 @@
   ;; scripts/check-release-version.sh)
   (update-current-version app-version)
   (forward-engine-events!)
-  (start-batch-ticker!)
+  ;; The batch ticker deliberately starts from the bootstrap RPC, not here:
+  ;; its thread must be created on the connection thread to inherit rivet's
+  ;; thread-local event emitter (see start-batch-ticker!).
   (serve-fds in-fd out-fd))
