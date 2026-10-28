@@ -237,6 +237,7 @@ struct AppState {
   GtkStack* stack{nullptr};
   GtkLabel* status{nullptr};
   GtkLabel* alarm_line{nullptr};
+  GtkWidget* alarm_widget{nullptr};
 
   // Engine page
   GtkDropDown* role{nullptr};
@@ -300,6 +301,13 @@ struct AppState {
 
   void set_status(std::string const& text) {
     gtk_label_set_text(GTK_LABEL(status), text.c_str());
+    gtk_widget_remove_css_class(GTK_WIDGET(status), "status-error");
+  }
+  // Failures keep the same surface but earn the error tone; the text stays
+  // selectable either way (a bug report starts from this string).
+  void set_status_error(std::string const& text) {
+    gtk_label_set_text(GTK_LABEL(status), text.c_str());
+    gtk_widget_add_css_class(GTK_WIDGET(status), "status-error");
   }
 };
 
@@ -393,9 +401,28 @@ std::string format_offset(std::int64_t ns) {
 }
 
 std::string packet_summary_line(rivet_app::PacketRow const& row) {
-  std::string time = std::to_string(row.ts.seconds) + "." +
-                     std::to_string(row.ts.nanoseconds);
-  return "#" + std::to_string(row.frame_no) + "  " + time + "  " + row.summary;
+  // Wall-clock presentation of the capture timestamp: the frame number
+  // anchors ordering, the clock time is what eyes scan for; the raw
+  // epoch stays available in the detail pane.
+  std::time_t const seconds = static_cast<std::time_t>(row.ts.seconds);
+  std::tm local{};
+  localtime_r(&seconds, &local);
+  char clock_text[16];
+  std::strftime(clock_text, sizeof(clock_text), "%H:%M:%S", &local);
+  char millis[8];
+  std::snprintf(millis, sizeof(millis), ".%03d",
+                static_cast<int>(row.ts.nanoseconds / 1000000));
+  return "#" + std::to_string(row.frame_no) + "  " + clock_text + millis +
+         "  " + row.summary;
+}
+
+GtkWidget* make_packet_row_widget(rivet_app::PacketRow const& row) {
+  auto* row_widget = gtk_label_new(packet_summary_line(row).c_str());
+  gtk_label_set_xalign(GTK_LABEL(row_widget), 0.0F);
+  gtk_label_set_ellipsize(GTK_LABEL(row_widget), PANGO_ELLIPSIZE_END);
+  gtk_widget_set_hexpand(row_widget, TRUE);
+  gtk_widget_add_css_class(row_widget, "monospace");
+  return row_widget;
 }
 
 // PTP detail: render the open decode tree as readable lines.
@@ -474,7 +501,7 @@ gboolean on_update_auto_check(gpointer);
 int on_backend_finished(gpointer) {
   std::lock_guard lock(g_state.startup_mutex);
   if (!g_state.startup_error.empty()) {
-    g_state.set_status(
+    g_state.set_status_error(
         format_positional(tr("status-backend-failed"), g_state.startup_error));
     return G_SOURCE_REMOVE;
   }
@@ -541,7 +568,7 @@ int on_backend_finished(gpointer) {
 void start_backend() {
   auto layout = discover_runtime_layout();
   if (!layout) {
-    g_state.set_status(tr("status-missing-runtime"));
+    g_state.set_status_error(tr("status-missing-runtime"));
     return;
   }
   rivet::linux_runtime::RacketRuntimeConfig config;
@@ -575,10 +602,8 @@ void start_backend() {
           idle_deliver([rows] {
             for (auto const& row : rows) {
               g_state.packet_rows.push_back(row);
-              GtkWidget* row_widget = gtk_label_new(packet_summary_line(row).c_str());
-              gtk_label_set_xalign(GTK_LABEL(row_widget), 0.0F);
-              gtk_widget_add_css_class(row_widget, "monospace");
-              gtk_list_box_append(g_state.packet_list, row_widget);
+              gtk_list_box_append(g_state.packet_list,
+                                  make_packet_row_widget(row));
             }
             auto stored = static_cast<long long>(g_state.packet_rows.size());
             gtk_label_set_text(
@@ -606,12 +631,15 @@ void start_backend() {
           auto payload = alarm->value;
           idle_deliver([payload] {
             gtk_label_set_text(g_state.alarm_line, payload.message.c_str());
+            if (g_state.alarm_widget != nullptr) {
+              gtk_widget_set_visible(g_state.alarm_widget, TRUE);
+            }
           });
         }
         if (auto error = std::get_if<rivet_app::Backend_errorEvent>(&event)) {
           auto message = error->value;
           idle_deliver([message] {
-            g_state.set_status(
+            g_state.set_status_error(
                 format_positional(tr("status-backend-error"), message));
           });
         }
@@ -648,6 +676,8 @@ void refresh_engine_labels(rivet_app::EngineStatus const& status) {
     state_text += format_positional(tr("state-last-failure"), *status.last_failure);
   }
   gtk_label_set_text(g_state.engine_state_value, state_text.c_str());
+  gtk_widget_set_tooltip_text(GTK_WIDGET(g_state.engine_state_value),
+                              state_text.c_str());
   std::string processes;
   for (auto const& process : status.processes) {
     if (!processes.empty()) {
@@ -657,6 +687,8 @@ void refresh_engine_labels(rivet_app::EngineStatus const& status) {
                  tr(process.running ? "running" : "stopped");
   }
   gtk_label_set_text(g_state.processes_value, processes.c_str());
+  gtk_widget_set_tooltip_text(GTK_WIDGET(g_state.processes_value),
+                              processes.c_str());
 }
 
 void refresh_capture_buttons(rivet_app::CaptureStatus const& status) {
@@ -718,10 +750,8 @@ void repull_packets() {
             child = gtk_list_box_get_row_at_index(g_state.packet_list, 0);
           }
           for (auto const& row : page.rows) {
-            GtkWidget* row_widget = gtk_label_new(packet_summary_line(row).c_str());
-            gtk_label_set_xalign(GTK_LABEL(row_widget), 0.0F);
-            gtk_widget_add_css_class(row_widget, "monospace");
-            gtk_list_box_append(g_state.packet_list, row_widget);
+            gtk_list_box_append(g_state.packet_list,
+                                make_packet_row_widget(row));
           }
           gtk_label_set_text(
               g_state.packet_count,
@@ -782,10 +812,10 @@ void on_start_clicked(GtkButton*, gpointer) {
           if (value.ok) {
             g_state.set_status(tr("status-engine-started"));
           } else if (value.need_pro) {
-            g_state.set_status(format_positional(
+            g_state.set_status_error(format_positional(
                 tr("status-pro-required"), value.error.value_or("")));
           } else {
-            g_state.set_status(format_positional(
+            g_state.set_status_error(format_positional(
                 tr("status-engine-start-failed"), value.error.value_or("?")));
           }
           if (value.status.has_value()) {
@@ -846,10 +876,12 @@ void on_capture_start_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok
-                                 ? tr("status-capture-started")
-                                 : format_positional(tr("status-capture-failed"),
-                                                     value.error.value_or("?")));
+          if (value.ok) {
+            g_state.set_status(tr("status-capture-started"));
+          } else {
+            g_state.set_status_error(format_positional(
+                tr("status-capture-failed"), value.error.value_or("?")));
+          }
         });
       });
 }
@@ -887,10 +919,12 @@ void on_gm_apply_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok
-                                 ? tr("status-gm-applied")
-                                 : format_positional(tr("status-gm-failed"),
-                                                     value.error.value_or("?")));
+          if (value.ok) {
+            g_state.set_status(tr("status-gm-applied"));
+          } else {
+            g_state.set_status_error(format_positional(
+                tr("status-gm-failed"), value.error.value_or("?")));
+          }
         });
       });
 }
@@ -935,10 +969,12 @@ void on_activate_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok
-                                 ? tr("status-license-activated")
-                                 : format_positional(tr("status-license-error"),
-                                                     value.error.value_or("?")));
+          if (value.ok) {
+            g_state.set_status(tr("status-license-activated"));
+          } else {
+            g_state.set_status_error(format_positional(
+                tr("status-license-error"), value.error.value_or("?")));
+          }
           (void)g_state.api->license_status_async([](rivet_app::Result<rivet_app::GateInfo> gate) {
             if (gate.error) {
               return;
@@ -1033,11 +1069,13 @@ void on_pcap_import_clicked(GtkButton*, gpointer) {
       }
       auto const value = result.get();
       idle_deliver([value] {
-        g_state.set_status(value.ok
-                               ? format_positional(tr("status-imported"),
-                                                    value_text(value.info))
-                               : format_positional(tr("status-import-failed"),
-                                                    value.error.value_or("?")));
+        if (value.ok) {
+          g_state.set_status(format_positional(tr("status-imported"),
+                                               value_text(value.info)));
+        } else {
+          g_state.set_status_error(format_positional(
+              tr("status-import-failed"), value.error.value_or("?")));
+        }
         repull_packets();
       });
     });
@@ -1060,10 +1098,12 @@ void on_pcap_export_clicked(GtkButton*, gpointer) {
               }
               auto const value = result.get();
               idle_deliver([value] {
-                g_state.set_status(value.ok
-                                       ? tr("status-pcap-exported")
-                                       : format_positional(tr("status-export-error"),
-                                                           value.error.value_or("?")));
+                if (value.ok) {
+                  g_state.set_status(tr("status-pcap-exported"));
+                } else {
+                  g_state.set_status_error(format_positional(
+                      tr("status-export-error"), value.error.value_or("?")));
+                }
               });
             });
       });
@@ -1081,10 +1121,12 @@ void on_wireshark_clicked(GtkButton*, gpointer) {
         }
         auto const value = result.get();
         idle_deliver([value] {
-          g_state.set_status(value.ok
-                                 ? tr("status-wireshark-launched")
-                                 : format_positional(tr("status-wireshark-error"),
-                                                     value.error.value_or("?")));
+          if (value.ok) {
+            g_state.set_status(tr("status-wireshark-launched"));
+          } else {
+            g_state.set_status_error(format_positional(
+                tr("status-wireshark-error"), value.error.value_or("?")));
+          }
         });
       });
 }
@@ -1119,10 +1161,12 @@ void on_report_export_clicked(GtkButton*, gpointer) {
               }
               auto const value = result.get();
               idle_deliver([value] {
-                g_state.set_status(value.ok
-                                       ? tr("status-report-exported")
-                                       : format_positional(tr("status-report-error"),
-                                                           value.error.value_or("?")));
+                if (value.ok) {
+                  g_state.set_status(tr("status-report-exported"));
+                } else {
+                  g_state.set_status_error(format_positional(
+                      tr("status-report-error"), value.error.value_or("?")));
+                }
               });
             });
       });
@@ -1143,11 +1187,13 @@ void on_diagnostics_export_clicked(GtkButton*, gpointer) {
               }
               auto const value = result.get();
               idle_deliver([value] {
-                g_state.set_status(value.ok
-                                       ? tr("status-diagnostics-exported")
-                                       : format_positional(
-                                             tr("status-diagnostics-error"),
-                                             value.error.value_or("?")));
+                if (value.ok) {
+                  g_state.set_status(tr("status-diagnostics-exported"));
+                } else {
+                  g_state.set_status_error(format_positional(
+                      tr("status-diagnostics-error"),
+                      value.error.value_or("?")));
+                }
               });
             });
       });
@@ -1782,12 +1828,97 @@ void show_about_dialog() {
 
 // ---- page construction ----------------------------------------------------
 
-GtkWidget* info_row(char const* caption, GtkLabel** out) {
+// One host stylesheet, theme-symbolic colors only: it follows Adwaita
+// light/dark without a palette duplicated here (ApplyTheme picks the widget
+// variant and returns the scheme used for the two text-tone exceptions that
+// symbolic colors cannot express — the amber alarm and nothing else).
+void apply_host_css(rivet::linux_ui::ColorScheme scheme) {
+  std::string const alarm_text =
+      scheme == rivet::linux_ui::ColorScheme::dark ? "#f5c211" : "#9a6700";
+  std::string css;
+  // One padding rhythm for every stack page.
+  css += ".gptp-page { padding: 14px 16px 16px; }\n";
+  // Cards: a quiet elevation step over the window background.
+  css += ".metric-card { background: @theme_base_color; border: 1px solid"
+         " alpha(@theme_fg_color, 0.16); border-radius: 10px;"
+         " padding: 10px 14px 9px; }\n";
+  css += ".card-frame { background: @theme_base_color; border: 1px solid"
+         " alpha(@theme_fg_color, 0.16); border-radius: 10px; }\n";
+  css += ".card-frame textview, .card-frame textview > text {"
+         " background: @theme_base_color; }\n";
+  // Typography: captions mute, values tabular so live numbers do not jiggle.
+  css += ".metric-caption { font-size: 12px; font-weight: 600;"
+         " color: alpha(@theme_fg_color, 0.55); }\n";
+  css += ".metric-value { font-family: \"Monospace\"; font-size: 17px;"
+         " font-weight: 600; }\n";
+  css += ".info-caption { font-size: 12px; }\n";
+  css += ".info-value { font-size: 13px; }\n";
+  css += ".count-caption { font-size: 12px; }\n";
+  // Footer status bar: the error surface keeps its selectable text.
+  css += ".gptp-statusbar { border-top: 1px solid"
+         " alpha(@theme_fg_color, 0.15); padding: 4px 12px; min-height: 26px; }\n";
+  css += ".gptp-statusbar label { font-size: 12px;"
+         " color: alpha(@theme_fg_color, 0.72); }\n";
+  css += ".gptp-statusbar label.status-error { color: @error_color;"
+         " font-weight: 600; }\n";
+  // Packet list rows: dense, monospace, single-line.
+  css += "listbox.packet-list { background: @theme_base_color; }\n";
+  css += "listbox.packet-list > row { min-height: 24px; padding: 1px 10px;"
+         " font-family: \"Monospace\"; font-size: 12px; }\n";
+  // Alarm line: the deliberate text-tone exception per scheme.
+  css += "label.alarm-line { font-size: 12px; font-weight: 600; color: " +
+         alarm_text + "; }\n";
+  auto* provider = gtk_css_provider_new();
+  gtk_css_provider_load_from_string(provider, css.c_str());
+  gtk_style_context_add_provider_for_display(gdk_display_get_default(),
+                                             GTK_STYLE_PROVIDER(provider),
+                                             GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+  g_object_unref(provider);
+}
+
+GtkWidget* page_shell(int spacing) {
+  auto* page = gtk_box_new(GTK_ORIENTATION_VERTICAL, spacing);
+  gtk_widget_add_css_class(page, "gptp-page");
+  return page;
+}
+
+// A stat card: caption over a tabular value (live numbers must not jiggle).
+GtkWidget* metric_card(char const* caption, GtkLabel** out_value) {
+  auto* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+  gtk_widget_add_css_class(card, "metric-card");
+  auto* caption_label = gtk_label_new(caption);
+  gtk_label_set_xalign(GTK_LABEL(caption_label), 0.0F);
+  gtk_widget_add_css_class(caption_label, "metric-caption");
+  auto* value = gtk_label_new("—");
+  gtk_label_set_xalign(GTK_LABEL(value), 0.0F);
+  gtk_widget_add_css_class(value, "metric-value");
+  gtk_box_append(GTK_BOX(card), caption_label);
+  gtk_box_append(GTK_BOX(card), value);
+  if (out_value != nullptr) {
+    *out_value = GTK_LABEL(value);
+  }
+  return card;
+}
+
+// A card shell for scrollable content (lists, text views).
+GtkWidget* content_card(GtkWidget* child) {
+  auto* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_widget_add_css_class(card, "card-frame");
+  gtk_box_append(GTK_BOX(card), child);
+  return card;
+}
+
+GtkWidget* info_row(char const* caption, GtkLabel** out, bool ellipsize_value) {
   auto* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
   auto* label = gtk_label_new(caption);
   gtk_widget_add_css_class(label, "dim-label");
+  gtk_widget_add_css_class(label, "info-caption");
   auto* value = gtk_label_new("—");
   gtk_label_set_xalign(GTK_LABEL(value), 0.0F);
+  gtk_widget_add_css_class(value, "info-value");
+  if (ellipsize_value) {
+    gtk_label_set_ellipsize(GTK_LABEL(value), PANGO_ELLIPSIZE_END);
+  }
   gtk_box_append(GTK_BOX(box), label);
   gtk_box_append(GTK_BOX(box), value);
   gtk_widget_set_hexpand(value, TRUE);
@@ -1797,43 +1928,61 @@ GtkWidget* info_row(char const* caption, GtkLabel** out) {
   return box;
 }
 
-GtkWidget* info_row_tr(char const* key, GtkLabel** out) {
-  auto* box = info_row(tr(key).c_str(), out);
+GtkWidget* info_row(char const* caption, GtkLabel** out) {
+  return info_row(caption, out, false);
+}
+
+GtkWidget* info_row_tr(char const* key, GtkLabel** out, bool ellipsize_value) {
+  auto* box = info_row(tr(key).c_str(), out, ellipsize_value);
   // the caption is the row's first child; register it for retranslation
   track_tr(key, gtk_widget_get_first_child(box), TrWidget::Kind::Label);
   return box;
 }
 
-GtkWidget* build_engine_page() {
-  auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+GtkWidget* info_row_tr(char const* key, GtkLabel** out) {
+  return info_row_tr(key, out, false);
+}
 
-  auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-  auto* role_label = gtk_label_new(tr("label-role").c_str());
-  track_tr("label-role", role_label, TrWidget::Kind::Label);
+GtkWidget* toolbar_label(char const* key) {
+  auto* label = gtk_label_new(tr(key).c_str());
+  track_tr(key, label, TrWidget::Kind::Label);
+  gtk_widget_add_css_class(label, "dim-label");
+  gtk_widget_add_css_class(label, "info-caption");
+  return label;
+}
+
+GtkWidget* build_engine_page() {
+  auto* page = page_shell(12);
+
+  // Toolbar: target selection on the start side, session actions on the end.
+  auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  auto* role_label = toolbar_label("label-role");
   const char* roles[] = {"grandmaster", "slave", "listener", "boundary", nullptr};
   auto* role = gtk_drop_down_new_from_strings(roles);
   gtk_drop_down_set_selected(GTK_DROP_DOWN(role), 2);
-  auto* mode_label = gtk_label_new(tr("label-mode").c_str());
-  track_tr("label-mode", mode_label, TrWidget::Kind::Label);
+  gtk_widget_set_size_request(role, 150, -1);
+  auto* mode_label = toolbar_label("label-mode");
   const char* modes[] = {"sim", "real", nullptr};
   auto* mode = gtk_drop_down_new_from_strings(modes);
-  auto* iface_label = gtk_label_new(tr("label-iface").c_str());
-  track_tr("label-iface", iface_label, TrWidget::Kind::Label);
+  auto* iface_label = toolbar_label("label-iface");
   auto* iface = gtk_entry_new();
   gtk_entry_set_placeholder_text(GTK_ENTRY(iface), tr("iface-example").c_str());
   track_tr("iface-example", iface, TrWidget::Kind::Placeholder);
-  gtk_widget_set_size_request(iface, 160, -1);
+  gtk_widget_set_size_request(iface, 150, -1);
   auto* start = gtk_button_new_with_label(tr("btn-start-engine").c_str());
   auto* stop = gtk_button_new_with_label(tr("btn-stop-engine").c_str());
   track_tr("btn-start-engine", start, TrWidget::Kind::Button);
   track_tr("btn-stop-engine", stop, TrWidget::Kind::Button);
   gtk_widget_add_css_class(start, "suggested-action");
+  auto* spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_set_hexpand(spacer, TRUE);
   gtk_box_append(GTK_BOX(controls), role_label);
   gtk_box_append(GTK_BOX(controls), role);
   gtk_box_append(GTK_BOX(controls), mode_label);
   gtk_box_append(GTK_BOX(controls), mode);
   gtk_box_append(GTK_BOX(controls), iface_label);
   gtk_box_append(GTK_BOX(controls), iface);
+  gtk_box_append(GTK_BOX(controls), spacer);
   gtk_box_append(GTK_BOX(controls), start);
   gtk_box_append(GTK_BOX(controls), stop);
 
@@ -1843,53 +1992,81 @@ GtkWidget* build_engine_page() {
   g_state.start = GTK_BUTTON(start);
   g_state.stop = GTK_BUTTON(stop);
 
-  auto* metrics = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-  gtk_box_append(GTK_BOX(metrics), info_row("offsetFromMaster", &g_state.offset_value));
-  gtk_box_append(GTK_BOX(metrics), info_row("meanPathDelay", &g_state.delay_value));
-  gtk_box_append(GTK_BOX(metrics), info_row("grandmaster", &g_state.gm_value));
-  gtk_box_append(GTK_BOX(metrics), info_row_tr("caption-port-state", &g_state.port_value));
-  gtk_box_append(GTK_BOX(metrics), info_row_tr("caption-engine", &g_state.engine_state_value));
-  gtk_box_append(GTK_BOX(metrics), info_row_tr("caption-processes", &g_state.processes_value));
-  auto* alarm = gtk_label_new("");
-  gtk_label_set_xalign(GTK_LABEL(alarm), 0.0F);
-  gtk_widget_add_css_class(alarm, "warning");
-  g_state.alarm_line = GTK_LABEL(alarm);
-  gtk_box_append(GTK_BOX(metrics), alarm);
+  // Metric strip: the two hero numbers as stat cards, the session facts
+  // beside them in a compact 2×2 grid so one glance covers the page.
+  auto* strip = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+  auto* offset_card = metric_card("offsetFromMaster", &g_state.offset_value);
+  gtk_widget_set_size_request(offset_card, 200, -1);
+  auto* delay_card = metric_card("meanPathDelay", &g_state.delay_value);
+  gtk_widget_set_size_request(delay_card, 200, -1);
+  auto* state_card = gtk_grid_new();
+  gtk_grid_set_row_spacing(GTK_GRID(state_card), 5);
+  gtk_grid_set_column_spacing(GTK_GRID(state_card), 16);
+  gtk_widget_add_css_class(state_card, "metric-card");
+  gtk_widget_set_hexpand(state_card, TRUE);
+  gtk_grid_attach(GTK_GRID(state_card), info_row("grandmaster", &g_state.gm_value), 0, 0, 1, 1);
+  gtk_grid_attach(GTK_GRID(state_card),
+                  info_row_tr("caption-port-state", &g_state.port_value), 1, 0, 1, 1);
+  gtk_grid_attach(GTK_GRID(state_card),
+                  info_row_tr("caption-engine", &g_state.engine_state_value, true), 0, 1, 1, 1);
+  gtk_grid_attach(GTK_GRID(state_card),
+                  info_row_tr("caption-processes", &g_state.processes_value, true), 1, 1, 1, 1);
+  gtk_box_append(GTK_BOX(strip), offset_card);
+  gtk_box_append(GTK_BOX(strip), delay_card);
+  gtk_box_append(GTK_BOX(strip), state_card);
 
+  // Live series card: the chart, with the alarm line beneath it (the alarm
+  // belongs to the curve it fired on; hidden until an event arrives).
+  auto* chart_body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
   g_state.chart = std::make_unique<rivet::ui::ChartArea>();
   g_state.chart->set_series({{"offset", "offsetFromMaster", "#3584e4", "ns"},
                              {"delay", "meanPathDelay", "#e01b24", "ns"}});
   g_state.chart->set_title(tr("chart-sync-title"));
   g_state.chart->on_gap = [](std::string const& series) { repull_series(series); };
   gtk_widget_set_vexpand(g_state.chart->widget(), TRUE);
-  gtk_widget_set_size_request(g_state.chart->widget(), -1, 260);
-
+  gtk_widget_set_size_request(g_state.chart->widget(), -1, 240);
+  gtk_box_append(GTK_BOX(chart_body), g_state.chart->widget());
+  auto* alarm = gtk_label_new("");
+  gtk_label_set_xalign(GTK_LABEL(alarm), 0.0F);
+  gtk_widget_add_css_class(alarm, "alarm-line");
+  gtk_widget_set_visible(alarm, FALSE);
+  gtk_widget_set_margin_start(alarm, 14);
+  gtk_widget_set_margin_end(alarm, 14);
+  gtk_widget_set_margin_bottom(alarm, 8);
+  g_state.alarm_line = GTK_LABEL(alarm);
+  g_state.alarm_widget = alarm;
+  gtk_box_append(GTK_BOX(chart_body), alarm);
   auto* chart_frame = gtk_frame_new(tr("frame-live-series").c_str());
   track_tr("frame-live-series", chart_frame, TrWidget::Kind::Frame);
-  gtk_frame_set_child(GTK_FRAME(chart_frame), g_state.chart->widget());
+  gtk_widget_add_css_class(chart_frame, "card-frame");
+  gtk_frame_set_child(GTK_FRAME(chart_frame), chart_body);
+  gtk_widget_set_vexpand(chart_frame, TRUE);
 
-  gtk_box_append(GTK_BOX(box), controls);
-  gtk_box_append(GTK_BOX(box), metrics);
-  gtk_box_append(GTK_BOX(box), chart_frame);
+  gtk_box_append(GTK_BOX(page), controls);
+  gtk_box_append(GTK_BOX(page), strip);
+  gtk_box_append(GTK_BOX(page), chart_frame);
 
   g_signal_connect(start, "clicked", G_CALLBACK(on_start_clicked), nullptr);
   g_signal_connect(stop, "clicked", G_CALLBACK(on_stop_clicked), nullptr);
-  return box;
+  return page;
 }
 
 GtkWidget* build_qualification_page() {
-  auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-  auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-  auto* iface_label = gtk_label_new(tr("label-iface").c_str());
-  track_tr("label-iface", iface_label, TrWidget::Kind::Label);
+  auto* page = page_shell(10);
+  auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  auto* iface_label = toolbar_label("label-iface");
   const char* interfaces[] = {"eth0", nullptr};
   auto* iface = gtk_drop_down_new_from_strings(interfaces);
   gtk_drop_down_set_selected(GTK_DROP_DOWN(iface), 0);
+  gtk_widget_set_size_request(iface, 150, -1);
   auto* run = gtk_button_new_with_label(tr("btn-run-qualification").c_str());
   track_tr("btn-run-qualification", run, TrWidget::Kind::Button);
   gtk_widget_add_css_class(run, "suggested-action");
+  auto* spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_set_hexpand(spacer, TRUE);
   gtk_box_append(GTK_BOX(controls), iface_label);
   gtk_box_append(GTK_BOX(controls), iface);
+  gtk_box_append(GTK_BOX(controls), spacer);
   gtk_box_append(GTK_BOX(controls), run);
   g_state.qual_iface = GTK_DROP_DOWN(iface);
   g_state.qual_run = GTK_BUTTON(run);
@@ -1900,19 +2077,25 @@ GtkWidget* build_qualification_page() {
   gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
   gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
   gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_WORD_CHAR);
+  gtk_text_view_set_left_margin(GTK_TEXT_VIEW(view), 10);
+  gtk_text_view_set_right_margin(GTK_TEXT_VIEW(view), 10);
+  gtk_text_view_set_top_margin(GTK_TEXT_VIEW(view), 8);
+  gtk_text_view_set_bottom_margin(GTK_TEXT_VIEW(view), 8);
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), view);
   g_state.qual_report = GTK_TEXT_VIEW(view);
 
-  gtk_box_append(GTK_BOX(box), controls);
-  gtk_box_append(GTK_BOX(box), scrolled);
+  gtk_box_append(GTK_BOX(page), controls);
+  gtk_box_append(GTK_BOX(page), content_card(scrolled));
   g_signal_connect(run, "clicked", G_CALLBACK(on_qual_run_clicked), nullptr);
-  return box;
+  return page;
 }
 
 GtkWidget* build_packets_page() {
-  auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  auto* page = page_shell(10);
 
-  auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  // Toolbar groups: capture session, then file workflows, with Clear — the
+  // one destructive action — isolated at the end.
+  auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   auto* iface = gtk_entry_new();
   gtk_entry_set_placeholder_text(GTK_ENTRY(iface),
                                  tr("capture-iface-placeholder").c_str());
@@ -1930,12 +2113,22 @@ GtkWidget* build_packets_page() {
   track_tr("btn-export-pcap", export_button, TrWidget::Kind::Button);
   track_tr("btn-wireshark-live", wireshark, TrWidget::Kind::Button);
   track_tr("btn-clear", clear, TrWidget::Kind::Button);
+  gtk_widget_add_css_class(capture_start, "suggested-action");
+  auto* group_gap_1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_set_size_request(group_gap_1, 6, -1);
+  auto* group_gap_2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_set_size_request(group_gap_2, 6, -1);
+  auto* spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_set_hexpand(spacer, TRUE);
   gtk_box_append(GTK_BOX(controls), iface);
   gtk_box_append(GTK_BOX(controls), capture_start);
   gtk_box_append(GTK_BOX(controls), capture_stop);
+  gtk_box_append(GTK_BOX(controls), group_gap_1);
   gtk_box_append(GTK_BOX(controls), import_button);
   gtk_box_append(GTK_BOX(controls), export_button);
   gtk_box_append(GTK_BOX(controls), wireshark);
+  gtk_box_append(GTK_BOX(controls), group_gap_2);
+  gtk_box_append(GTK_BOX(controls), spacer);
   gtk_box_append(GTK_BOX(controls), clear);
   g_state.capture_iface = GTK_ENTRY(iface);
   g_state.capture_start = GTK_BUTTON(capture_start);
@@ -1948,28 +2141,34 @@ GtkWidget* build_packets_page() {
   auto* count = gtk_label_new(tr("count-zero").c_str());
   gtk_label_set_xalign(GTK_LABEL(count), 0.0F);
   gtk_widget_add_css_class(count, "dim-label");
+  gtk_widget_add_css_class(count, "count-caption");
   g_state.packet_count = GTK_LABEL(count);
 
   auto* paned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
   auto* list_scroller = gtk_scrolled_window_new();
   auto* list = gtk_list_box_new();
   gtk_list_box_set_selection_mode(GTK_LIST_BOX(list), GTK_SELECTION_SINGLE);
-  gtk_widget_add_css_class(list, "monospace");
+  gtk_widget_add_css_class(list, "packet-list");
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(list_scroller), list);
   auto* detail_scroller = gtk_scrolled_window_new();
   auto* detail = gtk_text_view_new();
   gtk_text_view_set_editable(GTK_TEXT_VIEW(detail), FALSE);
   gtk_text_view_set_monospace(GTK_TEXT_VIEW(detail), TRUE);
+  gtk_text_view_set_left_margin(GTK_TEXT_VIEW(detail), 10);
+  gtk_text_view_set_right_margin(GTK_TEXT_VIEW(detail), 10);
+  gtk_text_view_set_top_margin(GTK_TEXT_VIEW(detail), 8);
+  gtk_text_view_set_bottom_margin(GTK_TEXT_VIEW(detail), 8);
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(detail_scroller), detail);
-  gtk_paned_set_start_child(GTK_PANED(paned), list_scroller);
-  gtk_paned_set_end_child(GTK_PANED(paned), detail_scroller);
+  gtk_paned_set_start_child(GTK_PANED(paned), content_card(list_scroller));
+  gtk_paned_set_end_child(GTK_PANED(paned), content_card(detail_scroller));
+  gtk_paned_set_position(GTK_PANED(paned), 480);
   gtk_widget_set_vexpand(paned, TRUE);
   g_state.packet_list = GTK_LIST_BOX(list);
   g_state.packet_detail = GTK_TEXT_VIEW(detail);
 
-  gtk_box_append(GTK_BOX(box), controls);
-  gtk_box_append(GTK_BOX(box), count);
-  gtk_box_append(GTK_BOX(box), paned);
+  gtk_box_append(GTK_BOX(page), controls);
+  gtk_box_append(GTK_BOX(page), count);
+  gtk_box_append(GTK_BOX(page), paned);
 
   g_signal_connect(capture_start, "clicked", G_CALLBACK(on_capture_start_clicked), nullptr);
   g_signal_connect(capture_stop, "clicked", G_CALLBACK(on_capture_stop_clicked), nullptr);
@@ -1978,34 +2177,48 @@ GtkWidget* build_packets_page() {
   g_signal_connect(export_button, "clicked", G_CALLBACK(on_pcap_export_clicked), nullptr);
   g_signal_connect(wireshark, "clicked", G_CALLBACK(on_wireshark_clicked), nullptr);
   g_signal_connect(list, "row-selected", G_CALLBACK(on_packet_row_selected), nullptr);
-  return box;
+  return page;
 }
 
 GtkWidget* build_logs_page() {
-  auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  auto* page = page_shell(10);
+  // The toolbar holds one end-aligned action; the log stream is the page.
+  auto* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  auto* spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_set_hexpand(spacer, TRUE);
   auto* export_button = gtk_button_new_with_label(tr("btn-export-logs").c_str());
   track_tr("btn-export-logs", export_button, TrWidget::Kind::Button);
   g_state.log_export = GTK_BUTTON(export_button);
+  gtk_box_append(GTK_BOX(controls), spacer);
+  gtk_box_append(GTK_BOX(controls), export_button);
   auto* scrolled = gtk_scrolled_window_new();
   gtk_widget_set_vexpand(scrolled, TRUE);
   auto* view = gtk_text_view_new();
   gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
   gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
+  gtk_text_view_set_left_margin(GTK_TEXT_VIEW(view), 10);
+  gtk_text_view_set_right_margin(GTK_TEXT_VIEW(view), 10);
+  gtk_text_view_set_top_margin(GTK_TEXT_VIEW(view), 8);
+  gtk_text_view_set_bottom_margin(GTK_TEXT_VIEW(view), 8);
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), view);
   g_state.log_view = GTK_TEXT_VIEW(view);
-  gtk_box_append(GTK_BOX(box), export_button);
-  gtk_box_append(GTK_BOX(box), scrolled);
+  gtk_box_append(GTK_BOX(page), controls);
+  gtk_box_append(GTK_BOX(page), content_card(scrolled));
   g_signal_connect(export_button, "clicked", G_CALLBACK(on_log_export_clicked), nullptr);
-  return box;
+  return page;
 }
 
 GtkWidget* build_tuning_page() {
-  auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+  auto* page = page_shell(12);
   auto* grid = gtk_grid_new();
   gtk_grid_set_row_homogeneous(GTK_GRID(grid), FALSE);
   gtk_grid_set_column_homogeneous(GTK_GRID(grid), FALSE);
-  gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
+  gtk_grid_set_row_spacing(GTK_GRID(grid), 9);
   gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
+  gtk_widget_set_margin_top(grid, 12);
+  gtk_widget_set_margin_bottom(grid, 12);
+  gtk_widget_set_margin_start(grid, 14);
+  gtk_widget_set_margin_end(grid, 14);
 
   struct Field {
     char const* label;
@@ -2028,9 +2241,12 @@ GtkWidget* build_tuning_page() {
   int column = 0;
   for (auto const& field : fields) {
     auto* label = gtk_label_new(field.label);
-    gtk_widget_set_halign(label, GTK_ALIGN_START);
+    gtk_widget_set_halign(label, GTK_ALIGN_END);
+    gtk_widget_add_css_class(label, "dim-label");
+    gtk_widget_add_css_class(label, "info-caption");
     auto* spin = gtk_spin_button_new_with_range(field.min, field.max, 1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin), field.value);
+    gtk_widget_set_size_request(spin, 132, -1);
     gtk_grid_attach(GTK_GRID(grid), label, column, row, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), spin, column + 1, row, 1, 1);
     g_state.gm_spin.emplace_back(field.label, GTK_SPIN_BUTTON(spin));
@@ -2045,23 +2261,34 @@ GtkWidget* build_tuning_page() {
   track_tr("tuning-note", note, TrWidget::Kind::Label);
   gtk_label_set_wrap(GTK_LABEL(note), TRUE);
   gtk_widget_add_css_class(note, "dim-label");
+  gtk_widget_add_css_class(note, "count-caption");
   gtk_label_set_xalign(GTK_LABEL(note), 0.0F);
+  gtk_widget_set_hexpand(note, TRUE);
 
   auto* apply = gtk_button_new_with_label(tr("btn-apply-gm").c_str());
   track_tr("btn-apply-gm", apply, TrWidget::Kind::Button);
   gtk_widget_add_css_class(apply, "suggested-action");
+  gtk_widget_set_halign(apply, GTK_ALIGN_END);
+  gtk_widget_set_valign(apply, GTK_ALIGN_CENTER);
   g_state.gm_apply = GTK_BUTTON(apply);
 
-  gtk_box_append(GTK_BOX(box), grid);
-  gtk_box_append(GTK_BOX(box), note);
-  gtk_box_append(GTK_BOX(box), apply);
+  // Fields live in one card; note and apply share a footer row.
+  auto* footer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+  gtk_box_append(GTK_BOX(footer), note);
+  gtk_box_append(GTK_BOX(footer), apply);
+
+  gtk_box_append(GTK_BOX(page), content_card(grid));
+  gtk_box_append(GTK_BOX(page), footer);
   g_signal_connect(apply, "clicked", G_CALLBACK(on_gm_apply_clicked), nullptr);
-  return box;
+  return page;
 }
 
 GtkWidget* build_license_page() {
-  auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+  auto* page = page_shell(12);
 
+  // License card: state on top, the actions that change it beneath.
+  auto* license_card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  gtk_widget_add_css_class(license_card, "metric-card");
   auto* gate_row = info_row_tr("caption-license-tier", &g_state.gate_value);
   auto* installation_row =
       info_row_tr("caption-installation-id", &g_state.installation_value);
@@ -2069,13 +2296,16 @@ GtkWidget* build_license_page() {
 
   auto* trial = gtk_button_new_with_label(tr("btn-start-trial").c_str());
   track_tr("btn-start-trial", trial, TrWidget::Kind::Button);
+  gtk_widget_add_css_class(trial, "suggested-action");
+  gtk_widget_set_halign(trial, GTK_ALIGN_START);
   auto* path = gtk_entry_new();
   gtk_entry_set_placeholder_text(GTK_ENTRY(path), "/path/to/entitlement.permit.json");
+  gtk_widget_set_hexpand(path, TRUE);
   auto* activate = gtk_button_new_with_label(tr("btn-activate-license").c_str());
   auto* deactivate = gtk_button_new_with_label(tr("btn-deactivate").c_str());
   track_tr("btn-activate-license", activate, TrWidget::Kind::Button);
   track_tr("btn-deactivate", deactivate, TrWidget::Kind::Button);
-  auto* path_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  auto* path_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   gtk_box_append(GTK_BOX(path_row), path);
   gtk_box_append(GTK_BOX(path_row), activate);
   gtk_box_append(GTK_BOX(path_row), deactivate);
@@ -2084,7 +2314,13 @@ GtkWidget* build_license_page() {
   g_state.activate = GTK_BUTTON(activate);
   g_state.deactivate = GTK_BUTTON(deactivate);
 
-  auto* exports = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  gtk_box_append(GTK_BOX(license_card), gate_row);
+  gtk_box_append(GTK_BOX(license_card), installation_row);
+  gtk_box_append(GTK_BOX(license_card), trial);
+  gtk_box_append(GTK_BOX(license_card), path_row);
+
+  // Export card: the evidence workflows this tier unlocks.
+  auto* exports = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   auto* report = gtk_button_new_with_label(tr("btn-export-report").c_str());
   auto* diagnostics = gtk_button_new_with_label(tr("btn-export-diagnostics").c_str());
   track_tr("btn-export-report", report, TrWidget::Kind::Button);
@@ -2093,26 +2329,27 @@ GtkWidget* build_license_page() {
   gtk_box_append(GTK_BOX(exports), diagnostics);
   g_state.report_export = GTK_BUTTON(report);
   g_state.diagnostics_export = GTK_BUTTON(diagnostics);
+  auto* export_card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  gtk_widget_add_css_class(export_card, "metric-card");
+  gtk_box_append(GTK_BOX(export_card), exports);
 
   auto* note = gtk_label_new(tr("license-note").c_str());
   track_tr("license-note", note, TrWidget::Kind::Label);
   gtk_label_set_wrap(GTK_LABEL(note), TRUE);
   gtk_widget_add_css_class(note, "dim-label");
+  gtk_widget_add_css_class(note, "count-caption");
   gtk_label_set_xalign(GTK_LABEL(note), 0.0F);
 
-  gtk_box_append(GTK_BOX(box), gate_row);
-  gtk_box_append(GTK_BOX(box), installation_row);
-  gtk_box_append(GTK_BOX(box), trial);
-  gtk_box_append(GTK_BOX(box), path_row);
-  gtk_box_append(GTK_BOX(box), exports);
-  gtk_box_append(GTK_BOX(box), note);
+  gtk_box_append(GTK_BOX(page), license_card);
+  gtk_box_append(GTK_BOX(page), export_card);
+  gtk_box_append(GTK_BOX(page), note);
 
   g_signal_connect(trial, "clicked", G_CALLBACK(on_trial_clicked), nullptr);
   g_signal_connect(activate, "clicked", G_CALLBACK(on_activate_clicked), nullptr);
   g_signal_connect(deactivate, "clicked", G_CALLBACK(on_deactivate_clicked), nullptr);
   g_signal_connect(report, "clicked", G_CALLBACK(on_report_export_clicked), nullptr);
   g_signal_connect(diagnostics, "clicked", G_CALLBACK(on_diagnostics_export_clicked), nullptr);
-  return box;
+  return page;
 }
 
 // ---- activation -----------------------------------------------------------
@@ -2172,31 +2409,33 @@ void on_activate(GtkApplication* app, gpointer) {
     gtk_window_present(g_state.window);
     return;
   }
-  (void)rivet::linux_ui::ApplyTheme();
+  // ApplyTheme pins the widget variant and returns the scheme the host
+  // stylesheet may use for its scheme-specific text tones.
+  auto const scheme = rivet::linux_ui::ApplyTheme();
+  apply_host_css(scheme);
+
   auto* window = gtk_application_window_new(app);
-  gtk_window_set_title(GTK_WINDOW(window), "gPTP Studio — Rivet + GTK4");
-  gtk_window_set_default_size(GTK_WINDOW(window), 1080, 760);
+  // Product title only — the toolkit attribution lives in the About dialog.
+  gtk_window_set_title(GTK_WINDOW(window), "gPTP Studio");
+  gtk_window_set_default_size(GTK_WINDOW(window), 1120, 760);
+  gtk_widget_set_size_request(window, 900, 620);
 
-  auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
-  gtk_widget_set_margin_top(root, 12);
-  gtk_widget_set_margin_bottom(root, 12);
-  gtk_widget_set_margin_start(root, 14);
-  gtk_widget_set_margin_end(root, 14);
+  auto* stack = gtk_stack_new();
+  gtk_stack_set_transition_type(GTK_STACK(stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
+  gtk_stack_add_titled(GTK_STACK(stack), build_engine_page(), "engine", tr("page-engine").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_qualification_page(), "qualification", tr("page-qualification").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_packets_page(), "packets", tr("page-packets").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_logs_page(), "logs", tr("page-logs").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_tuning_page(), "tuning", tr("page-tuning").c_str());
+  gtk_stack_add_titled(GTK_STACK(stack), build_license_page(), "license", tr("page-license").c_str());
+  gtk_widget_set_vexpand(stack, TRUE);
 
-  auto* header = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
-  auto* title = gtk_label_new("gPTP Studio");
-  gtk_widget_add_css_class(title, "title-2");
-  auto* status = gtk_label_new(tr("status-starting-backend").c_str());
-  gtk_label_set_xalign(GTK_LABEL(status), 0.0F);
-  gtk_widget_add_css_class(status, "dim-label");
-  gtk_widget_set_hexpand(status, TRUE);
-  // The status line is the error surface (backend errors, RPC failures);
-  // the text must be selectable so a bug report can start from it.
-  gtk_label_set_selectable(GTK_LABEL(status), TRUE);
-  gtk_box_append(GTK_BOX(header), title);
-  gtk_box_append(GTK_BOX(header), status);
-
-  // App menu (the host's single menu surface): update check + about.
+  // Header bar: the page switcher is the title widget (the six pages are
+  // the window's identity), the app menu sits at the end.
+  auto* header = gtk_header_bar_new();
+  auto* switcher = gtk_stack_switcher_new();
+  gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(switcher), GTK_STACK(stack));
+  gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header), switcher);
   auto* menu = g_menu_new();
   g_menu_item_updates =
       g_menu_item_new(tr("menu-check-updates").c_str(), "app.check-updates");
@@ -2210,23 +2449,24 @@ void on_activate(GtkApplication* app, gpointer) {
   track_tr("tooltip-menu", menu_button, TrWidget::Kind::Tooltip);
   gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(menu_button),
                                  G_MENU_MODEL(menu));
-  gtk_box_append(GTK_BOX(header), menu_button);
+  gtk_header_bar_pack_end(GTK_HEADER_BAR(header), menu_button);
+  gtk_window_set_titlebar(GTK_WINDOW(window), header);
 
-  auto* stack = gtk_stack_new();
-  gtk_stack_set_transition_type(GTK_STACK(stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
-  gtk_stack_add_titled(GTK_STACK(stack), build_engine_page(), "engine", tr("page-engine").c_str());
-  gtk_stack_add_titled(GTK_STACK(stack), build_qualification_page(), "qualification", tr("page-qualification").c_str());
-  gtk_stack_add_titled(GTK_STACK(stack), build_packets_page(), "packets", tr("page-packets").c_str());
-  gtk_stack_add_titled(GTK_STACK(stack), build_logs_page(), "logs", tr("page-logs").c_str());
-  gtk_stack_add_titled(GTK_STACK(stack), build_tuning_page(), "tuning", tr("page-tuning").c_str());
-  gtk_stack_add_titled(GTK_STACK(stack), build_license_page(), "license", tr("page-license").c_str());
-  auto* switcher = gtk_stack_switcher_new();
-  gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(switcher), GTK_STACK(stack));
-  gtk_widget_set_vexpand(stack, TRUE);
+  // Footer status bar: session/error surface, out of the content's way.
+  auto* status = gtk_label_new(tr("status-starting-backend").c_str());
+  gtk_label_set_xalign(GTK_LABEL(status), 0.0F);
+  gtk_label_set_ellipsize(GTK_LABEL(status), PANGO_ELLIPSIZE_END);
+  gtk_widget_set_hexpand(status, TRUE);
+  // The status line is the error surface (backend errors, RPC failures);
+  // the text must be selectable so a bug report can start from it.
+  gtk_label_set_selectable(GTK_LABEL(status), TRUE);
+  auto* statusbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  gtk_widget_add_css_class(statusbar, "gptp-statusbar");
+  gtk_box_append(GTK_BOX(statusbar), status);
 
-  gtk_box_append(GTK_BOX(root), switcher);
-  gtk_box_append(GTK_BOX(root), header);
+  auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_box_append(GTK_BOX(root), stack);
+  gtk_box_append(GTK_BOX(root), statusbar);
   gtk_window_set_child(GTK_WINDOW(window), root);
 
   g_state.window = GTK_WINDOW(window);
