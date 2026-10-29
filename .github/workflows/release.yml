@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@9d766b4acab672844093204cb4845ef4ef933d2c
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@9d766b4acab672844093204cb4845ef4ef933d2c
 
       - name: Install engine, host build, and packaging dependencies
         run: |
@@ -142,7 +142,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@9d766b4acab672844093204cb4845ef4ef933d2c
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@9d766b4acab672844093204cb4845ef4ef933d2c
       - name: Install Rivet (pinned release package)
         run: raco pkg install --auto --no-docs --ignore-checksums "https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}"
 
@@ -204,7 +204,7 @@ jobs:
             --out update-stable.json
           rm -f "$KEY_PEM"
           git config user.name "gptp-studio feed bot"
-          git config user.email "actions@turinglambdaai.github.io"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add update-stable.json
           git commit -m "feed: $VERSION [skip ci]"
           # The checkout is detached at the tag; rebase the feed commit
