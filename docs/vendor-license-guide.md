@@ -3,7 +3,7 @@
 > 仅作者（vendor）需要本文件。私钥不入库，请离线备份（家族密钥库
 > `~/Sync/Keys/gptp-studio-permit/`）。
 
-商业授权基于 [Permit](https://github.com/turinglambdaai/permit)——离线可验证、
+商业授权基于 [Permit](https://github.com/turlamai/permit)——离线可验证、
 在线可管理的签名权利协议。应用内置的是公钥信任库（`app/keys/trust-store.json`），
 验证完全离线；签发只需要 vendor 本机的私钥。
 
@@ -99,7 +99,7 @@ raco permit issue \
 ## 正式发行：走 commerce
 
 手工 `raco permit issue` 只用于测试和一次性补发。正式销售走
-[Commerce](https://github.com/turinglambdaai/commerce)（家族商业编排层）：
+[Commerce](https://github.com/turlamai/commerce)（家族商业编排层）：
 支付事件进、签名凭据出，offer→policy 的映射固定且可审计。
 
 - 产品 / offer / policy 的权威定义见 commerce 仓库

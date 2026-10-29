@@ -72,10 +72,10 @@ jobs:
             file
 
       - name: Install Rivet (pinned release package)
-        run: raco pkg install --auto --no-docs --ignore-checksums "https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}"
+        run: raco pkg install --auto --no-docs --ignore-checksums "https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}"
 
       - name: Install Permit (entitlement gate dependency)
-        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/permit.git
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turlamai/permit.git
 
       # --development matches the family precedent of running the full
       # package + smoke + installer flow without production platform
@@ -144,10 +144,10 @@ jobs:
       - name: Set up embeddable Racket CS
         uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@9d766b4acab672844093204cb4845ef4ef933d2c
       - name: Install Rivet (pinned release package)
-        run: raco pkg install --auto --no-docs --ignore-checksums "https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}"
+        run: raco pkg install --auto --no-docs --ignore-checksums "https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}"
 
       - name: Install Permit (entitlement gate dependency)
-        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/permit.git
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turlamai/permit.git
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:

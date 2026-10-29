@@ -49,10 +49,10 @@ jobs:
             file
 
       - name: Install Rivet (released package)
-        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/rivet.git
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turlamai/rivet.git
 
       - name: Install Permit (entitlement verification)
-        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turinglambdaai/permit.git
+        run: raco pkg install --auto --no-docs --ignore-checksums https://github.com/turlamai/permit.git
 
       - name: Backend tests
         run: raco test tests/*.rkt
