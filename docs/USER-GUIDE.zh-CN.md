@@ -12,7 +12,7 @@
 
 仅支持 Linux，提供 x64 和 arm64 发布附件。Windows 和 macOS 不属于产品目标。真实抓包与 PHC 操作需要兼容硬件和适当权限。
 
-从[官方 Releases](https://github.com/turinglambdaai/gptp-studio/releases)选择明确标注系统和架构的附件，阅读该版本说明并核对附带校验文件。未列出的附件或平台不视为已交付。预览构建可能没有系统发行者签名或公证；不要为安装而关闭系统安全保护。
+从[官方 Releases](https://github.com/turlamai/gptp-studio/releases)选择明确标注系统和架构的附件，阅读该版本说明并核对附带校验文件。未列出的附件或平台不视为已交付。预览构建可能没有系统发行者签名或公证；不要为安装而关闭系统安全保护。
 
 ## 第一次使用
 
@@ -38,7 +38,7 @@
 
 ## 获得帮助
 
-在 [GitHub Issues](https://github.com/turinglambdaai/gptp-studio/issues) 反馈，中文或英文均可。提供版本、系统与架构、安装渠道、复现步骤、预期和实际结果。先用合成样本复现；不要附上密钥、授权文件、数据库、原始私密文档或完整日志。公开支持不承诺响应时限。
+在 [GitHub Issues](https://github.com/turlamai/gptp-studio/issues) 反馈，中文或英文均可。提供版本、系统与架构、安装渠道、复现步骤、预期和实际结果。先用合成样本复现；不要附上密钥、授权文件、数据库、原始私密文档或完整日志。公开支持不承诺响应时限。
 
 ## 深入阅读
 

@@ -2,7 +2,7 @@
 
 **A Linux-native gPTP / IEEE 802.1AS debugging workstation for Automotive Ethernet.**
 
-[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![CI](https://github.com/turlamai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **English** · [中文](README.zh-CN.md)
 
@@ -10,7 +10,7 @@ gPTP Studio is deliberately focused on Linux because professional gPTP work depe
 
 For AUTOSAR EthTSyn / IEEE 802.1AS debugging, one Linux workstation can act as **GrandMaster, Slave or passive Listener**, show sync convergence live, decode every gPTP frame and correlate timing jumps with the packets and engine state that caused them.
 
-Built with [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turinglambdaai/rivet): a first-party GTK4 desktop host over an embedded Racket backend through a typed RPC/event contract, with Linux-native timing/network facilities for the real engine path. Live sync convergence renders through Rivet's shared real-time chart data plane.
+Built with [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turlamai/rivet): a first-party GTK4 desktop host over an embedded Racket backend through a typed RPC/event contract, with Linux-native timing/network facilities for the real engine path. Live sync convergence renders through Rivet's shared real-time chart data plane.
 
 ## Start here
 
@@ -54,7 +54,7 @@ A NIC reporting hardware timestamping and `/dev/ptpN` means the host has the req
 ### Debian / Ubuntu package
 
 ```bash
-curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-amd64.deb
+curl -LO https://github.com/turlamai/gptp-studio/releases/latest/download/gptp-studio-linux-amd64.deb
 sudo apt install ./gptp-studio-linux-amd64.deb
 /opt/gptp-studio/gptp-studio --doctor
 /opt/gptp-studio/gptp-studio
@@ -68,7 +68,7 @@ The Debian package declares the Linux runtime dependencies and installs the desk
 ### Relocatable tarball
 
 ```bash
-curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.tar.gz
+curl -LO https://github.com/turlamai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.tar.gz
 tar -xzf gptp-studio-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
@@ -79,7 +79,7 @@ cd gptp-studio-distributed
 
 Download `gptp-studio-<version>-<build>-linux-x86_64.rpm` (or
 `-aarch64.rpm`) from the
-[releases page](https://github.com/turinglambdaai/gptp-studio/releases/latest)
+[releases page](https://github.com/turlamai/gptp-studio/releases/latest)
 and install it:
 
 ```bash
@@ -94,7 +94,7 @@ hosts than the deb/rpm require; the same `--doctor` headless surface
 works before any GUI session:
 
 ```bash
-curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.AppImage
+curl -LO https://github.com/turlamai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.AppImage
 chmod +x gptp-studio-linux-x64.AppImage
 ./gptp-studio-linux-x64.AppImage --doctor
 ./gptp-studio-linux-x64.AppImage
@@ -107,8 +107,8 @@ sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
   libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev \
   rpm desktop-file-utils
 
-raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
-raco pkg install --auto --no-docs https://github.com/turinglambdaai/permit.git
+raco pkg install --auto --no-docs https://github.com/turlamai/rivet.git
+raco pkg install --auto --no-docs https://github.com/turlamai/permit.git
 raco rivet generate
 raco rivet build          # builds the GTK4 host (binary lands in .rivet/build/linux/)
 raco test tests/          # backend test suite

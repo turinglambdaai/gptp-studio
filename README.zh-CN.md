@@ -2,7 +2,7 @@
 
 **面向 Automotive Ethernet 的 Linux 原生 gPTP / IEEE 802.1AS 专业调试工作站。**
 
-[![CI](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![CI](https://github.com/turlamai/gptp-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/gptp-studio/actions/workflows/ci.yml) ![Platform](https://img.shields.io/badge/platform-Linux-blue) ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 [English](README.md) · **中文**
 
@@ -10,7 +10,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 
 针对 AUTOSAR EthTSyn / IEEE 802.1AS 场景，一台 Linux 工作站可以在 **GrandMaster / 从钟 / 被动监听** 三种角色之间切换，实时显示同步收敛、解码线上每一条 gPTP 报文，并把 offset 突跳与对应报文和引擎状态关联起来。
 
-项目使用 [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turinglambdaai/rivet)：原生 GTK4 桌面宿主经类型化 RPC/事件契约驱动内嵌 Racket 后端，真实时间路径交给 Linux 原生 PHC / hardware timestamp / linuxptp。同步收敛曲线由 Rivet 共享的实时图表数据面渲染。
+项目使用 [Racket](https://racket-lang.org/) + [Rivet](https://github.com/turlamai/rivet)：原生 GTK4 桌面宿主经类型化 RPC/事件契约驱动内嵌 Racket 后端，真实时间路径交给 Linux 原生 PHC / hardware timestamp / linuxptp。同步收敛曲线由 Rivet 共享的实时图表数据面渲染。
 
 ## 开始使用
 
@@ -54,7 +54,7 @@ gPTP Studio 现在明确定位为 **Linux-only 产品**。原因不是 UI 能不
 ### Debian / Ubuntu 包
 
 ```bash
-curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-amd64.deb
+curl -LO https://github.com/turlamai/gptp-studio/releases/latest/download/gptp-studio-linux-amd64.deb
 sudo apt install ./gptp-studio-linux-amd64.deb
 /opt/gptp-studio/gptp-studio --doctor
 /opt/gptp-studio/gptp-studio
@@ -68,7 +68,7 @@ deb 安装到 `/opt/gptp-studio` 并带桌面入口；上面的命令分别是�
 ### 可移植 tarball
 
 ```bash
-curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.tar.gz
+curl -LO https://github.com/turlamai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.tar.gz
 tar -xzf gptp-studio-linux-x64.tar.gz
 cd gptp-studio-distributed
 ./bin/gptp-studio --doctor
@@ -77,7 +77,7 @@ cd gptp-studio-distributed
 
 ### RPM 系发行版
 
-从[发布页](https://github.com/turinglambdaai/gptp-studio/releases/latest)
+从[发布页](https://github.com/turlamai/gptp-studio/releases/latest)
 下载 `gptp-studio-<版本>-<build>-linux-x86_64.rpm`（或 `-aarch64.rpm`）
 后安装：
 
@@ -92,7 +92,7 @@ AppImage 自带 GTK4 依赖闭包，比 deb/rpm 能跑在更老的宿主上；GU
 同样可以走 `--doctor` 无头面：
 
 ```bash
-curl -LO https://github.com/turinglambdaai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.AppImage
+curl -LO https://github.com/turlamai/gptp-studio/releases/latest/download/gptp-studio-linux-x64.AppImage
 chmod +x gptp-studio-linux-x64.AppImage
 ./gptp-studio-linux-x64.AppImage --doctor
 ./gptp-studio-linux-x64.AppImage
@@ -105,8 +105,8 @@ sudo apt install linuxptp libpcap-dev ethtool iproute2 libcap2-bin \
   libgtk-4-dev libglib2.0-dev libsecret-1-dev libncurses-dev zlib1g-dev liblz4-dev \
   rpm desktop-file-utils
 
-raco pkg install --auto --no-docs https://github.com/turinglambdaai/rivet.git
-raco pkg install --auto --no-docs https://github.com/turinglambdaai/permit.git
+raco pkg install --auto --no-docs https://github.com/turlamai/rivet.git
+raco pkg install --auto --no-docs https://github.com/turlamai/permit.git
 raco rivet generate
 raco rivet build          # 构建 GTK4 宿主（产物在 .rivet/build/linux/）
 raco test tests/          # 后端测试套件
