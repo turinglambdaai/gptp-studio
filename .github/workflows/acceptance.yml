@@ -10,9 +10,11 @@ on:
 permissions:
   contents: read
 
+# Preserve every main and manual acceptance run; only superseded PR checks
+# are cancelled. This keeps release quality gates intact under rapid pushes.
 concurrency:
-  group: acceptance-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: acceptance-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   RIVET_PIN: 9d766b4acab672844093204cb4845ef4ef933d2c
